@@ -3,7 +3,7 @@ import { isServerRequestMethod, type ServerRequestMethod } from "./protocolMetho
 
 export type AppServerRequest = CodexServerRequestMessage & { method: ServerRequestMethod };
 
-export type RequestKind = "approval" | "userInput" | "toolCall" | "authRefresh" | "unknown";
+export type RequestKind = "approval" | "userInput" | "toolCall" | "authRefresh" | "currentTime" | "unknown";
 
 export type RequestHandlingResult = {
   kind: RequestKind;
@@ -84,6 +84,10 @@ export function classifyServerRequest(method: ServerRequestMethod): RequestHandl
 
   if (method === "account/chatgptAuthTokens/refresh") {
     return { kind: "authRefresh", isKnownMethod: true, requiresResponse: true };
+  }
+
+  if (method === "currentTime/read") {
+    return { kind: "currentTime", isKnownMethod: true, requiresResponse: true };
   }
 
   return { kind: "unknown", isKnownMethod: true, requiresResponse: true };

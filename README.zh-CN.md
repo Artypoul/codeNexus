@@ -96,7 +96,7 @@ CodeNexus 已经对 Codex 协议中的流式输出做了可视化处理，包括
 | 操作系统       | Windows 10 或 Windows 11          |
 | Node.js        | 建议使用当前 LTS 版本             |
 | 包管理器       | `pnpm@10`                         |
-| Codex CLI 基线 | `@openai/codex@0.135.0`           |
+| Codex CLI 基线 | `@openai/codex@0.166.0`           |
 | 配置工具       | 推荐使用 CC Switch 配置 Codex CLI |
 
 Codex CLI 的 Provider、模型、账号和环境配置，建议使用 [CC Switch](https://github.com/farion1231/cc-switch)。它是一个面向 Claude Code、Codex、Gemini CLI、OpenCode、OpenClaw 等 agent 工具的一体化桌面管理器。
@@ -140,15 +140,13 @@ Release 发布由项目维护者通过 GitHub Actions 处理。普通贡献不�
 
 ## 项目结构
 
-| 路径                         | 用途                                                       |
-| ---------------------------- | ---------------------------------------------------------- |
-| `packages/app`               | Electron 应用壳、主进程、preload、渲染层、脚本和静态资源。 |
-| `packages/shared`            | 跨进程基础契约、IPC 通道、设置和协议类型。                 |
-| `packages/generated`         | Codex app-server 生成协议类型。                            |
-| `packages/feature-paper`     | Paper 工作区状态和 Vue 工作台/侧栏组件。                   |
-| `packages/feature-flowchart` | 流程图文档类型、历史服务、工作台和 AI 设置页。             |
-| `packages/feature-imagegen`  | 图片生成类型、任务/历史服务、状态和组件。                  |
-| `pnpm-workspace.yaml`        | workspace 包成员配置。                                     |
+| 路径                        | 用途                                                       |
+| --------------------------- | ---------------------------------------------------------- |
+| `packages/app`              | Electron 应用壳、主进程、preload、渲染层、脚本和静态资源。 |
+| `packages/shared`           | 跨进程基础契约、IPC 通道、设置和协议类型。                 |
+| `packages/generated`        | Codex app-server 生成协议类型。                            |
+| `packages/feature-imagegen` | 图片生成类型、任务/历史服务、状态和组件。                  |
+| `pnpm-workspace.yaml`       | workspace 包成员配置。                                     |
 
 ## 边界说明
 

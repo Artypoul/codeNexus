@@ -25,7 +25,7 @@ export type HistoryRewriteRuntimeDeps = {
   getWorkspaceForThread: (threadId: string) => string;
   getServerIdForThread: (threadId: string) => string;
   ensureThreadResumed: (threadId: string) => Promise<boolean>;
-  requestThreadRollback: (threadId: string, turns: number) => Promise<boolean>;
+  requestThreadRollback: (threadId: string, beforeTurnId: string) => Promise<boolean>;
   requestTurnInterrupt: TurnInterruptRequest;
   pushEvent: PushEvent;
   translate: TranslateFn;
@@ -264,7 +264,9 @@ export function createHistoryRewriteRuntime(deps: HistoryRewriteRuntimeDeps): Hi
 
     const resumed = await ensureThreadResumed(tid);
     if (!resumed) return false;
-    const ok = await requestThreadRollback(tid, rollback.count);
+    const beforeTurnId = String(rollback.turnIds[0] ?? "").trim();
+    if (!beforeTurnId) return false;
+    const ok = await requestThreadRollback(tid, beforeTurnId);
     if (!ok) return false;
 
     if (rollback.combinedDiff.trim()) {

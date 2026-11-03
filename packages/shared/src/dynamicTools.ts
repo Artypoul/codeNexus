@@ -77,6 +77,19 @@ export class DynamicToolRegistry {
       }));
   }
 
+  buildSpecsForNames(names: readonly string[]): DynamicToolSpecLike[] {
+    return names
+      .map((name) => this.getDefinition(name))
+      .filter((def): def is DynamicToolDefinition => def != null)
+      .map((def) => ({
+        namespace: def.namespace,
+        name: def.name,
+        description: def.description,
+        inputSchema: def.inputSchema,
+        deferLoading: false,
+      }));
+  }
+
   /**
    * 构建默认的启用/禁用状态（所有已注册工具默认启用）。
    */
@@ -150,57 +163,3 @@ dynamicToolRegistry.register({
   },
   developerInstructions: IMAGE_GENERATION_DYNAMIC_TOOL_DEVELOPER_INSTRUCTIONS,
 });
-
-// ---------------------------------------------------------------------------
-// Backward-compatible exports (delegate to registry)
-// ---------------------------------------------------------------------------
-
-/** @deprecated Use `dynamicToolRegistry.isKnownToolName(name)` instead. */
-export type BuiltinDynamicToolName = string;
-
-/** @deprecated Use `dynamicToolRegistry.getDefinition(name)` instead. */
-export type BuiltinDynamicToolDefinition = DynamicToolDefinition;
-
-/** @deprecated Use `dynamicToolRegistry.getAllDefinitions()` or `.getDefinition(name)` instead. */
-export const BUILTIN_DYNAMIC_TOOL_DEFINITIONS: Record<string, DynamicToolDefinition> = {
-  get image_generate() {
-    return dynamicToolRegistry.getDefinition(IMAGE_GENERATION_DYNAMIC_TOOL_NAME)!;
-  },
-};
-
-/** @deprecated Use `dynamicToolRegistry.getAllNames()` instead. */
-export const BUILTIN_DYNAMIC_TOOL_NAMES: string[] = dynamicToolRegistry.getAllNames();
-
-/** @deprecated Use `dynamicToolRegistry.getAllNames()` instead. */
-export const BUILTIN_COMMANDER_DYNAMIC_TOOL_NAMES: string[] = dynamicToolRegistry.getAllNames();
-
-/** @deprecated Use `dynamicToolRegistry.getAllNames()` instead. */
-export const BUILTIN_WORKER_DYNAMIC_TOOL_NAMES: string[] = dynamicToolRegistry.getAllNames();
-
-/** @deprecated Use `dynamicToolRegistry.isKnownToolName(name)` instead. */
-export function normalizeBuiltinDynamicToolName(value: unknown): string | null {
-  const name = String(value ?? "").trim();
-  return dynamicToolRegistry.isKnownToolName(name) ? name : null;
-}
-
-/** @deprecated Use `dynamicToolRegistry.buildEnabledSpecs(enabledByName)` instead. */
-export function buildBuiltinDynamicToolSpecs(names: string[] = []): DynamicToolSpecLike[] {
-  return names
-    .map((name) => dynamicToolRegistry.getDefinition(name))
-    .filter((def): def is DynamicToolDefinition => def != null)
-    .map((def) => ({
-      namespace: def.namespace,
-      name: def.name,
-      description: def.description,
-      inputSchema: def.inputSchema,
-      deferLoading: false,
-    }));
-}
-
-/** @deprecated Use `dynamicToolRegistry.buildEnabledSpecs(enabledByName)` instead. */
-export function filterEnabledBuiltinDynamicToolNames(
-  names: string[],
-  enabledByName: Partial<Record<string, boolean>> | null | undefined,
-): string[] {
-  return names.filter((name) => enabledByName?.[name] !== false);
-}

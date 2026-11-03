@@ -19,11 +19,6 @@ type TranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type PushEvent = (method: string, paramsText: string, opts?: { threadId?: string; level?: RuntimeEventLevel }) => void;
 type ShowToast = (options: { kind?: ToastKind; title?: string; message: string }) => void;
 
-type JsonRpcErrorLike = {
-  code: number;
-  message: string;
-};
-
 export type SaveGlobalConfigOptions = {
   source?: "manual" | "auto";
   silentSuccessToast?: boolean;
@@ -60,20 +55,6 @@ function readErrorMessage(error: unknown): string {
     if (message) return String(message);
   }
   return String(error);
-}
-
-function parseJsonRpcError(error: unknown): JsonRpcErrorLike | null {
-  const raw = readErrorMessage(error).trim();
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const code = typeof parsed.code === "number" ? parsed.code : null;
-    const message = typeof parsed.message === "string" ? parsed.message : "";
-    if (code == null) return null;
-    return { code, message };
-  } catch {
-    return null;
-  }
 }
 
 export function createGlobalConfigManagementRuntime(
@@ -129,13 +110,8 @@ export function createGlobalConfigManagementRuntime(
       return;
     }
 
-    const rpcErr = parseJsonRpcError(requirementsResult.reason);
     const requirementsMsg = readErrorMessage(requirementsResult.reason);
     configRequirementsStore.setRequirements(null);
-    if (rpcErr?.code === -32601) {
-      configRequirementsStore.setLoadState("ready", translate("runtime.requirementsUnsupported"));
-      return;
-    }
     configRequirementsStore.setLoadState(
       "error",
       translate("runtime.requirementsReadFailed", { message: requirementsMsg })

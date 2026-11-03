@@ -96,7 +96,7 @@ This capability depends on Codex experimental protocol events. Enable the stream
 | Operating system   | Windows 10 or Windows 11            |
 | Node.js            | Current LTS recommended             |
 | Package manager    | `pnpm@10`                           |
-| Codex CLI baseline | `@openai/codex@0.135.0`             |
+| Codex CLI baseline | `@openai/codex@0.166.0`             |
 | Configuration      | CC Switch recommended for Codex CLI |
 
 For Codex CLI provider, model, account, and environment configuration, use [CC Switch](https://github.com/farion1231/cc-switch), an all-in-one desktop manager for Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw, and related agent tools.
@@ -134,15 +134,13 @@ For local community discussion, a QQ group QR code can be added to the Chinese R
 
 ## Project Structure
 
-| Path                         | Purpose                                                                |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| `packages/app`               | Electron app shell, main process, preload, renderer, scripts, assets.  |
-| `packages/shared`            | Cross-process base contracts, IPC channels, settings, protocol types.  |
-| `packages/generated`         | Generated Codex app-server protocol types.                             |
-| `packages/feature-paper`     | Paper workspace store and Vue workbench/sidebar components.            |
-| `packages/feature-flowchart` | Flowchart document types, history service, workbench, and AI settings. |
-| `packages/feature-imagegen`  | Image generation types, task/history services, store, and components.  |
-| `pnpm-workspace.yaml`        | Workspace package membership.                                          |
+| Path                        | Purpose                                                               |
+| --------------------------- | --------------------------------------------------------------------- |
+| `packages/app`              | Electron app shell, main process, preload, renderer, scripts, assets. |
+| `packages/shared`           | Cross-process base contracts, IPC channels, settings, protocol types. |
+| `packages/generated`        | Generated Codex app-server protocol types.                            |
+| `packages/feature-imagegen` | Image generation types, task/history services, store, and components. |
+| `pnpm-workspace.yaml`       | Workspace package membership.                                         |
 
 ## Boundaries
 

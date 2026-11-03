@@ -6,7 +6,7 @@ import {
   buildThreadStartConfigOverridesForModel,
   type ThreadStartConfigOverrides,
 } from "@codenexus/shared/modelToolFeatureOverrides";
-import { buildBuiltinDynamicToolSpecs } from "@codenexus/shared/dynamicTools";
+import { dynamicToolRegistry } from "@codenexus/shared/dynamicTools";
 import {
   buildDeveloperInstructionsForProfile,
   buildDynamicToolNamesForInstructionProfile,
@@ -21,7 +21,6 @@ import {
 
 export type ThreadStartParamsRuntimeDeps = {
   getMainView: () => MainView;
-  getPaperMode: () => unknown;
   getApprovalPolicy: () => unknown;
   getApprovalsReviewer: () => unknown;
   normalizeWorkspacePath: (value: string) => string;
@@ -37,7 +36,7 @@ export type ThreadStartParamsRuntime = {
 
 export function createThreadStartParamsRuntime(deps: ThreadStartParamsRuntimeDeps): ThreadStartParamsRuntime {
   const resolveCurrentInstructionProfile = (): CodexInstructionProfile => {
-    return resolveCodexInstructionProfileForMainView(deps.getMainView(), { paperMode: deps.getPaperMode() });
+    return resolveCodexInstructionProfileForMainView(deps.getMainView());
   };
 
   const buildThreadStartParamsForModel: ThreadStartParamsRuntime["buildThreadStartParamsForModel"] = (args) => {
@@ -47,7 +46,7 @@ export function createThreadStartParamsRuntime(deps: ThreadStartParamsRuntimeDep
     const approvalPolicy = normalizeApprovalPolicy(deps.getApprovalPolicy());
     const approvalsReviewer = normalizeApprovalsReviewer(deps.getApprovalsReviewer());
     const instructionProfile = resolveCurrentInstructionProfile();
-    const dynamicTools = buildBuiltinDynamicToolSpecs(
+    const dynamicTools = dynamicToolRegistry.buildSpecsForNames(
       buildDynamicToolNamesForInstructionProfile(instructionProfile)
     ) as ThreadStartParams["dynamicTools"];
     const developerInstructions = buildDeveloperInstructionsForProfile(instructionProfile);
@@ -64,7 +63,6 @@ export function createThreadStartParamsRuntime(deps: ThreadStartParamsRuntimeDep
         ...(dynamicTools && dynamicTools.length > 0 ? { dynamicTools } : {}),
         ...(developerInstructions ? { developerInstructions } : {}),
         experimentalRawEvents: false,
-        persistExtendedHistory: true,
       },
     };
   };

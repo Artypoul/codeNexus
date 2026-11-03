@@ -2,20 +2,18 @@
 
 本文档记录当前项目对 Codex App Server `ServerNotification` / `ServerRequest` 的接收边界、聊天时间线语义处理、隐藏处理、默认处理，以及和 `thread/start`、`turn/start`、`thread/settings/update` 相关的协议语义。
 
-最后核对时间：2026-06-01。
+最后核对时间：2026-11-03（Codex app-server 0.166.0）。
 
 ## 结论
 
-当前项目的协议类型来源于官方生成文件，但渲染进程还有一层运行时白名单。白名单的目标不是接收所有历史方法，而是把 deprecated / legacy 方法挡在主处理流程外。
+当前项目的协议类型来源于官方生成文件，渲染进程的运行时白名单与官方方法集合完全一致，不再维护旧版本方法排除列表。
 
-- 官方 `ServerNotification`: 65 个方法，类型来源于 `packages/generated/src/codex-app-server/ServerNotification.ts`
-- 客户端白名单 `ServerNotification`: 60 个方法，定义在 `packages/app/src/renderer/app/events/protocolMethods.ts`
-- 当前未进入白名单的 `ServerNotification`: `thread/settings/updated`、`item/fileChange/outputDelta`、`thread/compacted`、`fuzzyFileSearch/sessionUpdated`、`fuzzyFileSearch/sessionCompleted`
-- 官方 `ServerRequest`: 10 个方法，类型来源于 `packages/generated/src/codex-app-server/ServerRequest.ts`
-- 客户端白名单 `ServerRequest`: 8 个 v2 方法，定义在 `packages/app/src/renderer/app/events/protocolMethods.ts`
-- 当前未进入白名单的 legacy `ServerRequest`: `applyPatchApproval`、`execCommandApproval`
+- 官方 `ServerNotification`: 87 个方法，类型来源于 `packages/generated/src/codex-app-server/ServerNotification.ts`
+- 客户端白名单 `ServerNotification`: 87 个方法，定义在 `packages/app/src/renderer/app/events/protocolMethods.ts`
+- 官方 `ServerRequest`: 11 个方法，类型来源于 `packages/generated/src/codex-app-server/ServerRequest.ts`
+- 客户端白名单 `ServerRequest`: 11 个方法，定义在 `packages/app/src/renderer/app/events/protocolMethods.ts`
 
-需要特别注意：`thread/settings/updated` 是当前生成协议中的官方通知，但还没有加入 `SERVER_NOTIFICATION_METHODS`。如果目标是支持它，应当把它加入白名单并决定是否写入 debug timeline、thread store 或默认 timeline；如果目标是继续不接收它，应当把它显式列入 unsupported 类型，避免协议完整性断言和文档不一致。
+0.166.0 新增的 `thread/reverted`、`thread/deleted`、`thread/readState/changed`、`rawResponse/completed` 等通知已经加入白名单，当前走默认 timeline / debug 分支，尚未为它们新增专门 UI。`currentTime/read` 作为新增的反向请求已实现：responder 直接返回当前 Unix 秒时间。
 
 但“协议层接收”不等于“聊天 UI 语义处理”。真正进入聊天事件流水线的处理入口是：
 
@@ -46,11 +44,11 @@
 
 当前 instruction 注入策略：
 
-- `packages/shared/src/codexInstructionProfiles.ts` 根据主工作区和论文模式解析 profile。
+- `packages/shared/src/codexInstructionProfiles.ts` 根据主视图解析 profile；当前只有 chat 与 image 两种主视图，均使用 chat profile。
 - `thread/start` 通过 `developerInstructions` 和 `dynamicTools` 初始化线程能力。
 - `turn/start` 通过 `collaborationMode.settings.developer_instructions` 为本回合及后续回合设置模式指令。
 - `composeMode === "plan"` 时，`developer_instructions` 发送 `null`，含义是使用所选 mode 的内置行为，而不是遗漏字段。
-- 非 plan 模式会根据 profile 注入 chat / flowchart / paper-\* 指令；chat profile 同时注入图片生成动态工具。
+- 非 plan 模式注入 chat 指令；chat profile 同时注入图片生成动态工具。
 
 ## 已语义处理的通知
 
@@ -150,15 +148,7 @@
 
 ## 非白名单通知
 
-这些通知不会进入 `installEventPipeline.ts`，因为 `normalizeNotification` 会通过 `isServerNotificationMethod` 丢弃它们。
-
-| 通知                               | 当前状态                                                              |
-| ---------------------------------- | --------------------------------------------------------------------- |
-| `thread/settings/updated`          | 官方生成协议已有；当前未加入运行时白名单，是最新协议漂移点            |
-| `item/fileChange/outputDelta`      | deprecated legacy 文件变更输出；当前不再接收                          |
-| `thread/compacted`                 | legacy 上下文压缩通知；当前使用 item lifecycle 的 `contextCompaction` |
-| `fuzzyFileSearch/sessionUpdated`   | legacy fuzzy file search 通知；当前不再接收                           |
-| `fuzzyFileSearch/sessionCompleted` | legacy fuzzy file search 通知；当前不再接收                           |
+当前白名单覆盖官方全部 `ServerNotification`，没有兼容性排除项。未单独实现语义的通知统一走默认 timeline / debug 分支。
 
 ## 已处理通知中未完整消费的字段
 
@@ -172,7 +162,7 @@
 | `turn/completed.turn`                              | `id`、`error`、`completedAt`、`durationMs`                                                                                         | `items`、`itemsView`、`status`、`startedAt`                                                                                           |
 | `item/started`                                     | `item`、`threadId`、`turnId`                                                                                                       | `startedAtMs` 只在部分下游 UI 中间接使用，未统一作为权威事件时间                                                                      |
 | `item/completed`                                   | `item`、`threadId`、`turnId`                                                                                                       | `completedAtMs` 未统一作为权威事件时间                                                                                                |
-| `thread/tokenUsage/updated.tokenUsage`             | `last.totalTokens` / `last.inputTokens` / `total.totalTokens`、`contextWindow` / `modelContextWindow`、last/total breakdown        | token 明细仍未全部展示                                                                                                                |
+| `thread/tokenUsage/updated.tokenUsage`             | `last.totalTokens` / `last.inputTokens` / `total.totalTokens`、`modelContextWindow`、last/total breakdown                          | token 明细仍未全部展示                                                                                                                |
 | `agentMessage` item                                | `id`、`text`、`phase`                                                                                                              | `memoryCitation`                                                                                                                      |
 | `reasoning` item                                   | `id`、`summary`、`content`                                                                                                         | `content` 只在 reasoning block 的“原始推理”折叠区展示                                                                                 |
 | `item/reasoning/textDelta`                         | `threadId`、`turnId`、`itemId`、`delta`、`contentIndex`                                                                            | `delta` 只在 reasoning block 的“原始推理”折叠区展示                                                                                   |
@@ -198,7 +188,7 @@
 - `update.move_path !== null` 时视为 rename
 - `PatchApplyStatus`: `inProgress` / `completed` / `failed` / `declined`
 
-`item/fileChange/outputDelta` 是官方保留但 deprecated 的 legacy 通知，当前项目运行时白名单已不再接收它。
+`item/fileChange/outputDelta` 是官方保留的 deprecated 通知；当前白名单不再做特殊排除，它只会走默认 timeline / debug 分支，不参与文件变更卡片聚合。
 
 当前官方文件变更通知仍然进入主 `timelineStore` 并聚合成文件变更卡片；同时在 `timelineDebugEnabled` 开启时，`item/fileChange/patchUpdated` 以及 `item/started` / `item/completed` 中的 `fileChange` 生命周期事件会额外写入 `debugTimelineStore`，用于查看原始官方事件。
 
@@ -206,8 +196,8 @@
 
 如果目标是“和官方协议完全对照，并让聊天/状态 UI 完整反映官方通知”，建议按下面顺序补齐：
 
-1. 先处理协议漂移：决定 `thread/settings/updated` 是进入白名单并隐藏/debug，还是显式作为 unsupported。
-2. 线程状态类：处理 `thread/archived`、`thread/unarchived`、`thread/closed`、`thread/name/updated`，并完善 `thread/status/changed` 的状态模型。
+1. 先处理 0.166 新增通知的语义：当前它们已进入白名单并走默认 timeline / debug，需要决定是否提升为专门 UI。
+2. 线程状态类：处理 `thread/archived`、`thread/unarchived`、`thread/closed`、`thread/name/updated`、`thread/deleted`、`thread/reverted`，并完善 `thread/status/changed` 的状态模型。
 3. 用户可见 notice 类：处理 `deprecationNotice`、`configWarning`、`windows/worldWritableWarning`、`model/rerouted`。
 4. 官方时间字段：让 `startedAtMs`、`completedAtMs`、`turn.startedAt`、`turn.completedAt` 成为卡片和活动时间的权威来源。
 5. 账号/MCP/app 状态类：处理 `account/updated`、`account/login/completed`、`mcpServer/oauthLogin/completed`、`app/list/updated`。

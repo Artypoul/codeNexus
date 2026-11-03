@@ -8,16 +8,8 @@ const ENCRYPTED_PREFIX = "enc:";
  * sensitive strings before persisting them to disk.
  *
  * Encrypted values are stored as "enc:<base64>".
- * Legacy plaintext values are accepted on read and will be encrypted
- * automatically on the next write (auto-migration).
  */
 export class SecureStorageService {
-  private _needsMigration = false;
-
-  get needsMigration(): boolean {
-    return this._needsMigration;
-  }
-
   isAvailable(): boolean {
     return safeStorage.isEncryptionAvailable();
   }
@@ -25,8 +17,8 @@ export class SecureStorageService {
   encrypt(plaintext: string | null): string | null {
     if (plaintext == null || plaintext === "") return plaintext;
     if (!this.isAvailable()) {
-      logger.warn("secure-storage", "encryption unavailable, storing plaintext");
-      return plaintext;
+      logger.error("secure-storage", "encryption unavailable, refusing to store plaintext");
+      return null;
     }
     const encrypted = safeStorage.encryptString(plaintext);
     return `${ENCRYPTED_PREFIX}${encrypted.toString("base64")}`;
@@ -35,9 +27,8 @@ export class SecureStorageService {
   decrypt(stored: string | null): string | null {
     if (stored == null || stored === "") return stored;
     if (!stored.startsWith(ENCRYPTED_PREFIX)) {
-      logger.info("secure-storage", "detected plaintext value, will encrypt on next write");
-      this._needsMigration = true;
-      return stored;
+      logger.warn("secure-storage", "refusing non-encrypted stored value");
+      return null;
     }
     if (!this.isAvailable()) {
       logger.warn("secure-storage", "decryption unavailable, cannot read encrypted value");

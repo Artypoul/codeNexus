@@ -167,7 +167,7 @@ function normalizeToolCallArguments(params: DynamicToolCallParams) {
     prompt: toNullableText(args.prompt) ?? "",
     size: toNullableText(args.size),
     quality: toNullableText(args.quality),
-    outputFormat: toNullableText(args.output_format ?? args.outputFormat),
+    outputFormat: toNullableText(args.output_format),
     n: toIntegerInRange(args.n, 1, 1, 4),
   };
 }
@@ -490,6 +490,16 @@ export function installRequestResponder(pinia: Pinia) {
           });
         }
       })();
+      return;
+    }
+
+    if (handling.kind === "currentTime") {
+      void codexDesktop.codexServer.respond({
+        serverId: payload.serverId,
+        id: msg.id,
+        method: msg.method,
+        result: { currentTimeAt: Math.floor(Date.now() / 1000) },
+      });
       return;
     }
 

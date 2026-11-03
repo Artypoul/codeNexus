@@ -250,7 +250,6 @@ export function createThreadModelCompatibilityRuntime(
         model,
         cwd: workspace,
         config: { ...args.configOverrides },
-        persistExtendedHistory: true,
       };
       const res = await codexDesktop.codexServer.rpc({ serverId, method: "thread/resume", params: resumeParams });
       const result = (res.result ?? {}) as { model?: unknown };

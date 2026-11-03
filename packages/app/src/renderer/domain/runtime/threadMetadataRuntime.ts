@@ -5,20 +5,13 @@ import {
   normalizeOptionalText,
   resolveThreadParentIdForGraph,
 } from "../../features/history/threadMetadata";
-import { isIpcHandlerMissingError } from "../../shared/ipcErrors";
 import type { useThreadStore } from "../../stores/thread.store";
 import type { LocalThreadItem, ThreadHistoryItem } from "../types";
 import type { Thread as ServerThread } from "@codenexus/generated/codex-app-server/v2/Thread";
 import type { ThreadListParams } from "@codenexus/generated/codex-app-server/v2/ThreadListParams";
 import type { ThreadListResponse } from "@codenexus/generated/codex-app-server/v2/ThreadListResponse";
-import { IPC_HISTORY_CHANNELS } from "@codenexus/shared/ipc";
 
 type ThreadStore = ReturnType<typeof useThreadStore>;
-
-type JsonRpcErrorLike = {
-  code: number;
-  message: string;
-};
 
 type ThreadListItem = ThreadHistoryItem | LocalThreadItem;
 
@@ -44,20 +37,6 @@ function readErrorMessage(error: unknown): string {
   return String(error ?? "");
 }
 
-function parseJsonRpcError(error: unknown): JsonRpcErrorLike | null {
-  const raw = readErrorMessage(error).trim();
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const code = typeof parsed.code === "number" ? parsed.code : null;
-    const message = typeof parsed.message === "string" ? parsed.message : "";
-    if (code == null) return null;
-    return { code, message };
-  } catch {
-    return null;
-  }
-}
-
 export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): ThreadMetadataRuntime {
   const {
     appTimelineId,
@@ -79,7 +58,7 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
     const workspace = normalizeWorkspacePath(workspacePathValue);
     const serverId = getServerIdForWorkspace(workspace);
     if (!workspace || !serverId) {
-      return { data: [], nextCursor: null, backwardsCursor: null };
+      return { data: [], readStates: null, nextCursor: null, backwardsCursor: null };
     }
     const params: ThreadListParams = {
       cwd: workspace,
@@ -139,10 +118,7 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
         if (patches.length === 0) return;
         await codexDesktop.history.mergeThreadMetadata({ threads: patches });
       } catch (e: unknown) {
-        const rpcErr = parseJsonRpcError(e);
-        if (rpcErr?.code === -32601) return;
         const msg = readErrorMessage(e);
-        if (isIpcHandlerMissingError(msg, IPC_HISTORY_CHANNELS.historyMergeThreadMetadata)) return;
         console.warn("[runtimeOrchestrator] thread metadata hydration failed", { workspace, msg });
       } finally {
         threadMetadataHydrationPromiseByWorkspace.delete(workspace);

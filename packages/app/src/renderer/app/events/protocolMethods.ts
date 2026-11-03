@@ -4,17 +4,8 @@ import type {
 } from "@codenexus/shared/codex-protocol";
 
 export type { OfficialServerRequestMethod };
-export type UnsupportedLegacyServerRequestMethod = "applyPatchApproval" | "execCommandApproval";
-export type UnsupportedDeprecatedServerNotificationMethod =
-  | "item/fileChange/outputDelta"
-  | "thread/compacted"
-  | "fuzzyFileSearch/sessionUpdated"
-  | "fuzzyFileSearch/sessionCompleted";
-export type ServerRequestMethod = Exclude<OfficialServerRequestMethod, UnsupportedLegacyServerRequestMethod>;
-export type ServerNotificationMethod = Exclude<
-  OfficialServerNotificationMethod,
-  UnsupportedDeprecatedServerNotificationMethod
->;
+export type ServerRequestMethod = OfficialServerRequestMethod;
+export type ServerNotificationMethod = OfficialServerNotificationMethod;
 
 type AssertNever<T extends never> = T;
 
@@ -27,11 +18,15 @@ export const SERVER_REQUEST_METHODS: readonly ServerRequestMethod[] = [
   "item/tool/call",
   "account/chatgptAuthTokens/refresh",
   "attestation/generate",
+  "currentTime/read",
+  "applyPatchApproval",
+  "execCommandApproval",
 ];
 
 export const SERVER_NOTIFICATION_METHODS: readonly ServerNotificationMethod[] = [
   "error",
   "thread/started",
+  "thread/settings/updated",
   "thread/status/changed",
   "thread/archived",
   "thread/unarchived",
@@ -90,28 +85,50 @@ export const SERVER_NOTIFICATION_METHODS: readonly ServerNotificationMethod[] = 
   "windows/worldWritableWarning",
   "windowsSandbox/setupCompleted",
   "account/login/completed",
+  "thread/readState/changed",
+  "thread/deleted",
+  "thread/reverted",
+  "thread/attachment/updated",
+  "thread/prediction/updated",
+  "thread/queue/changed",
+  "project/changed",
+  "thread/project/updated",
+  "thread/environment/connected",
+  "thread/environment/disconnected",
+  "autoApprovalReview/strictReviewRequired",
+  "rawResponse/completed",
+  "mcpServer/event/stream/notification",
+  "account/gatewayOAuth/changed",
+  "externalAgentConfig/import/progress",
+  "modelProvider/authRecoveryStarted",
+  "modelProvider/authRecoveryCompleted",
+  "turn/moderationMetadata",
+  "model/safetyBuffering/updated",
+  "thread/realtime/item/started",
+  "thread/realtime/item/transcript/delta",
+  "thread/realtime/item/completed",
+  "item/fileChange/outputDelta",
+  "thread/compacted",
+  "fuzzyFileSearch/sessionUpdated",
+  "fuzzyFileSearch/sessionCompleted",
 ];
 
 type MissingServerRequestMethods = Exclude<ServerRequestMethod, (typeof SERVER_REQUEST_METHODS)[number]>;
 type ExtraServerRequestMethods = Exclude<(typeof SERVER_REQUEST_METHODS)[number], ServerRequestMethod>;
-type UnknownUnsupportedLegacyServerRequestMethods = Exclude<
-  UnsupportedLegacyServerRequestMethod,
-  OfficialServerRequestMethod
->;
-type UnknownUnsupportedDeprecatedServerNotificationMethods = Exclude<
-  UnsupportedDeprecatedServerNotificationMethod,
-  OfficialServerNotificationMethod
->;
 type MissingServerNotificationMethods = Exclude<ServerNotificationMethod, (typeof SERVER_NOTIFICATION_METHODS)[number]>;
 type ExtraServerNotificationMethods = Exclude<(typeof SERVER_NOTIFICATION_METHODS)[number], ServerNotificationMethod>;
 
 type _AssertNoMissingServerRequestMethods = AssertNever<MissingServerRequestMethods>;
 type _AssertNoExtraServerRequestMethods = AssertNever<ExtraServerRequestMethods>;
-type _AssertNoUnknownUnsupportedLegacyServerRequestMethods = AssertNever<UnknownUnsupportedLegacyServerRequestMethods>;
-type _AssertNoUnknownUnsupportedDeprecatedServerNotificationMethods =
-  AssertNever<UnknownUnsupportedDeprecatedServerNotificationMethods>;
 type _AssertNoMissingServerNotificationMethods = AssertNever<MissingServerNotificationMethods>;
 type _AssertNoExtraServerNotificationMethods = AssertNever<ExtraServerNotificationMethods>;
+
+export type _ProtocolMethodAssertions = [
+  _AssertNoMissingServerRequestMethods,
+  _AssertNoExtraServerRequestMethods,
+  _AssertNoMissingServerNotificationMethods,
+  _AssertNoExtraServerNotificationMethods,
+];
 
 const SERVER_REQUEST_METHOD_SET = new Set<string>(SERVER_REQUEST_METHODS);
 const SERVER_NOTIFICATION_METHOD_SET = new Set<string>(SERVER_NOTIFICATION_METHODS);

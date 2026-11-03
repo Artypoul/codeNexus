@@ -76,7 +76,7 @@ function dynamicToolArgsSummary(toolName: string, args: Record<string, unknown>)
     const prompt = shortenText(args.prompt, 160);
     const size = String(args.size ?? "").trim();
     const quality = String(args.quality ?? "").trim();
-    const outputFormat = String(args.output_format ?? args.outputFormat ?? "").trim();
+    const outputFormat = String(args.output_format ?? "").trim();
     return [
       prompt ? `prompt=${prompt}` : "",
       size ? `size=${size}` : "",

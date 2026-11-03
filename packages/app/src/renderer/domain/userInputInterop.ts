@@ -64,39 +64,10 @@ export function normalizeUserInputPrompt(
 
   const threadId = normalizeText(request.params.threadId);
   const serverName = normalizeText(request.params.serverName);
-  const message = normalizeText(request.params.message);
-  if (!threadId || !serverName || !message) return null;
+  if (!threadId || !serverName) return null;
 
-  if (request.params.mode === "form") {
-    return {
-      kind: "elicitationForm",
-      serverId: normalizeText(serverId),
-      requestId: request.id,
-      method: request.method,
-      threadId,
-      turnId: normalizeText(request.params.turnId) || undefined,
-      serverName,
-      message,
-      requestedSchema: request.params.requestedSchema,
-      questions: [
-        {
-          id: MCP_ELICITATION_CONTENT_QUESTION_ID,
-          header: `MCP · ${serverName}`,
-          question: message,
-          options: [],
-          isOther: false,
-          isSecret: false,
-        },
-      ],
-    };
-  }
-
-  const url = normalizeText(request.params.url);
-  const elicitationId = normalizeText(request.params.elicitationId);
-  if (!url || !elicitationId) return null;
-
-  return {
-    kind: "elicitationUrl",
+  const buildFormPrompt = (message: string, requestedSchema: unknown): UserInputPrompt => ({
+    kind: "elicitationForm",
     serverId: normalizeText(serverId),
     requestId: request.id,
     method: request.method,
@@ -104,8 +75,46 @@ export function normalizeUserInputPrompt(
     turnId: normalizeText(request.params.turnId) || undefined,
     serverName,
     message,
-    url,
-    elicitationId,
-    questions: [],
-  };
+    requestedSchema,
+    questions: [
+      {
+        id: MCP_ELICITATION_CONTENT_QUESTION_ID,
+        header: `MCP · ${serverName}`,
+        question: message,
+        options: [],
+        isOther: false,
+        isSecret: false,
+      },
+    ],
+  });
+
+  const mode = request.params.mode;
+  if (mode === "form" || mode === "openai/form" || mode === "openaiForm") {
+    const message = normalizeText(request.params.message);
+    if (!message) return null;
+    return buildFormPrompt(message, request.params.requestedSchema);
+  }
+
+  if (mode === "url") {
+    const message = normalizeText(request.params.message);
+    const url = normalizeText(request.params.url);
+    const elicitationId = normalizeText(request.params.elicitationId);
+    if (!message || !url || !elicitationId) return null;
+    return {
+      kind: "elicitationUrl",
+      serverId: normalizeText(serverId),
+      requestId: request.id,
+      method: request.method,
+      threadId,
+      turnId: normalizeText(request.params.turnId) || undefined,
+      serverName,
+      message,
+      url,
+      elicitationId,
+      questions: [],
+    };
+  }
+
+  // openai/userVerification 没有对应的桌面交互形态，交给 responder 回协议错误。
+  return null;
 }

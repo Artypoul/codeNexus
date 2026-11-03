@@ -87,7 +87,7 @@ function toThreadTokenUsage(tokenUsage: ThreadTokenUsagePayload | Record<string,
   const usedTokens = toFiniteNumber(
     tokenUsageRecord.usedTokens ?? last.totalTokens ?? last.inputTokens ?? total.totalTokens
   );
-  const contextWindow = toFiniteNumber(tokenUsageRecord.contextWindow ?? tokenUsageRecord.modelContextWindow);
+  const contextWindow = toFiniteNumber(tokenUsageRecord.modelContextWindow);
   return {
     usedTokens,
     contextWindow,

@@ -21,9 +21,12 @@ import type { ExperimentalFeatureEnablementSetResponse } from "@codenexus/genera
 import type { EnvironmentAddResponse } from "@codenexus/generated/codex-app-server/v2/EnvironmentAddResponse";
 import type { ListMcpServerStatusResponse } from "@codenexus/generated/codex-app-server/v2/ListMcpServerStatusResponse";
 import type { AppsListResponse } from "@codenexus/generated/codex-app-server/v2/AppsListResponse";
+import type { ApplyPatchApprovalResponse } from "@codenexus/generated/codex-app-server/ApplyPatchApprovalResponse";
 import type { AttestationGenerateResponse } from "@codenexus/generated/codex-app-server/v2/AttestationGenerateResponse";
+import type { ExecCommandApprovalResponse } from "@codenexus/generated/codex-app-server/ExecCommandApprovalResponse";
 import type { ChatgptAuthTokensRefreshResponse } from "@codenexus/generated/codex-app-server/v2/ChatgptAuthTokensRefreshResponse";
 import type { CollaborationModeListResponse } from "@codenexus/generated/codex-app-server/v2/CollaborationModeListResponse";
+import type { CurrentTimeReadResponse } from "@codenexus/generated/codex-app-server/v2/CurrentTimeReadResponse";
 import type { CommandExecutionRequestApprovalResponse } from "@codenexus/generated/codex-app-server/v2/CommandExecutionRequestApprovalResponse";
 import type { CommandExecResponse } from "@codenexus/generated/codex-app-server/v2/CommandExecResponse";
 import type { CommandExecResizeResponse } from "@codenexus/generated/codex-app-server/v2/CommandExecResizeResponse";
@@ -107,13 +110,12 @@ import type { ThreadRealtimeListVoicesResponse } from "@codenexus/generated/code
 import type { ThreadRealtimeStartResponse } from "@codenexus/generated/codex-app-server/v2/ThreadRealtimeStartResponse";
 import type { ThreadRealtimeStopResponse } from "@codenexus/generated/codex-app-server/v2/ThreadRealtimeStopResponse";
 import type { ThreadResumeResponse } from "@codenexus/generated/codex-app-server/v2/ThreadResumeResponse";
-import type { ThreadRollbackResponse } from "@codenexus/generated/codex-app-server/v2/ThreadRollbackResponse";
+import type { ThreadRevertResponse } from "@codenexus/generated/codex-app-server/v2/ThreadRevertResponse";
 import type { ThreadSearchResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSearchResponse";
 import type { ThreadSetNameResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSetNameResponse";
 import type { ThreadSettingsUpdateResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSettingsUpdateResponse";
 import type { ThreadShellCommandResponse } from "@codenexus/generated/codex-app-server/v2/ThreadShellCommandResponse";
 import type { ThreadStartResponse } from "@codenexus/generated/codex-app-server/v2/ThreadStartResponse";
-import type { ThreadTurnsItemsListResponse } from "@codenexus/generated/codex-app-server/v2/ThreadTurnsItemsListResponse";
 import type { ThreadTurnsListResponse } from "@codenexus/generated/codex-app-server/v2/ThreadTurnsListResponse";
 import type { ThreadUnarchiveResponse } from "@codenexus/generated/codex-app-server/v2/ThreadUnarchiveResponse";
 import type { ThreadUnsubscribeResponse } from "@codenexus/generated/codex-app-server/v2/ThreadUnsubscribeResponse";
@@ -132,6 +134,8 @@ type AssertNever<T extends never> = T;
  * ClientRequest -> result 的显式映射。
  *
  * 参数类型由官方 ClientRequest 联合推导；result 类型只能通过这里维护映射。
+ * 只覆盖项目实际使用的方法，未列出的官方 method 结果类型回退为 unknown，
+ * 避免每次升级 codex 都要补齐全部 method。
  */
 type SupportedCodexRpcResultMap = {
   // 初始化与线程生命周期
@@ -155,7 +159,7 @@ type SupportedCodexRpcResultMap = {
   "thread/goal/set": ThreadGoalSetResponse;
   "thread/goal/get": ThreadGoalGetResponse;
   "thread/goal/clear": ThreadGoalClearResponse;
-  "thread/rollback": ThreadRollbackResponse;
+  "thread/revert": ThreadRevertResponse;
   "thread/settings/update": ThreadSettingsUpdateResponse;
   "thread/compact/start": ThreadCompactStartResponse;
   "thread/shellCommand": ThreadShellCommandResponse;
@@ -251,7 +255,6 @@ type SupportedCodexRpcResultMap = {
   "account/sendAddCreditsNudgeEmail": SendAddCreditsNudgeEmailResponse;
   "account/read": GetAccountResponse;
   "thread/turns/list": ThreadTurnsListResponse;
-  "thread/turns/items/list": ThreadTurnsItemsListResponse;
   "thread/inject_items": ThreadInjectItemsResponse;
 };
 
@@ -272,31 +275,17 @@ type SupportedCodexServerRequestResultMap = {
   "item/tool/call": DynamicToolCallResponse;
   "account/chatgptAuthTokens/refresh": ChatgptAuthTokensRefreshResponse;
   "attestation/generate": AttestationGenerateResponse;
+  "currentTime/read": CurrentTimeReadResponse;
+  applyPatchApproval: ApplyPatchApprovalResponse;
+  execCommandApproval: ExecCommandApprovalResponse;
 };
 
-/** 官方 method 集合与当前项目明确不支持的 legacy method。 */
+/** 官方 method 集合。 */
 export type CodexOfficialRpcMethod = ClientRequest["method"];
-export type UnsupportedLegacyCodexRpcMethod =
-  | "fuzzyFileSearch"
-  | "fuzzyFileSearch/sessionStart"
-  | "fuzzyFileSearch/sessionUpdate"
-  | "fuzzyFileSearch/sessionStop"
-  | "getConversationSummary"
-  | "gitDiffToRemote"
-  | "getAuthStatus";
-export type CodexRpcMethod = Exclude<
-  CodexOfficialRpcMethod,
-  UnsupportedLegacyCodexRpcMethod
->;
+export type CodexRpcMethod = CodexOfficialRpcMethod;
 export type CodexClientNotificationMethod = ClientNotification["method"];
 export type CodexServerRequestMethod = ServerRequest["method"];
-export type UnsupportedLegacyCodexServerRequestMethod =
-  | "applyPatchApproval"
-  | "execCommandApproval";
-export type SupportedCodexServerRequestMethod = Exclude<
-  CodexServerRequestMethod,
-  UnsupportedLegacyCodexServerRequestMethod
->;
+export type SupportedCodexServerRequestMethod = CodexServerRequestMethod;
 export type CodexServerNotificationMethod = ServerNotification["method"];
 export type OfficialCodexServerRequest = ServerRequest;
 export type OfficialCodexServerNotification = ServerNotification;
@@ -308,19 +297,11 @@ export type CodexServerNotificationMessage = {
 } & ServerNotification;
 
 /**
- * 协议漂移断言：官方新增/删除 method 时，这里会迫使 result map 或 legacy 排除列表同步更新。
+ * 协议漂移断言：官方新增/删除 method 时，这里会迫使 result map 同步更新。
  */
-type MissingCodexRpcResultMethods = Exclude<
-  CodexRpcMethod,
-  keyof SupportedCodexRpcResultMap
->;
 type ExtraCodexRpcResultMethods = Exclude<
   keyof SupportedCodexRpcResultMap,
   CodexRpcMethod
->;
-type UnknownUnsupportedLegacyCodexRpcMethods = Exclude<
-  UnsupportedLegacyCodexRpcMethod,
-  CodexOfficialRpcMethod
 >;
 type MissingCodexServerRequestResultMethods = Exclude<
   SupportedCodexServerRequestMethod,
@@ -330,29 +311,16 @@ type ExtraCodexServerRequestResultMethods = Exclude<
   keyof SupportedCodexServerRequestResultMap,
   SupportedCodexServerRequestMethod
 >;
-type UnknownUnsupportedLegacyCodexServerRequestMethods = Exclude<
-  UnsupportedLegacyCodexServerRequestMethod,
-  CodexServerRequestMethod
->;
-type _AssertNoMissingCodexRpcResultMethods =
-  AssertNever<MissingCodexRpcResultMethods>;
 type _AssertNoExtraCodexRpcResultMethods =
   AssertNever<ExtraCodexRpcResultMethods>;
-type _AssertNoUnknownUnsupportedLegacyCodexRpcMethods =
-  AssertNever<UnknownUnsupportedLegacyCodexRpcMethods>;
 type _AssertNoMissingCodexServerRequestResultMethods =
   AssertNever<MissingCodexServerRequestResultMethods>;
 type _AssertNoExtraCodexServerRequestResultMethods =
   AssertNever<ExtraCodexServerRequestResultMethods>;
-type _AssertNoUnknownUnsupportedLegacyCodexServerRequestMethods =
-  AssertNever<UnknownUnsupportedLegacyCodexServerRequestMethods>;
 export type _CodexProtocolTypeAssertions = [
-  _AssertNoMissingCodexRpcResultMethods,
   _AssertNoExtraCodexRpcResultMethods,
-  _AssertNoUnknownUnsupportedLegacyCodexRpcMethods,
   _AssertNoMissingCodexServerRequestResultMethods,
   _AssertNoExtraCodexServerRequestResultMethods,
-  _AssertNoUnknownUnsupportedLegacyCodexServerRequestMethods,
 ];
 
 /** 调用侧公开类型：从官方请求 union 中推导 params，再结合显式 result map 输出强类型 RPC 参数。 */

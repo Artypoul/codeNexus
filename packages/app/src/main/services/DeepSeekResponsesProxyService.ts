@@ -341,7 +341,7 @@ export class DeepSeekResponsesProxyService {
 
   private buildMessages(body: Record<string, unknown>): ChatMessage[] {
     const messages: ChatMessage[] = [];
-    const previousResponseId = toText(body.previous_response_id ?? body.previousResponseId);
+    const previousResponseId = toText(body.previous_response_id);
     const previous = previousResponseId ? this.responseHistory.get(previousResponseId) : null;
     if (previous) messages.push(...previous.messages);
     const instructions = toText(body.instructions);

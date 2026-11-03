@@ -174,7 +174,7 @@ function extractGeneratedImages(value: unknown): Array<{
   for (const itemValue of items) {
     const item =
       itemValue && typeof itemValue === "object" && !Array.isArray(itemValue) ? (itemValue as Record<string, any>) : {};
-    const revisedPrompt = toNullableText(item.revised_prompt ?? item.revisedPrompt);
+    const revisedPrompt = toNullableText(item.revised_prompt);
     const rawBase64 = toNullableText(item.b64_json ?? item.base64 ?? item.image_base64);
     if (rawBase64) {
       if (/^https?:\/\//i.test(rawBase64)) {

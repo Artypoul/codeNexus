@@ -53,7 +53,7 @@ export function createThreadResumeRuntime(deps: ThreadResumeRuntimeDeps): Thread
         const workspace = getWorkspaceForThread(tid);
         const serverId = await ensureServerForWorkspace(workspace);
         if (!serverId) return false;
-        const resumeParams: ThreadResumeParams = { threadId: tid, persistExtendedHistory: true };
+        const resumeParams: ThreadResumeParams = { threadId: tid };
         await codexDesktop.codexServer.rpc({ serverId, method: "thread/resume", params: resumeParams });
         resumedThreadIds.add(tid);
         return true;

@@ -27,7 +27,7 @@ export type ThreadRollbackRuntimeDeps = {
 };
 
 export type ThreadRollbackRuntime = {
-  requestThreadRollback: (threadId: string, turns: number) => Promise<boolean>;
+  requestThreadRollback: (threadId: string, beforeTurnId: string) => Promise<boolean>;
   rollbackTurns: () => Promise<void>;
 };
 
@@ -55,23 +55,23 @@ export function createThreadRollbackRuntime(deps: ThreadRollbackRuntimeDeps): Th
     showToast,
   } = deps;
 
-  const requestThreadRollback = async (threadIdValue: string, turns: number): Promise<boolean> => {
+  const requestThreadRollback = async (threadIdValue: string, beforeTurnIdValue: string): Promise<boolean> => {
     const tid = String(threadIdValue ?? "").trim();
-    if (!tid) return false;
+    const beforeTurnId = String(beforeTurnIdValue ?? "").trim();
+    if (!tid || !beforeTurnId) return false;
     const serverId = getServerIdForThread(tid);
     if (!serverId) return false;
-    const n = Number.isFinite(turns) ? Math.max(1, Math.round(turns)) : 1;
     try {
       await codexDesktop.codexServer.rpc({
         serverId,
-        method: "thread/rollback",
-        params: { threadId: tid, numTurns: n },
+        method: "thread/revert",
+        params: { threadId: tid, beforeTurnId },
       });
       return true;
     } catch (e: unknown) {
       const msg = readErrorMessage(e);
-      pushEvent("rollback:error", msg || "thread/rollback failed", { threadId: tid, level: "error" });
-      showToast({ kind: "error", title: translate("runtime.rollbackFailedTitle"), message: "thread/rollback failed" });
+      pushEvent("rollback:error", msg || "thread/revert failed", { threadId: tid, level: "error" });
+      showToast({ kind: "error", title: translate("runtime.rollbackFailedTitle"), message: "thread/revert failed" });
       return false;
     }
   };
@@ -156,6 +156,8 @@ export function createThreadRollbackRuntime(deps: ThreadRollbackRuntimeDeps): Th
 
     const selected = stack.slice(-n);
     const selectedTurnIds = selected.map((entry) => entry.turnId);
+    const beforeTurnId = String(selectedTurnIds[0] ?? "").trim();
+    if (!beforeTurnId) return;
     const diffParts = [...selected]
       .reverse()
       .map((entry) => entry.diffText)
@@ -180,7 +182,7 @@ export function createThreadRollbackRuntime(deps: ThreadRollbackRuntimeDeps): Th
 
     const resumed = await ensureThreadResumed(tid);
     if (!resumed) return;
-    const ok = await requestThreadRollback(tid, n);
+    const ok = await requestThreadRollback(tid, beforeTurnId);
     if (!ok) return;
 
     if (combinedDiff.trim()) {
