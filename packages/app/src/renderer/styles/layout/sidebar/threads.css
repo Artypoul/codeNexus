@@ -304,7 +304,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 4px;
+  gap: 0;
 }
 
 .lsb-thread-toggle-spacer {

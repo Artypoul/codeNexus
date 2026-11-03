@@ -4,12 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { installContentSecurityPolicy } from "./security/contentSecurityPolicy";
 import { logger } from "./utils/logger";
-import {
-  IPC_APP_CHANNELS,
-  IPC_EVENT_CHANNELS,
-  type AppClosingStep,
-  type AppWindowClosingState,
-} from "@codenexus/shared/ipc";
+import { IPC_APP_CHANNELS, IPC_EVENT_CHANNELS } from "@codenexus/shared/ipc";
 import { HistoryStore, type HistoryThread } from "./historyStore";
 import { registerAllHandlers } from "./ipc/handlers";
 import { generateImagesWithSettings } from "./ipc/handlers/image-generation.handlers";
@@ -39,29 +34,13 @@ if (process.platform === "win32") {
 }
 
 let mainWindow: BrowserWindow | null = null;
-let appCloseFlowPromise: Promise<void> | null = null;
-let allowMainWindowClose = false;
 let closeCleanupFinished = false;
-let appCloseFlowStartedAt = 0;
-let appCloseForceExitTimer: NodeJS.Timeout | null = null;
 
 const codexServerManager = new CodexServerManager();
 const workspacePatchService = new WorkspacePatchService();
 const runtimeThreadStateTracker = new RuntimeThreadStateTracker();
 const cacheRegistryService = new CacheRegistryService();
 const deepSeekResponsesProxyService = new DeepSeekResponsesProxyService();
-
-const APP_CLOSE_OVERLAY_BOOT_MS = 56;
-const APP_CLOSE_PREPARE_MS = 200;
-const APP_CLOSE_MIN_VISIBLE_MS = 300;
-const APP_CLOSE_FINALIZE_MS = 48;
-const APP_CLOSE_FORCE_EXIT_MS = 5_000;
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, Math.max(0, Math.round(ms)));
-  });
-}
 
 function sendToRenderer(channel: string, payload: unknown) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -80,30 +59,6 @@ function pushHistoryUpdate(items: HistoryThread[]) {
   sendToRenderer(IPC_EVENT_CHANNELS.historyUpdated, { items: runtimeThreadStateTracker.decorateHistoryItems(items) });
 }
 
-function buildClosingSteps(phase: AppWindowClosingState["phase"]): AppClosingStep[] {
-  const prepareUiStatus: AppClosingStep["status"] =
-    phase === "idle" ? "pending" : phase === "starting" || phase === "preparing" ? "inProgress" : "completed";
-  const stopTasksStatus: AppClosingStep["status"] =
-    phase === "stopping" ? "inProgress" : phase === "finalizing" ? "completed" : "pending";
-  const exitAppStatus: AppClosingStep["status"] = phase === "finalizing" ? "inProgress" : "pending";
-
-  return [
-    { id: "prepareUi", label: "Preparing interface", status: prepareUiStatus },
-    { id: "stopTasks", label: "Stopping background tasks", status: stopTasksStatus },
-    { id: "exitApp", label: "Exiting application", status: exitAppStatus },
-  ];
-}
-
-function pushWindowClosingState(phase: AppWindowClosingState["phase"]) {
-  const payload: AppWindowClosingState = {
-    visible: phase !== "idle",
-    phase,
-    startedAt: phase === "idle" ? 0 : appCloseFlowStartedAt || Date.now(),
-    steps: buildClosingSteps(phase),
-  };
-  sendToRenderer(IPC_APP_CHANNELS.appWindowClosingState, payload);
-}
-
 function stopCodexServersForClose(_reason: string) {
   if (closeCleanupFinished) return;
   closeCleanupFinished = true;
@@ -119,59 +74,6 @@ function stopCodexServersForClose(_reason: string) {
   }
 }
 
-function clearAppCloseForceExitWatchdog() {
-  if (!appCloseForceExitTimer) return;
-  clearTimeout(appCloseForceExitTimer);
-  appCloseForceExitTimer = null;
-}
-
-function armAppCloseForceExitWatchdog() {
-  clearAppCloseForceExitWatchdog();
-  appCloseForceExitTimer = setTimeout(() => {
-    logger.warn("app-close", "force exiting after close watchdog timeout");
-    stopCodexServersForClose("force-exit-watchdog");
-    app.exit(0);
-  }, APP_CLOSE_FORCE_EXIT_MS);
-  appCloseForceExitTimer.unref?.();
-}
-
-async function runAppCloseFlow(win: BrowserWindow): Promise<void> {
-  if (allowMainWindowClose || win.isDestroyed()) return;
-  if (appCloseFlowPromise) return appCloseFlowPromise;
-
-  appCloseFlowStartedAt = Date.now();
-  armAppCloseForceExitWatchdog();
-  appCloseFlowPromise = (async () => {
-    pushWindowClosingState("starting");
-    await wait(APP_CLOSE_OVERLAY_BOOT_MS);
-
-    pushWindowClosingState("preparing");
-    await wait(APP_CLOSE_PREPARE_MS);
-
-    pushWindowClosingState("stopping");
-    stopCodexServersForClose("window-close");
-
-    const remainingVisibleMs = APP_CLOSE_MIN_VISIBLE_MS - (Date.now() - appCloseFlowStartedAt);
-    if (remainingVisibleMs > 0) await wait(remainingVisibleMs);
-
-    pushWindowClosingState("finalizing");
-    await wait(APP_CLOSE_FINALIZE_MS);
-
-    allowMainWindowClose = true;
-    if (!win.isDestroyed()) win.close();
-  })()
-    .catch((error) => {
-      logger.error("app-close", "flow failed", error);
-      allowMainWindowClose = true;
-      if (!win.isDestroyed()) win.close();
-    })
-    .finally(() => {
-      appCloseFlowPromise = null;
-    });
-
-  return appCloseFlowPromise;
-}
-
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
@@ -181,7 +83,6 @@ app.on("before-quit", () => {
 });
 
 (app as any).on("before-quit-for-update", () => {
-  allowMainWindowClose = true;
   stopCodexServersForClose("before-quit-for-update");
 });
 
@@ -302,23 +203,12 @@ app
     });
 
     mainWindow.webContents.once("did-finish-load", () => {
-      pushWindowClosingState("idle");
       updateService.scheduleStartupCheck();
     });
 
-    mainWindow.on("close", (event) => {
-      if (allowMainWindowClose) return;
-      event.preventDefault();
-      void runAppCloseFlow(mainWindow!);
-    });
-
     mainWindow.on("closed", () => {
-      clearAppCloseForceExitWatchdog();
       mainWindow = null;
-      allowMainWindowClose = false;
       closeCleanupFinished = false;
-      appCloseFlowStartedAt = 0;
-      appCloseFlowPromise = null;
     });
   })
   .catch((error) => {

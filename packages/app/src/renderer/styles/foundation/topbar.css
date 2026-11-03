@@ -22,7 +22,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   height: var(--topbar-h);
-  padding: 0 calc(var(--topbar-px) + var(--window-controls-pad)) 0 var(--topbar-px);
+  padding: 0 var(--window-controls-pad) 0 var(--topbar-px);
   border-bottom: 1px solid var(--tb-line);
   background: var(--topbar-bg, linear-gradient(180deg, var(--tb-bg-raised), var(--tb-bg-base)));
   backdrop-filter: var(--shell-backdrop-filter, none);

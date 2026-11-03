@@ -408,27 +408,13 @@ export type WorkspaceGitStatusResult =
  * ─────────────────────────────────────────────────────────────
  * 作用域：Window / App 模块
  * 数据结构：
- *   AppWindowState / AppWindowClosingState → 窗口状态与关闭流程
- *   AppClosingStep → 关闭阶段状态机
- * 用途：renderer 监听窗口状态变化、关闭确认流程
+ *   AppWindowState → 窗口状态
+ * 用途：renderer 监听窗口状态变化
  */
 export type AppWindowState = {
   isMaximized: boolean;
   isMinimized: boolean;
   isFullScreen: boolean;
-};
-
-export type AppClosingStep = {
-  id: "prepareUi" | "stopTasks" | "exitApp";
-  label: string;
-  status: "pending" | "inProgress" | "completed";
-};
-
-export type AppWindowClosingState = {
-  visible: boolean;
-  phase: "idle" | "starting" | "preparing" | "stopping" | "finalizing";
-  startedAt: number;
-  steps: AppClosingStep[];
 };
 
 /*
@@ -713,7 +699,6 @@ export type CodexDesktopWindowApi = {
   toggleMaximize(): Promise<{ ok: true }>;
   close(): Promise<{ ok: true }>;
   onState(cb: (payload: AppWindowState) => void): () => void;
-  onClosingState(cb: (payload: AppWindowClosingState) => void): () => void;
 };
 
 export type CodexDesktopLocalStateApi = {

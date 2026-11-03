@@ -1,7 +1,6 @@
 import { defineAsyncComponent } from "vue";
 
 export const DebugTimelineSidebar = defineAsyncComponent(() => import("./layout/debug/DebugTimelineSidebar.vue"));
-export const AppClosingOverlay = defineAsyncComponent(() => import("./layout/overlays/AppClosingOverlay.vue"));
 export const GoalShutdownCountdownOverlay = defineAsyncComponent(
   () => import("./layout/overlays/GoalShutdownCountdownOverlay.vue")
 );

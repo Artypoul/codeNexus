@@ -1,9 +1,5 @@
 <template>
   <footer class="bottom-bar" role="navigation" :aria-label="t('bottomBar.aria')">
-    <div class="bottom-bar__left">
-      <CodexProfileSwitch class="bottom-bar__profile-switch" />
-    </div>
-
     <div class="bottom-bar__right">
       <div class="bottom-bar__conn mono" :class="connectionStateClass">
         <span class="bottom-bar__conn-icon" aria-hidden="true">
@@ -22,7 +18,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import CodexProfileSwitch from "./controls/CodexProfileSwitch.vue";
 import { useAppShellStore } from "../../stores/appShell.store";
 
 const appShellStore = useAppShellStore();
@@ -79,7 +74,7 @@ onBeforeUnmount(() => {
   height: var(--bottombar-h);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0;
   border-top: 1px solid var(--panel-border, var(--border));
   background: var(--shell-chrome-bg, var(--topbar-bg, var(--panel-bg)));
@@ -87,7 +82,6 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: var(--shell-backdrop-filter, none);
 }
 
-.bottom-bar__left,
 .bottom-bar__right {
   min-width: 0;
   height: 100%;
@@ -97,20 +91,6 @@ onBeforeUnmount(() => {
 
 .bottom-bar__right {
   justify-content: flex-end;
-}
-
-.bottom-bar .bottom-bar__profile-switch {
-  flex: 0 1 auto;
-  width: fit-content;
-  max-width: min(230px, 42vw);
-  height: 26px;
-  margin-left: 6px;
-  margin-right: 4px;
-}
-
-.bottom-bar .bottom-bar__profile-switch :deep(.codex-profile-switch__select) {
-  width: clamp(148px, 18vw, 220px);
-  height: 24px;
 }
 
 .bottom-bar__clock {

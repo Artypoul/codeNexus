@@ -8,7 +8,7 @@ Pinia 状态管理目录。
 
 | 分类         | 相关 store                                                            |
 | ------------ | --------------------------------------------------------------------- |
-| 壳层与偏好   | `appShell`、`viewPrefs`、`theme`、`typography`、`appClosing`          |
+| 壳层与偏好   | `appShell`、`viewPrefs`、`theme`、`typography`                        |
 | 运行时       | `runtime`、`messageQueue`、`approval`、`config`、`configRequirements` |
 | 会话与时间线 | `thread`、`timeline`、`debugTimeline`                                 |
 | 扩展能力     | `skills`、`skillsUi`、`mcp`、`mcpResource`                            |

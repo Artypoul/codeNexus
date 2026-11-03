@@ -52,7 +52,6 @@
     </main>
     <BottomBar />
     <div class="app-overlays">
-      <AppClosingOverlay v-if="showAppClosingOverlay" />
       <GoalShutdownCountdownOverlay v-if="showGoalShutdownOverlay" />
     </div>
   </div>
@@ -65,7 +64,6 @@ import TopBar from "./components/layout/TopBar.vue";
 import CenterPane from "./components/layout/CenterPane.vue";
 import BottomBar from "./components/layout/BottomBar.vue";
 import {
-  AppClosingOverlay,
   DebugTimelineSidebar,
   GoalShutdownCountdownOverlay,
   LeftSidebar,
@@ -80,7 +78,6 @@ import {
   shouldShowDefaultLeftSidebar,
 } from "./features/registry";
 import { codexDesktop } from "./api/codexDesktopClient";
-import { useAppClosingStore } from "./stores/appClosing.store";
 import { useAppShellStore } from "./stores/appShell.store";
 import { useGoalShutdownStore } from "./stores/goalShutdown.store";
 import { useNotificationSoundStore } from "./stores/notificationSound.store";
@@ -100,7 +97,6 @@ import {
 
 const appShellStore = useAppShellStore();
 const { t } = useI18n();
-const appClosingStore = useAppClosingStore();
 const goalShutdownStore = useGoalShutdownStore();
 const runtimeStore = useRuntimeStore();
 const notificationSoundStore = useNotificationSoundStore();
@@ -109,11 +105,9 @@ appShellStore.initLocalSettings();
 runtimeStore.initLocalDraftState();
 notificationSoundStore.initLocalSettings();
 goalShutdownStore.initLocalSettings();
-appClosingStore.initBridge();
 void notificationSoundStore.refreshAvailable();
 
 const settingsOpen = computed(() => appShellStore.settingsOpen);
-const showAppClosingOverlay = computed(() => appClosingStore.visible);
 const showGoalShutdownOverlay = computed(() => goalShutdownStore.visible);
 const mainView = computed(() => appShellStore.mainView);
 const activeFeature = computed(() => getFeatureByMainView(mainView.value));
@@ -168,16 +162,6 @@ onMounted(() => {
     });
   } catch {}
 });
-
-watch(
-  () => appClosingStore.phase,
-  (phase, previousPhase) => {
-    if (phase !== "preparing" || previousPhase === "preparing") return;
-    void runtimeStore.flushPendingComposeStateSaves().catch((error) => {
-      console.warn("[App] flush pending compose state saves failed", error);
-    });
-  }
-);
 
 const UNIFIED_SIDEBAR_WIDTH_PX = 300;
 const CENTER_EDITOR_KEYBOARD_STEP_PX = 20;

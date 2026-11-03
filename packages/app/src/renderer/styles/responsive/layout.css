@@ -17,7 +17,7 @@
 
   .topbar {
     gap: 10px;
-    padding: 0 calc(var(--topbar-px) + var(--window-controls-pad)) 0 var(--topbar-px);
+    padding: 0 var(--window-controls-pad) 0 var(--topbar-px);
   }
 
   .main {

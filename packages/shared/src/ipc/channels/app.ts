@@ -72,5 +72,4 @@ export const IPC_APP_CHANNELS = {
   appWindowToggleMaximize: "app:window:toggleMaximize",
   appWindowClose: "app:window:close",
   appWindowState: "app:window:state",
-  appWindowClosingState: "app:window:closingState",
 } as const;

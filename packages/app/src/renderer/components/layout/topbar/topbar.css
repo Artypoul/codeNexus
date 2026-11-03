@@ -4,12 +4,17 @@
   grid-column: 3;
   justify-self: end;
   display: inline-flex;
-  align-items: center;
+  align-self: stretch;
+  align-items: stretch;
 }
 
 .topbar-right-stack.is-layout-animating {
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+}
+
+.topbar-right-stack .topbar-controls {
+  height: 100%;
 }
 
 .topbar-right-stack .btn-icon svg {
@@ -520,7 +525,53 @@
 }
 
 .topbar .control-group-window {
+  align-self: stretch;
+  height: 100%;
   margin-left: 6px;
+  gap: 0;
+}
+
+.topbar .control-group-window .btn-icon {
+  width: 44px;
+  min-width: 44px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--topbar-text);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.topbar .control-group-window .btn-icon svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.5;
+}
+
+.topbar .control-group-window .btn-icon:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--tb-control-hover);
+  color: var(--topbar-text);
+}
+
+.topbar .control-group-window .btn-icon:active:not(:disabled) {
+  transform: none;
+  background: var(--tb-control-active);
+}
+
+.topbar .control-group-window .btn-icon:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--focus-ring, var(--accent)) 80%, transparent);
+}
+
+.topbar .control-group-window .btn-icon.danger:hover:not(:disabled),
+.topbar .control-group-window .btn-icon.danger:active:not(:disabled) {
+  border-color: transparent;
+  background: #c24444;
+  color: #ffffff;
 }
 
 .topbar button.topbar-update-notice {
