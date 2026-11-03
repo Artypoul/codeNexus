@@ -965,15 +965,37 @@ function ensureComposerSelectionVisible() {
   }
 }
 
+// 输入框行高/内边距只在布局或主题变化时才变，缓存下来避免每次输入都做一次样式解析。
+let composerInputMetrics: { lineHeight: number; paddingTop: number; paddingBottom: number } | null = null;
+let pendingComposerResizeRafId: number | null = null;
+let documentAppearanceObserver: MutationObserver | null = null;
+
+function readComposerInputMetrics(el: HTMLElement) {
+  if (composerInputMetrics) return composerInputMetrics;
+  const styles = window.getComputedStyle(el);
+  composerInputMetrics = {
+    lineHeight: Number.parseFloat(styles.lineHeight) || 20,
+    paddingTop: Number.parseFloat(styles.paddingTop) || 0,
+    paddingBottom: Number.parseFloat(styles.paddingBottom) || 0,
+  };
+  return composerInputMetrics;
+}
+
+// 同一帧内的多次输入合并成一次高度测量。
+function scheduleComposerInputResize() {
+  if (pendingComposerResizeRafId != null) return;
+  pendingComposerResizeRafId = requestAnimationFrame(() => {
+    pendingComposerResizeRafId = null;
+    resizeComposerInput();
+  });
+}
+
 function resizeComposerInput() {
   const el = composerInputRef.value;
   if (!el) return;
   const previousMaxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
   const previousBottomOffset = Math.max(0, previousMaxScrollTop - el.scrollTop);
-  const styles = window.getComputedStyle(el);
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
-  const paddingTop = Number.parseFloat(styles.paddingTop) || 0;
-  const paddingBottom = Number.parseFloat(styles.paddingBottom) || 0;
+  const { lineHeight, paddingTop, paddingBottom } = readComposerInputMetrics(el);
   const minHeight = 20;
   const maxHeight = Math.max(minHeight, Math.round(lineHeight * 5 + paddingTop + paddingBottom));
   el.style.height = "auto";
@@ -1007,6 +1029,7 @@ function resizeComposerInput() {
 
 function refreshTimelineLayout(options: { resizeComposer: boolean }) {
   measureCenterContentWidth();
+  composerInputMetrics = null;
   if (options.resizeComposer) resizeComposerInput();
   void nextTick(() => {
     notifyTimelineLayoutChange();
@@ -1266,7 +1289,7 @@ watch(
   () => runtimeStore.composeInput,
   () => {
     nextTick(() => {
-      resizeComposerInput();
+      scheduleComposerInputResize();
       if (slashPopoverVisible.value) scheduleSlashPopoverPlacementRefresh();
     });
   },
@@ -1277,7 +1300,7 @@ watch(
   () => runtimeStore.composeAttachments.length,
   () => {
     nextTick(() => {
-      resizeComposerInput();
+      scheduleComposerInputResize();
       if (slashPopoverVisible.value) scheduleSlashPopoverPlacementRefresh();
     });
   },
@@ -1288,7 +1311,7 @@ watch(
   () => runtimeStore.composeFileMentions.length,
   () => {
     nextTick(() => {
-      resizeComposerInput();
+      scheduleComposerInputResize();
       if (slashPopoverVisible.value) scheduleSlashPopoverPlacementRefresh();
     });
   },
@@ -1341,6 +1364,15 @@ onMounted(() => {
   });
   if (centerContentRef.value) centerContentResizeObserver.observe(centerContentRef.value);
   observeTimelineElement();
+  if (typeof MutationObserver !== "undefined") {
+    documentAppearanceObserver = new MutationObserver(() => {
+      refreshTimelineLayout({ resizeComposer: true });
+    });
+    documentAppearanceObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-font-family", "data-theme", "data-tone"],
+    });
+  }
   window.addEventListener("resize", onWindowLayoutChange);
   window.addEventListener("scroll", onWindowViewportChange, true);
   window.addEventListener("keydown", onWindowKeydown);
@@ -1353,6 +1385,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", onWindowKeydown);
   window.removeEventListener("keydown", onComposeLightboxWindowKeydown, true);
   if (pendingSlashPopoverPlacementRafId != null) cancelAnimationFrame(pendingSlashPopoverPlacementRafId);
+  documentAppearanceObserver?.disconnect();
+  documentAppearanceObserver = null;
   if (centerContentResizeObserver) {
     centerContentResizeObserver.disconnect();
     centerContentResizeObserver = null;

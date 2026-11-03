@@ -65,9 +65,14 @@
   --floating-shadow-strong:
     var(--panel-shadow, var(--shadow-soft)),
     0 20px 40px color-mix(in srgb, var(--bg, var(--surface-1)) 22%, transparent);
-  --floating-backdrop-filter: blur(12px) saturate(118%);
+  /* 毛玻璃层级：统一收敛为四档，便于按性能/无障碍一键降级。 */
+  --frost-thin: blur(6px) saturate(112%);
+  --frost-soft: blur(10px) saturate(118%);
+  --frost-regular: blur(13px) saturate(124%);
+  --frost-strong: blur(16px) saturate(132%);
+
   --floating-overlay-bg: color-mix(in srgb, rgb(from var(--bg) r g b / 0.76) 88%, var(--surface-1) 12%);
-  --floating-overlay-backdrop-filter: blur(10px) saturate(118%);
+  --floating-overlay-backdrop-filter: var(--frost-soft);
   --floating-item-border: color-mix(in srgb, var(--button-border, var(--border)) 84%, transparent);
   --floating-item-bg: linear-gradient(
     180deg,
@@ -166,4 +171,14 @@ body::before {
 
 .app-overlays > * {
   pointer-events: auto;
+}
+
+/* 系统开启「降低透明度」时，整体关闭毛玻璃。 */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --frost-thin: none;
+    --frost-soft: none;
+    --frost-regular: none;
+    --frost-strong: none;
+  }
 }

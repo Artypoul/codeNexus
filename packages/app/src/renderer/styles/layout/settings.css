@@ -677,7 +677,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface-1) 88%, transparent);
   box-shadow: 0 14px 34px color-mix(in srgb, rgb(from var(--ui-shadow-source) r g b / 0.5) 18%, transparent);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--frost-regular);
 }
 
 .codex-provider-float-btn {

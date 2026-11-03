@@ -32,6 +32,7 @@
   --composer-surface-bg: linear-gradient(180deg, var(--panel-surface-strong), var(--panel-surface));
   --shell-backdrop-filter: none;
   --panel-backdrop-filter: none;
+  /* 浮层背景已接近不透明，默认关闭背景模糊以省掉常驻合成开销。 */
   --floating-backdrop-filter: none;
 
   --topbar-bg: var(--shell-chrome-bg);
@@ -128,7 +129,8 @@
   --composer-shell-focus-border: var(--border-accent-hover);
   --composer-shell-focus-ring: rgb(from var(--accent) r g b / 0.16);
   --composer-shell-shadow: var(--shadow-soft);
-  --composer-shell-backdrop: saturate(1.06) blur(16px);
+  /* composer 面板背景本身接近不透明，16px 背景模糊几乎不可见，默认关闭以省掉常驻的合成开销。 */
+  --composer-shell-backdrop: none;
   --composer-divider: color-mix(in srgb, var(--border) 82%, transparent);
   --composer-mode-group-bg: color-mix(in srgb, var(--button-bg) 78%, transparent);
   --composer-mode-group-border: color-mix(in srgb, var(--border) 84%, transparent);

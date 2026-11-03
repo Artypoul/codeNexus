@@ -272,8 +272,8 @@
   overscroll-behavior: contain;
   display: grid;
   gap: 0;
-  backdrop-filter: blur(14px) saturate(118%);
-  -webkit-backdrop-filter: blur(14px) saturate(118%);
+  backdrop-filter: var(--frost-regular);
+  -webkit-backdrop-filter: var(--frost-regular);
 }
 
 .composer-slash-list {
@@ -1161,7 +1161,7 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   font-size: 12px;
   font-weight: 650;
   text-align: center;
-  backdrop-filter: blur(6px);
+  backdrop-filter: var(--frost-thin);
 }
 
 .composer-shell #input,
@@ -1558,8 +1558,8 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   box-shadow:
     0 8px 18px color-mix(in srgb, var(--bg) 16%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--text) 9%, transparent);
-  backdrop-filter: blur(14px) saturate(124%);
-  -webkit-backdrop-filter: blur(14px) saturate(124%);
+  backdrop-filter: var(--frost-thin);
+  -webkit-backdrop-filter: var(--frost-thin);
   text-align: left;
   transition:
     border-color 160ms ease,
@@ -1655,8 +1655,8 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
     0 24px 56px color-mix(in srgb, var(--bg) 34%, transparent),
     0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--text) 10%, transparent);
-  backdrop-filter: blur(22px) saturate(135%);
-  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  backdrop-filter: var(--frost-strong);
+  -webkit-backdrop-filter: var(--frost-strong);
 }
 
 .composer-model-reasoning-popover--sub {
@@ -1818,8 +1818,8 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
     0 8px 18px color-mix(in srgb, var(--bg) 18%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--text) 14%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--bg) 18%, transparent);
-  backdrop-filter: blur(16px) saturate(142%);
-  -webkit-backdrop-filter: blur(16px) saturate(142%);
+  backdrop-filter: var(--frost-thin);
+  -webkit-backdrop-filter: var(--frost-thin);
   text-align: left;
   transition:
     border-color 160ms ease,
@@ -1892,8 +1892,8 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
     0 22px 52px color-mix(in srgb, var(--bg) 38%, transparent),
     0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent),
     inset 0 1px 0 color-mix(in srgb, var(--text) 12%, transparent);
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: var(--frost-strong);
+  -webkit-backdrop-filter: var(--frost-strong);
 }
 
 .composer-sandbox-option {

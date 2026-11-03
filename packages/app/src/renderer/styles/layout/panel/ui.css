@@ -9,7 +9,6 @@
     grid-template-rows 0.2s ease,
     opacity 0.18s ease,
     transform 0.22s ease;
-  will-change: grid-template-rows, opacity, transform;
 }
 
 .ui-collapsible-content.is-open {

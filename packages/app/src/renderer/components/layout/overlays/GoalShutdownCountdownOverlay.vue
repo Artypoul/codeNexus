@@ -42,7 +42,7 @@ const countdown = computed(() => store.countdown);
   position: absolute;
   inset: 0;
   background: rgb(from var(--bg) r g b / 0.56);
-  backdrop-filter: blur(12px) saturate(120%);
+  backdrop-filter: var(--frost-soft);
 }
 
 .goal-shutdown-panel {

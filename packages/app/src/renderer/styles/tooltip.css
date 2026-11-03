@@ -24,8 +24,8 @@
   opacity: 0;
   transform: translate3d(0, -2px, 0) scale(0.985);
   transform-origin: center;
-  backdrop-filter: var(--floating-backdrop-filter, blur(12px) saturate(118%));
-  -webkit-backdrop-filter: var(--floating-backdrop-filter, blur(12px) saturate(118%));
+  backdrop-filter: var(--floating-backdrop-filter, var(--frost-soft));
+  -webkit-backdrop-filter: var(--floating-backdrop-filter, var(--frost-soft));
   transition:
     opacity 120ms ease,
     transform 140ms var(--floating-enter-ease, cubic-bezier(0.22, 1, 0.36, 1));

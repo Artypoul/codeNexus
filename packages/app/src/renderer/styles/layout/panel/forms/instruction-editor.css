@@ -30,7 +30,7 @@
   place-items: center;
   padding: 20px;
   background: rgb(from var(--bg) r g b / 0.72);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--frost-thin);
 }
 
 .instruction-editor-window {
