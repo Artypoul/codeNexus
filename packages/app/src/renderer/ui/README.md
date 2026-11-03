@@ -11,7 +11,6 @@
 | `modal.ts`      | 通用弹窗交互 |
 | `toast.ts`      | 轻量提示消息 |
 | `codeEditor.ts` | 编辑器辅助   |
-| `confetti.ts`   | 礼花动效辅助 |
 
 ## 维护边界
 
