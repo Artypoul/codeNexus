@@ -1,9 +1,12 @@
+import { installCjkFriendlyEmphasis } from "./markdownCjkEmphasis";
+
 type MarkdownItConstructor = typeof import("markdown-it").default;
 type MarkdownItInstance = InstanceType<MarkdownItConstructor>;
 type DomPurify = typeof import("dompurify").default;
 
 const sanitizeOptions = {
   USE_PROFILES: { html: true },
+  ADD_ATTR: ["target"],
   FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form", "input", "button", "textarea", "select"],
   FORBID_ATTR: [
     "onerror",
@@ -27,6 +30,15 @@ let markdown: MarkdownItInstance | null = null;
 let DOMPurify: DomPurify | null = null;
 let markdownDepsPromise: Promise<void> | null = null;
 let markdownRendererVersion = 0;
+const TABLE_ALIGNMENT_PATTERN = /text-align:\s*(left|center|right)/;
+
+function moveTableAlignmentToClass(token: any) {
+  const style = String(token.attrGet("style") ?? "");
+  const match = TABLE_ALIGNMENT_PATTERN.exec(style);
+  if (!match) return;
+  token.attrJoin("class", `agent-align-${match[1]}`);
+  token.attrSet("style", "");
+}
 
 function createMarkdownRenderer(MarkdownIt: MarkdownItConstructor) {
   // Markdown 解析配置：禁用原生 HTML，仅保留常用 markdown 能力。
@@ -36,6 +48,7 @@ function createMarkdownRenderer(MarkdownIt: MarkdownItConstructor) {
     breaks: true,
     typographer: false,
   });
+  installCjkFriendlyEmphasis(renderer);
 
   const originalLinkOpen =
     renderer.renderer.rules.link_open ??
@@ -64,6 +77,24 @@ function createMarkdownRenderer(MarkdownIt: MarkdownItConstructor) {
 
   renderer.renderer.rules.table_close = (tokens: any[], idx: number, options: any, env: any, self: any) => {
     return `${originalTableClose(tokens, idx, options, env, self)}</div>`;
+  };
+
+  const originalThOpen =
+    renderer.renderer.rules.th_open ??
+    ((tokens: any[], idx: number, options: any, _env: any, self: any) => self.renderToken(tokens, idx, options));
+  const originalTdOpen =
+    renderer.renderer.rules.td_open ??
+    ((tokens: any[], idx: number, options: any, _env: any, self: any) => self.renderToken(tokens, idx, options));
+
+  // 清洗器会移除 style；把表格对齐转为 class，避免对齐信息丢失。
+  renderer.renderer.rules.th_open = (tokens: any[], idx: number, options: any, env: any, self: any) => {
+    moveTableAlignmentToClass(tokens[idx]);
+    return originalThOpen(tokens, idx, options, env, self);
+  };
+
+  renderer.renderer.rules.td_open = (tokens: any[], idx: number, options: any, env: any, self: any) => {
+    moveTableAlignmentToClass(tokens[idx]);
+    return originalTdOpen(tokens, idx, options, env, self);
   };
 
   return renderer;

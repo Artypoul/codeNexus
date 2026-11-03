@@ -29,10 +29,36 @@
   .agent-markdown-body h1,
   .agent-markdown-body h2,
   .agent-markdown-body h3,
-  .agent-markdown-body h4 {
+  .agent-markdown-body h4,
+  .agent-markdown-body h5,
+  .agent-markdown-body h6 {
     margin: 0.65em 0 0.45em;
     line-height: 1.3;
     font-weight: 650;
+  }
+
+  .agent-markdown-body h1 {
+    font-size: 1.5em;
+  }
+
+  .agent-markdown-body h2 {
+    font-size: 1.3em;
+  }
+
+  .agent-markdown-body h3 {
+    font-size: 1.15em;
+  }
+
+  .agent-markdown-body h4 {
+    font-size: 1.05em;
+  }
+
+  .agent-markdown-body h5 {
+    font-size: 1em;
+  }
+
+  .agent-markdown-body h6 {
+    font-size: 0.95em;
   }
 
   .agent-markdown-body ul,
@@ -421,5 +447,17 @@
   .agent-markdown-body th {
     background: var(--ui-well-bg-strong);
     font-weight: 650;
+  }
+
+  .agent-markdown-body .agent-align-left {
+    text-align: left;
+  }
+
+  .agent-markdown-body .agent-align-center {
+    text-align: center;
+  }
+
+  .agent-markdown-body .agent-align-right {
+    text-align: right;
   }
 }
