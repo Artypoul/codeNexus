@@ -1,8 +1,4 @@
 import {
-  DEFAULT_LOCAL_FLOWCHART_AI_SETTINGS,
-  normalizeFlowchartAiSettings,
-} from "@codenexus/feature-flowchart/settings";
-import {
   DEFAULT_LOCAL_IMAGE_GENERATION_SETTINGS,
   normalizeImageGenerationSettings,
 } from "@codenexus/feature-imagegen/settings";
@@ -26,14 +22,12 @@ export function normalizeUserLocalSettings(value: unknown): UserLocalSettings {
   return {
     ...settings,
     imageGeneration: normalizeImageGenerationSettings(root?.imageGeneration),
-    flowchartAi: normalizeFlowchartAiSettings(root?.flowchartAi),
   };
 }
 
 export const DEFAULT_USER_LOCAL_SETTINGS: UserLocalSettings = normalizeUserLocalSettings({
   ...SHARED_DEFAULT_USER_LOCAL_SETTINGS,
   imageGeneration: DEFAULT_LOCAL_IMAGE_GENERATION_SETTINGS,
-  flowchartAi: DEFAULT_LOCAL_FLOWCHART_AI_SETTINGS,
 });
 
 export function mergeUserLocalSettings(

@@ -1,19 +1,11 @@
 <template>
   <footer class="bottom-bar" role="navigation" :aria-label="t('bottomBar.aria')">
     <div class="bottom-bar__left">
-      <button
-        type="button"
-        class="bottom-bar__mode-switch mono"
-        title="切换运行模式"
-        @click="appShellStore.openModeChooser()"
-      >
-        {{ isCustomMode ? "自定义模式" : "Codex 模式" }}
-      </button>
-      <CodexProfileSwitch v-if="!isCustomMode" class="bottom-bar__profile-switch" />
+      <CodexProfileSwitch class="bottom-bar__profile-switch" />
     </div>
 
     <div class="bottom-bar__right">
-      <div v-if="!isCustomMode" class="bottom-bar__conn mono" :class="connectionStateClass">
+      <div class="bottom-bar__conn mono" :class="connectionStateClass">
         <span class="bottom-bar__conn-icon" aria-hidden="true">
           <span class="bottom-bar__conn-dot"></span>
         </span>
@@ -35,8 +27,6 @@ import { useAppShellStore } from "../../stores/appShell.store";
 
 const appShellStore = useAppShellStore();
 const { t } = useI18n();
-
-const isCustomMode = computed(() => appShellStore.runtimeMode === "custom");
 
 const now = ref(Date.now());
 
@@ -121,25 +111,6 @@ onBeforeUnmount(() => {
 .bottom-bar .bottom-bar__profile-switch :deep(.codex-profile-switch__select) {
   width: clamp(148px, 18vw, 220px);
   height: 24px;
-}
-
-.bottom-bar__mode-switch {
-  height: 24px;
-  margin-left: 8px;
-  padding: 0 10px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
-  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.bottom-bar__mode-switch:hover {
-  color: var(--text);
-  border-color: var(--border-accent, var(--border));
 }
 
 .bottom-bar__clock {

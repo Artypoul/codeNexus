@@ -37,17 +37,6 @@ export class LocalSettingsService {
         ...settings.imageGeneration,
         apiKey: this.secureStorage.decrypt(settings.imageGeneration.apiKey),
       },
-      flowchartAi: {
-        ...settings.flowchartAi,
-        apiKey: this.secureStorage.decrypt(settings.flowchartAi.apiKey),
-      },
-      customProviders: {
-        ...settings.customProviders,
-        providers: settings.customProviders.providers.map((provider) => ({
-          ...provider,
-          apiKey: this.secureStorage.decrypt(provider.apiKey),
-        })),
-      },
     };
   }
 
@@ -58,17 +47,6 @@ export class LocalSettingsService {
         ...settings.imageGeneration,
         apiKey: this.secureStorage.encrypt(settings.imageGeneration.apiKey),
       },
-      flowchartAi: {
-        ...settings.flowchartAi,
-        apiKey: this.secureStorage.encrypt(settings.flowchartAi.apiKey),
-      },
-      customProviders: {
-        ...settings.customProviders,
-        providers: settings.customProviders.providers.map((provider) => ({
-          ...provider,
-          apiKey: this.secureStorage.encrypt(provider.apiKey),
-        })),
-      },
     };
   }
 
@@ -77,22 +55,11 @@ export class LocalSettingsService {
       const raw = await readFile(this.filePath, "utf8");
       const settings = normalizeUserLocalSettings(tryParseJson(raw));
       const decrypted = this.decryptApiKeys(settings);
-      if (this.secureStorage.needsMigration) {
-        this.migrateEncryption(decrypted);
-      }
       return { exists: true, settings: decrypted };
     } catch (error) {
       logger.info("settings", `settings file not available, using defaults (${this.filePath})`);
       return { exists: false, settings: normalizeUserLocalSettings(DEFAULT_USER_LOCAL_SETTINGS) };
     }
-  }
-
-  private migrateEncryption(settings: UserLocalSettings): void {
-    logger.info("settings", "auto-migrating plaintext API keys to encrypted storage");
-    const toWrite = this.encryptApiKeys(settings);
-    mkdir(dirname(this.filePath), { recursive: true })
-      .then(() => writeFile(this.filePath, `${JSON.stringify(toWrite, null, 2)}\n`, "utf8"))
-      .catch((error) => logger.warn("settings", "failed to migrate API key encryption", error));
   }
 
   async read(): Promise<{ exists: boolean; settings: UserLocalSettings }> {

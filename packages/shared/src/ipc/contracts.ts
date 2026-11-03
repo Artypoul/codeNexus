@@ -813,86 +813,6 @@ export type CodexDesktopHistoryApi = {
 };
 
 /*
- * 自定义运行时（agent-core）契约
- * ─────────────────────────────────────────────────────────────
- * 作用域：Agent 模块（脱离 codex-app-server 的自定义 provider 运行时）
- * 角色：renderer 把对话历史交给主进程，由 agent-core 内核驱动激活的自定义 provider
- * 数据流：renderer.run → preload → main CustomAgentService → agent-core runAgent → 流式回吐 delta（agent:event）并返回最终文本
- * 说明：单回合执行；流式文本增量经 CustomAgentStreamEvent 走 agent:event 事件通道，由 runId 关联
- */
-
-// 自定义运行时对话消息的最小形态：renderer 只发 user/assistant 文本轮；
-// 工具调用/结果由主进程内核在单次 run 内部管理，不在此协议里。
-export type CustomAgentMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
-
-export type CustomAgentRunArgs = {
-  // 不传则使用 localSettings.customProviders.activeProviderId。
-  providerId?: string;
-  // 关联本次运行的流式增量事件（agent:event）；不传则不推流。
-  runId?: string;
-  messages: CustomAgentMessage[];
-};
-
-export type CustomAgentRunResult =
-  | { ok: true; finalText: string; steps: number }
-  | { ok: false; error: string };
-
-// 自定义运行时的流式事件（main → renderer，经 agent:event 广播），按 runId 关联到某条助手消息。
-// 完成/失败通过 run() 的 Promise 返回，不单独发事件。
-// - delta：助手文本增量
-// - reasoning：助手思考/推理增量（provider 开启 thinking 时）
-// - tool_call/tool_result/tool_error：工具活动（接 agent-core 内核的同名 AgentEvent）
-// - approval_request：写改/命令需用户审批，renderer 经 agent:approve 回传决策（见 CustomAgentApproveArgs）
-export type CustomAgentStreamEvent =
-  | { type: "delta"; runId: string; text: string }
-  | { type: "reasoning"; runId: string; text: string }
-  | {
-      type: "tool_call";
-      runId: string;
-      callId: string;
-      name: string;
-      argsText: string;
-    }
-  | {
-      type: "tool_result";
-      runId: string;
-      callId: string;
-      name: string;
-      resultText: string;
-    }
-  | {
-      type: "tool_error";
-      runId: string;
-      callId: string;
-      name: string;
-      error: string;
-    }
-  | {
-      type: "approval_request";
-      runId: string;
-      approvalId: string;
-      kind: "command" | "file";
-      title: string;
-      detail: string;
-    };
-
-// renderer → main：回传一次审批决策，解开主进程里挂起的 requireApproval/requireConfirmation Promise。
-export type CustomAgentApproveArgs = {
-  runId: string;
-  approvalId: string;
-  approved: boolean;
-};
-
-export type CodexDesktopAgentApi = {
-  run(args: CustomAgentRunArgs): Promise<CustomAgentRunResult>;
-  approve(args: CustomAgentApproveArgs): Promise<{ ok: boolean }>;
-  onEvent(cb: (payload: CustomAgentStreamEvent) => void): () => void;
-};
-
-/*
  * 桌面 API 聚合接口
  * ─────────────────────────────────────────────────────────────
  * 作用域：CodexDesktopApi（通过 preload 暴露给 renderer）
@@ -916,7 +836,6 @@ export type CodexDesktopApi = {
   codexServer: CodexDesktopCodexServerApi;
   workspace: CodexDesktopWorkspaceApi;
   history: CodexDesktopHistoryApi;
-  agent: CodexDesktopAgentApi;
 };
 
 import type {

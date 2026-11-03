@@ -1,7 +1,6 @@
 import { type IpcRenderer } from "electron";
 import { type CodexDesktopApi } from "./types";
 import { createAppApi } from "./client/app";
-import { createAgentApi } from "./client/agent";
 import { createCacheApi } from "./client/cache";
 import { createCodexServerApi } from "./client/codexServer";
 import { createHistoryApi } from "./client/history";
@@ -29,7 +28,5 @@ export function createCodexDesktopApi(
     workspace: createWorkspaceApi(ipcRenderer),
     // 历史能力：列表、回放、任务和工件。
     history: createHistoryApi(ipcRenderer),
-    // 自定义运行时：用 agent-core 内核驱动自定义 provider。
-    agent: createAgentApi(ipcRenderer),
   };
 }

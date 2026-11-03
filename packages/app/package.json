@@ -15,15 +15,12 @@
     "format:check": "pnpm exec prettier --ignore-path .prettierignore --check .",
     "typecheck": "pnpm exec tsc --noEmit",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build",
-    "codex:types": "npx -y @openai/codex@0.135.0 app-server generate-ts --experimental --out .\\\\tmp\\\\codex_0.135.0_generated",
+    "codex:types": "npx -y @openai/codex@0.166.0 app-server generate-ts --experimental --out .\\\\tmp\\\\codex_0.166.0_generated",
     "dist": "pnpm run build && pnpm exec electron-builder --config electron-builder.yml"
   },
   "dependencies": {
-    "@codenexus/agent-core": "workspace:*",
     "@codenexus/generated": "workspace:*",
-    "@codenexus/feature-flowchart": "workspace:*",
     "@codenexus/feature-imagegen": "workspace:*",
-    "@codenexus/feature-paper": "workspace:*",
     "@codenexus/shared": "workspace:*",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/language": "^6.12.2",

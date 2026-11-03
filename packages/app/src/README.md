@@ -16,13 +16,11 @@
 
 ## 关联 workspace 包
 
-| 包                             | 说明                                         |
-| ------------------------------ | -------------------------------------------- |
-| `@codenexus/shared`            | 跨进程基础契约、IPC 通道、设置和协议辅助函数 |
-| `@codenexus/generated`         | Codex app-server 生成协议类型                |
-| `@codenexus/feature-paper`     | Paper 工作台状态和 UI                        |
-| `@codenexus/feature-flowchart` | 流程图类型、历史服务、工作台和 AI 设置页     |
-| `@codenexus/feature-imagegen`  | 图片生成类型、任务/历史服务、状态和组件      |
+| 包                            | 说明                                         |
+| ----------------------------- | -------------------------------------------- |
+| `@codenexus/shared`           | 跨进程基础契约、IPC 通道、设置和协议辅助函数 |
+| `@codenexus/generated`        | Codex app-server 生成协议类型                |
+| `@codenexus/feature-imagegen` | 图片生成类型、任务/历史服务、状态和组件      |
 
 ## 维护边界
 

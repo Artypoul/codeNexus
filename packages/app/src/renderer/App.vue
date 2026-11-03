@@ -16,9 +16,6 @@
         <div v-if="settingsOpen" key="settings" class="center-content-host">
           <SettingsPage />
         </div>
-        <div v-else-if="isCustomMode" key="custom" class="center-content-host">
-          <CustomWorkbench />
-        </div>
         <div v-else-if="activeFeature" :key="activeFeature.mainView" class="center-content-host">
           <component :is="activeFeature.workbenchComponent" />
         </div>
@@ -57,7 +54,6 @@
     <div class="app-overlays">
       <AppClosingOverlay v-if="showAppClosingOverlay" />
       <GoalShutdownCountdownOverlay v-if="showGoalShutdownOverlay" />
-      <RuntimeModeChooser v-if="showModeChooser" />
     </div>
   </div>
 </template>
@@ -68,8 +64,6 @@ import { useI18n } from "vue-i18n";
 import TopBar from "./components/layout/TopBar.vue";
 import CenterPane from "./components/layout/CenterPane.vue";
 import BottomBar from "./components/layout/BottomBar.vue";
-import RuntimeModeChooser from "./components/custom/RuntimeModeChooser.vue";
-import CustomWorkbench from "./components/custom/CustomWorkbench.vue";
 import {
   AppClosingOverlay,
   DebugTimelineSidebar,
@@ -91,7 +85,6 @@ import { useAppShellStore } from "./stores/appShell.store";
 import { useGoalShutdownStore } from "./stores/goalShutdown.store";
 import { useNotificationSoundStore } from "./stores/notificationSound.store";
 import { useRuntimeStore } from "./stores/runtime.store";
-import { useModelCatalogStore } from "./stores/modelCatalog.store";
 import { useWorkspaceFilesStore } from "./stores/workspaceFiles.store";
 import type { AppWindowState } from "@codenexus/shared/ipc/contracts";
 import {
@@ -111,13 +104,11 @@ const appClosingStore = useAppClosingStore();
 const goalShutdownStore = useGoalShutdownStore();
 const runtimeStore = useRuntimeStore();
 const notificationSoundStore = useNotificationSoundStore();
-const modelCatalogStore = useModelCatalogStore();
 const workspaceFilesStore = useWorkspaceFilesStore();
 appShellStore.initLocalSettings();
 runtimeStore.initLocalDraftState();
 notificationSoundStore.initLocalSettings();
 goalShutdownStore.initLocalSettings();
-modelCatalogStore.initLocalSettings();
 appClosingStore.initBridge();
 void notificationSoundStore.refreshAvailable();
 
@@ -125,20 +116,17 @@ const settingsOpen = computed(() => appShellStore.settingsOpen);
 const showAppClosingOverlay = computed(() => appClosingStore.visible);
 const showGoalShutdownOverlay = computed(() => goalShutdownStore.visible);
 const mainView = computed(() => appShellStore.mainView);
-const isCustomMode = computed(() => appShellStore.runtimeMode === "custom");
-const showModeChooser = computed(() => appShellStore.runtimeMode === null || appShellStore.modeChooserOpen);
 const activeFeature = computed(() => getFeatureByMainView(mainView.value));
 const featureWorkspaceSidebar = computed(() => {
-  if (isCustomMode.value || settingsOpen.value || !appShellStore.leftSidebarVisible) return null;
+  if (settingsOpen.value || !appShellStore.leftSidebarVisible) return null;
   return activeFeature.value?.workspaceSidebarComponent ?? null;
 });
 const featureSettingsSidebar = computed(() => {
-  if (isCustomMode.value || settingsOpen.value) return null;
+  if (settingsOpen.value) return null;
   return activeFeature.value?.settingsSidebarComponent ?? null;
 });
 const showLeftSidebar = computed(
   () =>
-    !isCustomMode.value &&
     !settingsOpen.value &&
     appShellStore.leftSidebarVisible &&
     !featureWorkspaceSidebar.value &&
@@ -146,11 +134,10 @@ const showLeftSidebar = computed(
 );
 const showLeftPane = computed(() => Boolean(featureWorkspaceSidebar.value) || showLeftSidebar.value);
 const showDebugSidebar = computed(
-  () => !isCustomMode.value && !settingsOpen.value && mainView.value === "chat" && runtimeStore.timelineDebugEnabled
+  () => !settingsOpen.value && mainView.value === "chat" && runtimeStore.timelineDebugEnabled
 );
 const showFilesSidebar = computed(() => {
   return (
-    !isCustomMode.value &&
     !settingsOpen.value &&
     allowsWorkspaceFilesSidebar(mainView.value) &&
     Boolean(String(runtimeStore.workspacePath ?? "").trim()) &&
@@ -285,7 +272,6 @@ const mainClass = computed(() => ({
   "has-editor": !settingsOpen.value && showEditorPane.value,
   "has-files-sidebar": showFilesSidebar.value || showDebugSidebar.value || Boolean(featureSettingsSidebar.value),
   "has-image-sidebar": mainView.value === "image" && Boolean(featureSettingsSidebar.value),
-  "has-paper-sidebar": mainView.value === "paper" && Boolean(featureSettingsSidebar.value),
   "has-settings": settingsOpen.value,
 }));
 

@@ -5,9 +5,6 @@ export const IPC_EVENT_CHANNELS = {
   // Codex server 产生的流式事件、请求事件和运行时通知统一从这里广播。
   codexEvent: "codex:event",
 
-  // 自定义运行时（agent-core）的流式增量从这里广播到 renderer。
-  agentEvent: "agent:event",
-
   // 历史列表或线程元数据发生变化后，用于通知 renderer 刷新本地视图。
   historyUpdated: "history:updated",
 } as const;

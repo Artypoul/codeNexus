@@ -8,8 +8,6 @@
           :class="{
             'is-chat': appShellStore.mainView === 'chat',
             'is-image': appShellStore.mainView === 'image',
-            'is-flowchart': appShellStore.mainView === 'flowchart',
-            'is-paper': appShellStore.mainView === 'paper',
           }"
           :aria-label="t('topbar.mainView')"
         >
@@ -33,26 +31,6 @@
             <ImageIcon class="topbar-mainview-icon" aria-hidden="true" />
             <span>{{ t("topbar.image") }}</span>
           </button>
-          <button
-            class="topbar-mainview-btn"
-            :class="{ 'is-active': appShellStore.mainView === 'flowchart' }"
-            type="button"
-            :aria-label="t('topbar.flowchart')"
-            @click="onSetMainView('flowchart')"
-          >
-            <Workflow class="topbar-mainview-icon" aria-hidden="true" />
-            <span>{{ t("topbar.flowchart") }}</span>
-          </button>
-          <button
-            class="topbar-mainview-btn"
-            :class="{ 'is-active': appShellStore.mainView === 'paper' }"
-            type="button"
-            :aria-label="t('topbar.paper')"
-            @click="onSetMainView('paper')"
-          >
-            <BookOpen class="topbar-mainview-icon" aria-hidden="true" />
-            <span>{{ t("topbar.paper") }}</span>
-          </button>
         </div>
       </div>
 
@@ -69,7 +47,7 @@
               class="btn-icon"
               :class="{ 'is-active': appShellStore.leftSidebarVisible }"
               type="button"
-              :disabled="appShellStore.settingsOpen || appShellStore.mainView === 'flowchart'"
+              :disabled="appShellStore.settingsOpen"
               :aria-label="threadPaneTitle"
               :aria-pressed="appShellStore.leftSidebarVisible ? 'true' : 'false'"
               @click="onToggleThreadPane"
@@ -122,14 +100,12 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Image as ImageIcon,
-  BookOpen,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Settings,
-  Workflow,
 } from "lucide-vue-next";
 import TopBarWorkspaceButton from "./topbar/TopBarWorkspaceButton.vue";
 import TopBarGoalSummary from "./topbar/TopBarGoalSummary.vue";
@@ -169,20 +145,12 @@ const threadPaneTitle = computed(() => {
       ? t("topbar.closeImageWorkspacePanel")
       : t("topbar.openImageWorkspacePanel");
   }
-  if (appShellStore.mainView === "flowchart") return t("topbar.threadPanelHiddenInFlowchart");
-  if (appShellStore.mainView === "paper") {
-    return appShellStore.leftSidebarVisible
-      ? t("topbar.closePaperWorkspacePanel")
-      : t("topbar.openPaperWorkspacePanel");
-  }
   return appShellStore.leftSidebarVisible ? t("topbar.closeThreadPanel") : t("topbar.openThreadPanel");
 });
 const filesPaneTitle = computed(() => {
   if (!hasWorkspace.value) return t("topbar.chooseWorkspaceBeforeFiles");
   if (appShellStore.settingsOpen) return t("topbar.filesPanelHiddenInSettings");
   if (appShellStore.mainView === "image") return t("topbar.filesPanelHiddenInImage");
-  if (appShellStore.mainView === "flowchart") return t("topbar.filesPanelHiddenInFlowchart");
-  if (appShellStore.mainView === "paper") return t("topbar.filesPanelHiddenInPaper");
   return filesPaneVisible.value ? t("topbar.closeFilesPanel") : t("topbar.openFilesPanel");
 });
 
@@ -258,7 +226,7 @@ function onSetMainView(next: MainView) {
 }
 
 function onToggleThreadPane() {
-  if (appShellStore.settingsOpen || appShellStore.mainView === "flowchart") return;
+  if (appShellStore.settingsOpen) return;
   appShellStore.toggleLeftSidebarVisible();
 }
 

@@ -11,7 +11,7 @@ import {
 
 export type FeatureMainView = Exclude<MainView, "chat">;
 export type CoreSettingsTab = "global" | "profiles" | "sound" | "env" | "integrations" | "update";
-export type FeatureSettingsTab = "image" | "flowchart";
+export type FeatureSettingsTab = "image";
 export type AppSettingsTab = CoreSettingsTab | FeatureSettingsTab;
 
 type RuntimeBridgeDisposer = () => void;
@@ -42,7 +42,7 @@ export type FeatureRegistryEntry = {
     showWorkspaceFilesSidebar?: boolean;
   };
   installRuntimeBridge?: (context: FeatureRuntimeBridgeContext) => RuntimeBridgeDisposer | void;
-  resolveInstructionProfile?: (context?: { paperMode?: unknown }) => CodexInstructionProfile;
+  resolveInstructionProfile?: () => CodexInstructionProfile;
 };
 
 const ImageWorkbench = defineAsyncComponent(
@@ -56,21 +56,6 @@ const ImageSettingsSidebar = defineAsyncComponent(
 );
 const SettingsImageGenerationTab = defineAsyncComponent(
   () => import("../components/layout/settings/SettingsImageGenerationTab.vue")
-);
-
-const FlowchartWorkbench = defineAsyncComponent(
-  () => import("@codenexus/feature-flowchart/renderer/components/FlowchartWorkbench")
-);
-const SettingsFlowchartAiTab = defineAsyncComponent(
-  () => import("@codenexus/feature-flowchart/renderer/settings/SettingsFlowchartAiTab")
-);
-
-const PaperWorkbench = defineAsyncComponent(() => import("@codenexus/feature-paper/components/PaperWorkbench"));
-const PaperWorkspaceSidebar = defineAsyncComponent(
-  () => import("@codenexus/feature-paper/components/PaperWorkspaceSidebar")
-);
-const PaperSettingsSidebar = defineAsyncComponent(
-  () => import("@codenexus/feature-paper/components/PaperSettingsSidebar")
 );
 
 export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
@@ -100,36 +85,7 @@ export const FEATURE_REGISTRY: FeatureRegistryEntry[] = [
         setImagegenWorkspacePath(workspacePath);
       });
     },
-    resolveInstructionProfile: () => codexInstructionProfileForMainView("image"),
-  },
-  {
-    id: "flowchart",
-    mainView: "flowchart",
-    order: 2,
-    workbenchComponent: FlowchartWorkbench,
-    settings: {
-      tab: "flowchart",
-      labelKey: "settings.tabs.flowchart",
-      descKey: "settings.tabs.flowchartDesc",
-      icon: "workflow",
-      component: SettingsFlowchartAiTab,
-    },
-    layout: {
-      hideDefaultLeftSidebar: true,
-    },
-    resolveInstructionProfile: () => codexInstructionProfileForMainView("flowchart"),
-  },
-  {
-    id: "paper",
-    mainView: "paper",
-    order: 3,
-    workbenchComponent: PaperWorkbench,
-    workspaceSidebarComponent: PaperWorkspaceSidebar,
-    settingsSidebarComponent: PaperSettingsSidebar,
-    layout: {
-      forceLeftSidebarVisible: true,
-    },
-    resolveInstructionProfile: (context) => codexInstructionProfileForMainView("paper", context?.paperMode),
+    resolveInstructionProfile: () => codexInstructionProfileForMainView(),
   },
 ];
 
@@ -188,12 +144,9 @@ export function mainViewTransitionOrder(mainView: MainView): number {
   return mainView === "chat" ? 0 : (getFeatureByMainView(mainView)?.order ?? 0);
 }
 
-export function resolveCodexInstructionProfileForMainView(
-  mainView: MainView,
-  context?: { paperMode?: unknown }
-): CodexInstructionProfile {
+export function resolveCodexInstructionProfileForMainView(mainView: MainView): CodexInstructionProfile {
   const feature = getFeatureByMainView(mainView);
-  return feature?.resolveInstructionProfile?.(context) ?? codexInstructionProfileForMainView("chat");
+  return feature?.resolveInstructionProfile?.() ?? codexInstructionProfileForMainView();
 }
 
 export function installFeatureRuntimeBridges(context: FeatureRuntimeBridgeContext): RuntimeBridgeDisposer {

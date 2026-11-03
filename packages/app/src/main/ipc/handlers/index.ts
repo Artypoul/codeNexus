@@ -9,25 +9,21 @@ import type { CodexSkillRootsService } from "../../services/CodexSkillRootsServi
 import type { CodexConfigSwitcherService } from "../../services/CodexConfigSwitcherService";
 import type { ImageGenerationHistoryService } from "@codenexus/feature-imagegen/main/ImageGenerationHistoryService";
 import type { ImageGenerationTaskService } from "@codenexus/feature-imagegen/main/ImageGenerationTaskService";
-import type { FlowchartHistoryService } from "@codenexus/feature-flowchart/main/FlowchartHistoryService";
 import type { ThreadArtifactService } from "../../services/ThreadArtifactService";
 import type { ThreadTaskService } from "../../services/ThreadTaskService";
 import type { ThreadTitleOverrideService } from "../../services/ThreadTitleOverrideService";
 import type { UpdateService } from "../../services/UpdateService";
 import type { DeepSeekResponsesProxyService } from "../../services/DeepSeekResponsesProxyService";
-import type { CustomAgentService } from "../../services/CustomAgentService";
 import { WorkspacePatchService } from "../../services/WorkspacePatchService";
 import { registerAppHandlers } from "./app.handlers";
-import { registerAgentHandlers } from "./agent.handlers";
 import { registerCacheHandlers } from "./cache.handlers";
 import { registerCodexHandlers } from "./codex.handlers";
-import { registerFlowchartHandlers } from "./flowchart.handlers";
 import { registerHistoryHandlers } from "./history.handlers";
 import { registerImageGenerationHandlers } from "./image-generation.handlers";
 import { registerWorkspaceHandlers } from "./workspace.handlers";
 import { registerWindowHandlers } from "./window.handlers";
 import { CacheRegistryService } from "../../services/CacheRegistryService";
-import type { CustomAgentStreamEvent, HistoryThreadRunningStateResult } from "@codenexus/shared/ipc/contracts";
+import type { HistoryThreadRunningStateResult } from "@codenexus/shared/ipc/contracts";
 
 export type IpcHandlersDeps = {
   getMainWindow: () => BrowserWindow | null;
@@ -48,11 +44,8 @@ export type IpcHandlersDeps = {
   codexConfigSwitcherService: CodexConfigSwitcherService;
   imageGenerationHistoryService: ImageGenerationHistoryService;
   imageGenerationTaskService: ImageGenerationTaskService;
-  flowchartHistoryService: FlowchartHistoryService;
   updateService: UpdateService;
   deepSeekResponsesProxyService: DeepSeekResponsesProxyService;
-  customAgentService: CustomAgentService;
-  sendAgentEvent: (payload: CustomAgentStreamEvent) => void;
   cacheRegistryService: CacheRegistryService;
 };
 
@@ -71,13 +64,8 @@ export function registerAllHandlers(deps: IpcHandlersDeps) {
     imageGenerationHistoryService: deps.imageGenerationHistoryService,
     imageGenerationTaskService: deps.imageGenerationTaskService,
   });
-  registerFlowchartHandlers({
-    localSettingsService: deps.localSettingsService,
-    flowchartHistoryService: deps.flowchartHistoryService,
-  });
   registerWindowHandlers({ getMainWindow: deps.getMainWindow });
   registerCodexHandlers({ serverManager: deps.serverManager, sendEvent: deps.sendCodexEvent });
-  registerAgentHandlers({ customAgentService: deps.customAgentService, sendEvent: deps.sendAgentEvent });
   registerCacheHandlers({ cacheRegistryService: deps.cacheRegistryService });
   registerHistoryHandlers({
     historyService: deps.historyService,

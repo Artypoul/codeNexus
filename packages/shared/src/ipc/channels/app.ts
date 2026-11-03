@@ -66,12 +66,6 @@ export const IPC_APP_CHANNELS = {
   appImageGenerationTaskDelete: "app:imageGeneration:taskDelete",
   appImageGenerationTaskRetry: "app:imageGeneration:taskRetry",
 
-  // 流程图 feature 频道：历史记录持久化和 AI 运行入口都复用 app 域桥接。
-  appFlowchartHistoryList: "app:flowchart:historyList",
-  appFlowchartHistoryUpsert: "app:flowchart:historyUpsert",
-  appFlowchartHistoryDelete: "app:flowchart:historyDelete",
-  appFlowchartAiRun: "app:flowchart:aiRun",
-
   // 窗口控制：服务自定义标题栏；状态类频道用于 renderer 订阅窗口变化。
   appWindowGetState: "app:window:getState",
   appWindowMinimize: "app:window:minimize",

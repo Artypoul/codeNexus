@@ -21,7 +21,6 @@ import { CodexSkillRootsService } from "./services/CodexSkillRootsService";
 import { CodexConfigSwitcherService } from "./services/CodexConfigSwitcherService";
 import { ImageGenerationHistoryService } from "@codenexus/feature-imagegen/main/ImageGenerationHistoryService";
 import { ImageGenerationTaskService } from "@codenexus/feature-imagegen/main/ImageGenerationTaskService";
-import { FlowchartHistoryService } from "@codenexus/feature-flowchart/main/FlowchartHistoryService";
 import { LocalSettingsService } from "./services/LocalSettingsService";
 import { CacheRegistryService } from "./services/CacheRegistryService";
 import { ThreadArtifactService } from "./services/ThreadArtifactService";
@@ -30,7 +29,6 @@ import { ThreadTitleOverrideService } from "./services/ThreadTitleOverrideServic
 import { UpdateService } from "./services/UpdateService";
 import { WorkspacePatchService } from "./services/WorkspacePatchService";
 import { DeepSeekResponsesProxyService } from "./services/DeepSeekResponsesProxyService";
-import { CustomAgentService } from "./services/CustomAgentService";
 import { createMainWindow } from "./windows/mainWindow";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
@@ -202,7 +200,6 @@ app
     const historyStore = new HistoryStore(historyCachePath);
     const historyService = new HistoryService(historyStore);
     const localSettingsService = new LocalSettingsService(join(app.getPath("userData"), "user-settings.json"));
-    const customAgentService = new CustomAgentService(localSettingsService);
     const codexProfileService = new CodexProfileService(join(app.getPath("userData"), "codex-profiles.json"));
     const codexSkillRootsService = new CodexSkillRootsService(join(app.getPath("userData"), "codex-skill-roots.json"));
     const codexConfigSwitcherService = new CodexConfigSwitcherService(
@@ -219,9 +216,6 @@ app
       join(app.getPath("userData"), "image-generation-tasks.json"),
       (args, signal) => generateImagesWithSettings(localSettingsService, imageGenerationHistoryService, args, signal),
       2
-    );
-    const flowchartHistoryService = new FlowchartHistoryService(
-      join(app.getPath("userData"), "flowchart-history.json")
     );
     const threadTaskService = new ThreadTaskService(join(app.getPath("userData"), "thread-tasks.json"));
     const threadArtifactService = new ThreadArtifactService(join(app.getPath("userData"), "thread-artifacts.json"));
@@ -292,11 +286,8 @@ app
       codexConfigSwitcherService,
       imageGenerationHistoryService,
       imageGenerationTaskService,
-      flowchartHistoryService,
       updateService,
       deepSeekResponsesProxyService,
-      customAgentService,
-      sendAgentEvent: (payload) => sendToRenderer(IPC_EVENT_CHANNELS.agentEvent, payload),
       cacheRegistryService,
     });
 

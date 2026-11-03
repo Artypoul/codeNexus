@@ -8,7 +8,7 @@
     "lint": "pnpm --filter @codenexus/app lint",
     "format": "pnpm --filter @codenexus/app format",
     "format:check": "pnpm --filter @codenexus/app format:check",
-    "typecheck": "pnpm --filter @codenexus/app --filter @codenexus/feature-flowchart --filter @codenexus/feature-imagegen --filter @codenexus/feature-paper --filter @codenexus/agent-core typecheck",
+    "typecheck": "pnpm --filter @codenexus/app --filter @codenexus/feature-imagegen typecheck",
     "test": "vitest run",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "codex:types": "pnpm --filter @codenexus/app codex:types",

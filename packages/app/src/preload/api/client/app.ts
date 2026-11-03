@@ -52,10 +52,6 @@ export function createAppApi(ipcRenderer: IpcRenderer): CodexDesktopApi["app"] {
     cancelImageGenerationTask: (args) => ipcRenderer.invoke(IPC_APP_CHANNELS.appImageGenerationTaskCancel, args),
     deleteImageGenerationTask: (args) => ipcRenderer.invoke(IPC_APP_CHANNELS.appImageGenerationTaskDelete, args),
     retryImageGenerationTask: (args) => ipcRenderer.invoke(IPC_APP_CHANNELS.appImageGenerationTaskRetry, args),
-    listFlowchartHistory: () => ipcRenderer.invoke(IPC_APP_CHANNELS.appFlowchartHistoryList),
-    upsertFlowchartHistory: (args) => ipcRenderer.invoke(IPC_APP_CHANNELS.appFlowchartHistoryUpsert, args),
-    deleteFlowchartHistory: (args) => ipcRenderer.invoke(IPC_APP_CHANNELS.appFlowchartHistoryDelete, args),
-    runFlowchartAi: (args) => ipcRenderer.invoke(IPC_APP_CHANNELS.appFlowchartAiRun, args),
     // 读取 Codex profile：同步设置页的模型/账户配置。
     readCodexProfiles: () => ipcRenderer.invoke(IPC_APP_CHANNELS.appCodexProfilesRead),
     // 新增或更新 profile：写回主进程持久化存储。

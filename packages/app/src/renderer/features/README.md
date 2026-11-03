@@ -4,7 +4,7 @@
 
 应用壳内部保留的渲染层功能模块目录。
 
-这里主要维护 chat/timeline/approval/history 等仍属于 app 壳的能力；Paper、flowchart、image generation 已拆分到独立 workspace feature 包。
+这里主要维护 chat/timeline/approval/history 等仍属于 app 壳的能力；image generation 已拆分到独立 workspace feature 包。
 
 ## 当前结构
 
@@ -25,11 +25,9 @@
 
 ## 外部 feature 包
 
-| 包                             | 归属能力         |
-| ------------------------------ | ---------------- |
-| `@codenexus/feature-paper`     | Paper 工作台     |
-| `@codenexus/feature-flowchart` | Flowchart 工作台 |
-| `@codenexus/feature-imagegen`  | Image generation |
+| 包                            | 归属能力         |
+| ----------------------------- | ---------------- |
+| `@codenexus/feature-imagegen` | Image generation |
 
 ## 维护边界
 

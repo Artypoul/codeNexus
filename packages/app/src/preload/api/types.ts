@@ -3,14 +3,6 @@ import type {
   CodexDesktopAppApi as SharedCodexDesktopAppApi,
 } from "@codenexus/shared/ipc/contracts";
 import type {
-  FlowchartAiRunArgs,
-  FlowchartAiRunResult,
-  FlowchartDocument,
-  FlowchartHistoryDeleteResult,
-  FlowchartHistoryListResult,
-  FlowchartHistoryUpsertResult,
-} from "@codenexus/feature-flowchart/types";
-import type {
   ImageGenerationGenerateArgs,
   ImageGenerationGenerateResult,
   ImageGenerationHistoryDeleteResult,
@@ -35,14 +27,7 @@ export type FeatureImageGenerationAppApi = {
   retryImageGenerationTask(args: { id: string }): Promise<ImageGenerationTaskRetryResult>;
 };
 
-export type FeatureFlowchartAppApi = {
-  listFlowchartHistory(): Promise<FlowchartHistoryListResult>;
-  upsertFlowchartHistory(args: { document: FlowchartDocument }): Promise<FlowchartHistoryUpsertResult>;
-  deleteFlowchartHistory(args: { id: string }): Promise<FlowchartHistoryDeleteResult>;
-  runFlowchartAi(args: FlowchartAiRunArgs): Promise<FlowchartAiRunResult>;
-};
-
-export type CodexDesktopAppApi = SharedCodexDesktopAppApi & FeatureImageGenerationAppApi & FeatureFlowchartAppApi;
+export type CodexDesktopAppApi = SharedCodexDesktopAppApi & FeatureImageGenerationAppApi;
 
 export type CodexDesktopApi = Omit<SharedCodexDesktopApi, "app"> & {
   app: CodexDesktopAppApi;

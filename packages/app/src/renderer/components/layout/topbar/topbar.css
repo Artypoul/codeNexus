@@ -472,14 +472,6 @@
   transform: translateX(calc(100% + var(--topbar-mainview-gap)));
 }
 
-.topbar-mainview-switch.is-flowchart::after {
-  transform: translateX(calc((100% + var(--topbar-mainview-gap)) * 2));
-}
-
-.topbar-mainview-switch.is-paper::after {
-  transform: translateX(calc((100% + var(--topbar-mainview-gap)) * 3));
-}
-
 .topbar-mainview-btn {
   position: relative;
   z-index: 1;

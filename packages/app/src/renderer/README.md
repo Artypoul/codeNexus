@@ -4,7 +4,7 @@
 
 渲染层应用壳目录，负责 Vue 启动、Pinia 状态、协议事件流水线、运行时编排与功能包挂载。
 
-Paper、flowchart、image generation 等完整工作台已经拆到独立 workspace 包，渲染层通过包导出接入它们。
+image generation 等完整工作台已经拆到独立 workspace 包，渲染层通过包导出接入它们。
 
 ## 当前结构
 
@@ -22,11 +22,9 @@ Paper、flowchart、image generation 等完整工作台已经拆到独立 worksp
 
 ## 外部功能包
 
-| 包                             | 渲染层接入内容                       |
-| ------------------------------ | ------------------------------------ |
-| `@codenexus/feature-paper`     | Paper store、工作台和侧栏组件        |
-| `@codenexus/feature-flowchart` | Flowchart workbench 和 AI 设置页     |
-| `@codenexus/feature-imagegen`  | 图片生成 store、工作台和任务展示组件 |
+| 包                            | 渲染层接入内容                       |
+| ----------------------------- | ------------------------------------ |
+| `@codenexus/feature-imagegen` | 图片生成 store、工作台和任务展示组件 |
 
 ## 维护边界
 
