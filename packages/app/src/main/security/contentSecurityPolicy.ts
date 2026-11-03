@@ -12,6 +12,7 @@ const CSP_DIRECTIVES = [
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
+  "media-src 'self' data: blob:",
   "connect-src 'self' https: http://localhost:* ws://localhost:*",
   "font-src 'self' data:",
   "object-src 'none'",

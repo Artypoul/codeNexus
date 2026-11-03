@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import SelectDropdown from "../../ui/SelectDropdown.vue";
 import { useNotificationSoundStore } from "../../../stores/notificationSound.store";
@@ -67,6 +67,10 @@ import { playNotificationSoundOnce } from "../../../features/notificationSound/p
 
 const { t } = useI18n();
 const notificationSoundStore = useNotificationSoundStore();
+
+onMounted(() => {
+  void notificationSoundStore.refreshAvailable();
+});
 
 const notificationSoundDropdownOptions = computed(() => {
   return notificationSoundStore.available.map((item) => ({ value: item.id, label: item.label }));

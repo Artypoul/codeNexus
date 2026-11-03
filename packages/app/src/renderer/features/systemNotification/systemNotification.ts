@@ -24,7 +24,7 @@ export async function notifyTurnCompleted(args: {
     await args.app.showSystemNotification({
       title: translate("systemNotification.taskCompletedTitle"),
       body: translate("systemNotification.turnCompletedBody", { title }),
-      silent: false,
+      silent: true,
     });
   } catch (error) {
     console.warn("[systemNotification] show failed", error);

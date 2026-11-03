@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, Notification, shell } from "electron";
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { appendFile, lstat, mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { IPC_APP_CHANNELS } from "@codenexus/shared/ipc/channels";
@@ -90,18 +90,6 @@ function focusMainWindow(win: BrowserWindow | null): void {
 }
 
 const ALLOWED_NOTIFICATION_SOUND_EXTS = new Set<string>([".mp3", ".wav", ".ogg", ".m4a"]);
-const ALLOWED_NOTIFICATION_SOUND_IDS = new Set<string>([
-  "阿啵.mp3",
-  "比比拉布.mp3",
-  "布谷鸟.mp3",
-  "ciallo.mp3",
-  "酱酱微信提示音.mp3",
-  "曼波.mp3",
-  "你干嘛 哎呦.mp3",
-  "通知铃声.mp3",
-  "主人，有消息哦，.mp3",
-  "木琴铃声-手机来电通知音效_爱给网_aigei_com.mp3",
-]);
 
 function toAudioMime(ext: string): string {
   const e = String(ext ?? "")
@@ -142,7 +130,7 @@ function isSafeSoundId(id: unknown): id is string {
   if (text.includes("/") || text.includes("\\")) return false;
   if (text.includes("..")) return false;
   const ext = extname(text).toLowerCase();
-  return ALLOWED_NOTIFICATION_SOUND_EXTS.has(ext) && ALLOWED_NOTIFICATION_SOUND_IDS.has(text);
+  return ALLOWED_NOTIFICATION_SOUND_EXTS.has(ext);
 }
 
 function resolveSoundPathOrThrow(musicDir: string, id: string): string {
@@ -154,6 +142,19 @@ function resolveSoundPathOrThrow(musicDir: string, id: string): string {
     throw new Error("app:notificationSound invalid path scope");
   }
   return filePath;
+}
+
+async function listNotificationSoundItems(musicDir: string) {
+  const entries = await readdir(musicDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => ALLOWED_NOTIFICATION_SOUND_EXTS.has(extname(name).toLowerCase()))
+    .map((name) => ({
+      id: name,
+      label: basename(name, extname(name)),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
 }
 
 export function registerAppHandlers(deps: {
@@ -448,20 +449,7 @@ export function registerAppHandlers(deps: {
   ipcMain.handle(IPC_APP_CHANNELS.appListNotificationSounds, async () => {
     const musicDir = await firstExistingDir(bundledMusicDirCandidates());
     if (!musicDir) return { items: [] };
-    const entries = await readdir(musicDir, { withFileTypes: true });
-    const items = entries
-      .filter((d) => d.isFile())
-      .map((d) => d.name)
-      .filter(
-        (name) =>
-          ALLOWED_NOTIFICATION_SOUND_EXTS.has(extname(name).toLowerCase()) && ALLOWED_NOTIFICATION_SOUND_IDS.has(name)
-      )
-      .map((name) => ({
-        id: name,
-        label: basename(name, extname(name)),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label, "zh-CN"));
-    return { items };
+    return { items: await listNotificationSoundItems(musicDir) };
   });
 
   ipcMain.handle(IPC_APP_CHANNELS.appReadNotificationSoundDataUrl, async (_evt, args: { id: string }) => {
@@ -469,7 +457,13 @@ export function registerAppHandlers(deps: {
     if (!isSafeSoundId(id)) throw new Error("app:notificationSound invalid id");
     const musicDir = await firstExistingDir(bundledMusicDirCandidates());
     if (!musicDir) throw new Error("app:notificationSound dir not found");
+    const items = await listNotificationSoundItems(musicDir);
+    if (!items.some((item) => item.id === id)) throw new Error("app:notificationSound not listed");
     const filePath = resolveSoundPathOrThrow(musicDir, id);
+    const fileInfo = await lstat(filePath);
+    if (!fileInfo.isFile() || fileInfo.isSymbolicLink()) {
+      throw new Error("app:notificationSound not a regular file");
+    }
     const buf = await readFile(filePath);
     const ext = extname(id).toLowerCase();
     const mime = toAudioMime(ext);
