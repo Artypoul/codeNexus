@@ -27,7 +27,6 @@
 | `dynamicTools.ts`              | 内置动态工具定义、注入 schema 和过滤规则  |
 | `codexInstructionProfiles.ts`  | 主视图/论文模式到 Codex 指令 profile 映射 |
 | `codexMcp.ts`                  | MCP 配置导入、归一化、校验和导出结构      |
-| `codexProfiles.ts`             | Codex provider profile 数据模型与脱敏规则 |
 | `codexSkillRoots.ts`           | workspace 到 skill 根目录的共享状态       |
 | `codexConfigSwitcher.ts`       | Codex 配置切换器的 profile、备份和状态    |
 

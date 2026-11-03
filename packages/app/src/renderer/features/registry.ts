@@ -10,7 +10,7 @@ import {
 } from "@codenexus/feature-imagegen/renderer/runtimeBridge";
 
 export type FeatureMainView = Exclude<MainView, "chat">;
-export type CoreSettingsTab = "global" | "profiles" | "sound" | "env" | "integrations" | "update";
+export type CoreSettingsTab = "global" | "sound" | "env" | "integrations" | "update";
 export type FeatureSettingsTab = "image";
 export type AppSettingsTab = CoreSettingsTab | FeatureSettingsTab;
 

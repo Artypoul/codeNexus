@@ -18,22 +18,13 @@ export const IPC_APP_CHANNELS = {
   appLocalSettingsRead: "app:localSettings:read",
   appLocalSettingsPatch: "app:localSettings:patch",
 
-  // Codex 供应商与认证配置：包含 profile 管理、API key 读写和连通性测试。
-  appCodexProfilesRead: "app:codexProfiles:read",
-  appCodexProfilesUpsert: "app:codexProfiles:upsert",
-  appCodexProfilesDelete: "app:codexProfiles:delete",
-  appCodexProfilesSetActive: "app:codexProfiles:setActive",
-  appCodexAuthReadApiKey: "app:codexAuth:readApiKey",
-  appCodexAuthWriteApiKey: "app:codexAuth:writeApiKey",
-  appCodexProviderTest: "app:codexProvider:test",
-  appDeepSeekProxyPrepare: "app:deepSeekProxy:prepare",
-
   // Codex 工作区附加配置：技能根目录和配置切换器都和当前机器上的文件状态有关。
   appCodexSkillRootsRead: "app:codexSkillRoots:read",
   appCodexSkillRootsSetForWorkspace: "app:codexSkillRoots:setForWorkspace",
   appCodexConfigSwitcherRead: "app:codexConfigSwitcher:read",
   appCodexConfigSwitcherSave: "app:codexConfigSwitcher:save",
-  appCodexConfigSwitcherActivateProfile: "app:codexConfigSwitcher:activateProfile",
+  appCodexConfigSwitcherActivateProfile:
+    "app:codexConfigSwitcher:activateProfile",
   appCodexConfigSwitcherImportCurrent: "app:codexConfigSwitcher:importCurrent",
   appCodexConfigSwitcherRestoreBackup: "app:codexConfigSwitcher:restoreBackup",
 

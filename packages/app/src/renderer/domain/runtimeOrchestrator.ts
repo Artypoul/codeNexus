@@ -18,7 +18,6 @@ import { useMcpStore } from "../stores/mcp.store";
 import { useMcpResourceStore } from "../stores/mcpResource.store";
 import { useUserInputStore } from "../stores/userInput.store";
 import { useMessageQueueStore } from "../stores/messageQueue.store";
-import { useCodexProfilesStore } from "../stores/codexProfiles.store";
 import { useCodexSkillRootsStore } from "../stores/codexSkillRoots.store";
 import { useCodexConfigSwitcherStore } from "../stores/codexConfigSwitcher.store";
 import { useApprovalStore } from "../stores/approval.store";
@@ -57,7 +56,6 @@ import { createThreadResumeRuntime } from "./runtime/threadResumeRuntime";
 import { createThreadRuntimeCleanupRuntime } from "./runtime/threadRuntimeCleanupRuntime";
 import { createThreadStartParamsRuntime } from "./runtime/threadStartParamsRuntime";
 import { createThreadMetadataRuntime } from "./runtime/threadMetadataRuntime";
-import { createCodexProfileRuntime } from "./runtime/codexProfileRuntime";
 import { createCodexConfigSwitcherRuntime } from "./runtime/codexConfigSwitcherRuntime";
 import { createMcpManagementRuntime } from "./runtime/mcpManagementRuntime";
 import { createSkillsManagementRuntime } from "./runtime/skillsManagementRuntime";
@@ -148,7 +146,6 @@ export type RuntimeOrchestrator = {
   refreshGlobalConfig: () => Promise<void>;
   saveGlobalConfig: (options?: { source?: "manual" | "auto"; silentSuccessToast?: boolean }) => Promise<void>;
   resetGlobalConfig: () => void;
-  applyCodexProfile: (profileId: string) => Promise<void>;
   openExternalUrl: (url: string) => Promise<void>;
   readTextFile: (path: string) => Promise<string>;
   writeTextFile: (path: string, content: string) => Promise<void>;
@@ -226,7 +223,6 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   const approvalStore = useApprovalStore(pinia);
   const messageQueueStore = useMessageQueueStore(pinia);
   const workspaceFilesStore = useWorkspaceFilesStore(pinia);
-  const codexProfilesStore = useCodexProfilesStore(pinia);
   const codexSkillRootsStore = useCodexSkillRootsStore(pinia);
   const codexConfigSwitcherStore = useCodexConfigSwitcherStore(pinia);
 
@@ -495,23 +491,6 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   });
   const { refreshGlobalConfig, ensureGlobalConfigLoadedOnce, saveGlobalConfig, resetGlobalConfig } =
     globalConfigManagementRuntime;
-
-  const codexProfileRuntime = createCodexProfileRuntime({
-    appTimelineId: APP_TIMELINE_ID,
-    codexProfilesStore,
-    getWorkspacePath: () => String(runtimeStore.workspacePath ?? "").trim(),
-    getServerIdForWorkspace,
-    requestConfigBatchWrite,
-    refreshGlobalConfig,
-    pushEvent,
-    translate,
-    showToast,
-  });
-  const { applyCodexProfile: applyCodexProfileBase } = codexProfileRuntime;
-  const applyCodexProfile = async (profileId: string) => {
-    await applyCodexProfileBase(profileId);
-    void modelCatalogStore.refreshModels();
-  };
 
   const externalUrlRuntime = createExternalUrlRuntime({ translate });
   const { openExternalUrl } = externalUrlRuntime;
@@ -1242,7 +1221,6 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     refreshGlobalConfig,
     saveGlobalConfig,
     resetGlobalConfig,
-    applyCodexProfile,
     openExternalUrl,
     readTextFile,
     writeTextFile,

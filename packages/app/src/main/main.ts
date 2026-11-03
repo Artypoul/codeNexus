@@ -11,7 +11,6 @@ import { generateImagesWithSettings } from "./ipc/handlers/image-generation.hand
 import { RuntimeThreadStateTracker } from "./runtimeThreadStateTracker";
 import { HistoryService } from "./services/HistoryService";
 import { CodexServerManager } from "./services/CodexServerManager";
-import { CodexProfileService } from "./services/CodexProfileService";
 import { CodexSkillRootsService } from "./services/CodexSkillRootsService";
 import { CodexConfigSwitcherService } from "./services/CodexConfigSwitcherService";
 import { ImageGenerationHistoryService } from "@codenexus/feature-imagegen/main/ImageGenerationHistoryService";
@@ -23,7 +22,6 @@ import { ThreadTaskService } from "./services/ThreadTaskService";
 import { ThreadTitleOverrideService } from "./services/ThreadTitleOverrideService";
 import { UpdateService } from "./services/UpdateService";
 import { WorkspacePatchService } from "./services/WorkspacePatchService";
-import { DeepSeekResponsesProxyService } from "./services/DeepSeekResponsesProxyService";
 import { createMainWindow } from "./windows/mainWindow";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
@@ -40,7 +38,6 @@ const codexServerManager = new CodexServerManager();
 const workspacePatchService = new WorkspacePatchService();
 const runtimeThreadStateTracker = new RuntimeThreadStateTracker();
 const cacheRegistryService = new CacheRegistryService();
-const deepSeekResponsesProxyService = new DeepSeekResponsesProxyService();
 
 function sendToRenderer(channel: string, payload: unknown) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -66,11 +63,6 @@ function stopCodexServersForClose(_reason: string) {
     codexServerManager.stopAll();
   } catch (error) {
     logger.warn("app-close", "stop codex servers failed", error);
-  }
-  try {
-    deepSeekResponsesProxyService.stop();
-  } catch (error) {
-    logger.warn("app-close", "stop DeepSeek proxy failed", error);
   }
 }
 
@@ -101,7 +93,6 @@ app
     const historyStore = new HistoryStore(historyCachePath);
     const historyService = new HistoryService(historyStore);
     const localSettingsService = new LocalSettingsService(join(app.getPath("userData"), "user-settings.json"));
-    const codexProfileService = new CodexProfileService(join(app.getPath("userData"), "codex-profiles.json"));
     const codexSkillRootsService = new CodexSkillRootsService(join(app.getPath("userData"), "codex-skill-roots.json"));
     const codexConfigSwitcherService = new CodexConfigSwitcherService(
       join(app.getPath("userData"), "codex-config-switcher.json"),
@@ -182,13 +173,11 @@ app
       getThreadRunningState: (threadId: string) => runtimeThreadStateTracker.getThreadRunningState(threadId),
       workspacePatchService,
       localSettingsService,
-      codexProfileService,
       codexSkillRootsService,
       codexConfigSwitcherService,
       imageGenerationHistoryService,
       imageGenerationTaskService,
       updateService,
-      deepSeekResponsesProxyService,
       cacheRegistryService,
     });
 

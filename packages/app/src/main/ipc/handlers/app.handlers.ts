@@ -8,28 +8,20 @@ import { resolveUiFontSizeZoomFactor, type UserLocalSettingsPatch } from "@coden
 import { normalizeSafeExternalUrl } from "../../utils/externalUrl";
 import type { AppTextEncoding } from "@codenexus/shared/ipc/contracts";
 import type { LocalSettingsService } from "../../services/LocalSettingsService";
-import type { CodexProfileService } from "../../services/CodexProfileService";
 import type { CodexSkillRootsService } from "../../services/CodexSkillRootsService";
 import type { CodexConfigSwitcherService } from "../../services/CodexConfigSwitcherService";
 import type { UpdateService } from "../../services/UpdateService";
-import type { DeepSeekResponsesProxyService } from "../../services/DeepSeekResponsesProxyService";
-import type { CodexProviderProfileInput } from "@codenexus/shared/codexProfiles";
 import type { CodexConfigSwitcherImportArgs, CodexConfigSwitcherState } from "@codenexus/shared/codexConfigSwitcher";
 import {
   detectLineEnding,
   detectTextEncoding,
   encodeUtf8Text,
   isPathWithinDir,
-  maskSecret,
-  normalizeHttpUrl,
   resolveLocalFilePath,
   safeJsonStringify,
   stripUtf8Bom,
-  toIntegerInRange,
   toLocalDateYmd,
-  toNullableText,
   truncateText,
-  tryParseObjectJson,
 } from "./app-handler-utils";
 
 const IMAGE_MIME_BY_EXT: Record<string, string> = {
@@ -42,31 +34,6 @@ const IMAGE_MIME_BY_EXT: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
 };
-
-function normalizeOpenAiModelsEndpoint(baseUrlValue: unknown): string {
-  const baseUrl = normalizeHttpUrl(baseUrlValue);
-  if (!baseUrl) throw new Error("Provider Base URL is invalid. Enter an http(s) URL.");
-  if (/\/models$/i.test(baseUrl)) return baseUrl;
-  if (/\/v1$/i.test(baseUrl)) return `${baseUrl}/models`;
-  return `${baseUrl}/v1/models`;
-}
-
-function normalizeOpenAiModelIds(value: unknown): string[] {
-  const record =
-    value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-  const data = Array.isArray(record?.data) ? record.data : [];
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  for (const item of data) {
-    const itemRecord =
-      item && typeof item === "object" && !Array.isArray(item) ? (item as Record<string, unknown>) : null;
-    const id = String(itemRecord?.id ?? itemRecord?.model ?? "").trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  return ids;
-}
 
 async function readImageFileAsDataUrl(filePath: string): Promise<string> {
   const ext = extname(filePath).toLowerCase();
@@ -160,20 +127,11 @@ async function listNotificationSoundItems(musicDir: string) {
 export function registerAppHandlers(deps: {
   getMainWindow: () => BrowserWindow | null;
   localSettingsService: LocalSettingsService;
-  codexProfileService: CodexProfileService;
   codexSkillRootsService: CodexSkillRootsService;
   codexConfigSwitcherService: CodexConfigSwitcherService;
   updateService: UpdateService;
-  deepSeekResponsesProxyService: DeepSeekResponsesProxyService;
 }) {
-  const {
-    localSettingsService,
-    codexProfileService,
-    codexSkillRootsService,
-    codexConfigSwitcherService,
-    updateService,
-    deepSeekResponsesProxyService,
-  } = deps;
+  const { localSettingsService, codexSkillRootsService, codexConfigSwitcherService, updateService } = deps;
   const getWindowOrNull = (): BrowserWindow | null => {
     const win = deps.getMainWindow();
     if (!win || win.isDestroyed()) return null;
@@ -286,125 +244,6 @@ export function registerAppHandlers(deps: {
       } catch {}
     }
     return { path: localSettingsService.path, exists: true as const, settings };
-  });
-
-  ipcMain.handle(IPC_APP_CHANNELS.appCodexProfilesRead, async () => {
-    const { exists, state } = await codexProfileService.read();
-    return { path: codexProfileService.path, exists, state };
-  });
-
-  ipcMain.handle(
-    IPC_APP_CHANNELS.appCodexProfilesUpsert,
-    async (_evt, args: { profile: CodexProviderProfileInput }) => {
-      const state = await codexProfileService.upsert(args?.profile ?? {});
-      return { path: codexProfileService.path, exists: true as const, state };
-    }
-  );
-
-  ipcMain.handle(IPC_APP_CHANNELS.appCodexProfilesDelete, async (_evt, args: { id: string }) => {
-    const state = await codexProfileService.delete(args?.id ?? "");
-    return { path: codexProfileService.path, exists: true as const, state };
-  });
-
-  ipcMain.handle(IPC_APP_CHANNELS.appCodexProfilesSetActive, async (_evt, args: { id: string | null }) => {
-    const state = await codexProfileService.setActive(args?.id ?? null);
-    return { path: codexProfileService.path, exists: true as const, state };
-  });
-
-  ipcMain.handle(IPC_APP_CHANNELS.appCodexAuthReadApiKey, async () => {
-    const authPath = join(homedir(), ".codex", "auth.json");
-    let existing: Record<string, unknown> = {};
-    let exists = false;
-    try {
-      existing = tryParseObjectJson(await readFile(authPath, "utf8"));
-      exists = true;
-    } catch {}
-    const apiKey = toNullableText(existing.OPENAI_API_KEY);
-    return { ok: true as const, path: authPath, exists, apiKey, maskedApiKey: maskSecret(apiKey) };
-  });
-
-  ipcMain.handle(
-    IPC_APP_CHANNELS.appCodexAuthWriteApiKey,
-    async (_evt, args: { apiKey: string; filePath?: string | null }) => {
-      const apiKey = String(args?.apiKey ?? "").trim();
-      const customPath = String(args?.filePath ?? "").trim();
-      const authPath = customPath || join(homedir(), ".codex", "auth.json");
-      let existing: Record<string, unknown> = {};
-      try {
-        existing = tryParseObjectJson(await readFile(authPath, "utf8"));
-      } catch {}
-      const next = { ...existing, OPENAI_API_KEY: apiKey };
-      await mkdir(dirname(authPath), { recursive: true });
-      await writeFile(authPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-      return { ok: true as const, path: authPath };
-    }
-  );
-
-  ipcMain.handle(
-    IPC_APP_CHANNELS.appCodexProviderTest,
-    async (_evt, args: { providerKind?: string; baseUrl: string; apiKey: string; timeoutMs?: number }) => {
-      const endpoint = normalizeOpenAiModelsEndpoint(args?.baseUrl);
-      const apiKey = String(args?.apiKey ?? "").trim();
-      if (!apiKey) throw new Error("API Key is required.");
-      const timeoutMs = toIntegerInRange(args?.timeoutMs, 15_000, 3_000, 60_000);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const startedAt = Date.now();
-      try {
-        const response = await fetch(endpoint, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          signal: controller.signal,
-        });
-        const elapsedMs = Math.max(0, Date.now() - startedAt);
-        const text = await response.text().catch(() => "");
-        let models: string[] = [];
-        try {
-          const parsed = JSON.parse(text);
-          models = normalizeOpenAiModelIds(parsed);
-        } catch {}
-        const modelCount = models.length || null;
-        if (!response.ok) {
-          return {
-            ok: false,
-            status: response.status,
-            message: truncateText(text, 240) || response.statusText || "Connection failed",
-            modelCount,
-            models,
-            elapsedMs,
-          };
-        }
-        return {
-          ok: true,
-          status: response.status,
-          message: `Connection succeeded, latency ${elapsedMs}ms.`,
-          modelCount,
-          models,
-          elapsedMs,
-        };
-      } catch (error: any) {
-        return {
-          ok: false,
-          status: null,
-          message:
-            error?.name === "AbortError"
-              ? "Connection timed out."
-              : String(error?.message ?? error ?? "Connection failed"),
-          modelCount: null,
-          models: [],
-          elapsedMs: Math.max(0, Date.now() - startedAt),
-        };
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-  );
-
-  ipcMain.handle(IPC_APP_CHANNELS.appDeepSeekProxyPrepare, async (_evt, args: { upstreamBaseUrl: string }) => {
-    return await deepSeekResponsesProxyService.prepare({ upstreamBaseUrl: args?.upstreamBaseUrl ?? "" });
   });
 
   ipcMain.handle(IPC_APP_CHANNELS.appCodexSkillRootsRead, async () => {

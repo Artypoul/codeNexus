@@ -28,8 +28,6 @@ const TRANSLATIONS: Record<string, string> = {
   基础配置: "Basics",
   通用: "General",
   全局配置与界面偏好: "Global configuration and interface preferences",
-  模型配置: "Model configuration",
-  "Provider、模型与 API Key": "Provider, models, and API key",
   能力扩展: "Extensions",
   集成与工具: "Integrations and tools",
   "Skills、MCP 与扩展能力": "Skills, MCP, and extension capabilities",

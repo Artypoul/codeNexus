@@ -86,7 +86,7 @@ This capability depends on Codex experimental protocol events. Enable the stream
 | Timeline           | Review protocol events, command activity, approvals, diffs, MCP calls, and system messages in context.       |
 | Workspace          | Browse project files, open multiple editor tabs, save changes, and inspect agent edits visually.             |
 | Approvals          | Handle command, patch, and permission requests through desktop-native review surfaces.                       |
-| Settings           | Manage providers, models, skills, MCP, notifications, theme, fonts, and update behavior from one place.      |
+| Settings           | Manage skills, MCP, notifications, theme, fonts, and update behavior from one place.                         |
 | Windows Experience | Installer-oriented packaging, desktop window lifecycle handling, local path support, and update integration. |
 
 ## Requirements

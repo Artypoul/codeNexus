@@ -2,11 +2,6 @@ import type {
   UserLocalSettings,
   UserLocalSettingsPatch,
 } from "../localSettings";
-import type {
-  CodexProviderKind,
-  CodexProviderProfileInput,
-  CodexProviderProfilesState,
-} from "../codexProfiles";
 import type { CodexSkillRootsState } from "../codexSkillRoots";
 import type {
   CodexConfigSwitcherActivateResult,
@@ -524,15 +519,15 @@ export type AppUpdateSnapshot = {
 };
 
 /*
- * 应用文件、设置、配置与认证契约
+ * 应用文件、设置与 Codex 配置契约
  * ─────────────────────────────────────────────────────────────
- * 作用域：App / LocalState / CodexProfiles / Auth / SkillRoots / ConfigSwitcher
+ * 作用域：App / LocalState / SkillRoots / ConfigSwitcher
  * 数据结构：
  *   AppDirectoryEntry / AppFileMetadata → 文件系统元数据
  *   LocalSettingsSnapshot / Patched... → 用户本地设置
- *   CodexProviderProfiles* / CodexAuth* / CodexSkillRoots* → Codex 配置
+ *   CodexSkillRoots* → skill 根目录配置
  *   CodexConfigSwitcher* → 多配置切换器
- * 用途：renderer 读写设置、切换 Codex provider、配置 skill roots
+ * 用途：renderer 读写设置、配置 skill roots、切换 Codex 配置
  */
 export type AppDirectoryEntry = {
   fileName: string;
@@ -560,40 +555,6 @@ export type PatchedLocalSettingsSnapshot = {
   path: string;
   exists: true;
   settings: UserLocalSettings;
-};
-
-export type CodexProviderProfilesSnapshot = {
-  path: string;
-  exists: boolean;
-  state: CodexProviderProfilesState;
-};
-
-export type CodexProviderProfilesMutationResult = {
-  path: string;
-  exists: true;
-  state: CodexProviderProfilesState;
-};
-
-export type CodexAuthWriteApiKeyResult = {
-  ok: true;
-  path: string;
-};
-
-export type CodexAuthReadApiKeyResult = {
-  ok: true;
-  path: string;
-  exists: boolean;
-  apiKey: string | null;
-  maskedApiKey: string | null;
-};
-
-export type CodexProviderTestResult = {
-  ok: boolean;
-  status: number | null;
-  message: string;
-  modelCount: number | null;
-  models: string[];
-  elapsedMs: number | null;
 };
 
 export type CodexSkillRootsSnapshot = {
@@ -649,30 +610,6 @@ export type CodexDesktopAppApi = {
   readImageFileDataUrl(args: {
     path: string;
   }): Promise<{ ok: true; dataUrl: string }>;
-  readCodexProfiles(): Promise<CodexProviderProfilesSnapshot>;
-  upsertCodexProfile(args: {
-    profile: CodexProviderProfileInput;
-  }): Promise<CodexProviderProfilesMutationResult>;
-  deleteCodexProfile(args: {
-    id: string;
-  }): Promise<CodexProviderProfilesMutationResult>;
-  setActiveCodexProfile(args: {
-    id: string | null;
-  }): Promise<CodexProviderProfilesMutationResult>;
-  readCodexAuthApiKey(): Promise<CodexAuthReadApiKeyResult>;
-  writeCodexAuthApiKey(args: {
-    apiKey: string;
-    filePath?: string | null;
-  }): Promise<CodexAuthWriteApiKeyResult>;
-  testCodexProvider(args: {
-    providerKind?: CodexProviderKind;
-    baseUrl: string;
-    apiKey: string;
-    timeoutMs?: number;
-  }): Promise<CodexProviderTestResult>;
-  prepareDeepSeekProxy(args: {
-    upstreamBaseUrl: string;
-  }): Promise<{ ok: true; baseUrl: string }>;
   readCodexSkillRoots(): Promise<CodexSkillRootsSnapshot>;
   setCodexSkillRootsForWorkspace(args: {
     workspacePath: string;

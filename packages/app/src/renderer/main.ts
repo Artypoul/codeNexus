@@ -17,7 +17,6 @@ import { useTypographyStore } from "./stores/typography.store";
 import { useAppShellStore } from "./stores/appShell.store";
 import { useRuntimeStore } from "./stores/runtime.store";
 import { useMessageQueueStore } from "./stores/messageQueue.store";
-import { useCodexProfilesStore } from "./stores/codexProfiles.store";
 import { useCodexSkillRootsStore } from "./stores/codexSkillRoots.store";
 import { installTooltipDirective } from "./directives/tooltip";
 import { showToast, type ToastKind } from "./ui/toast";
@@ -51,7 +50,6 @@ async function bootstrap() {
 
   runtimeStore.hydrateFromLocalDraftState(draftState);
   messageQueueStore.hydrateFromLocalMessageOutbox(messageOutbox);
-  void useCodexProfilesStore(pinia).refresh();
   void useCodexSkillRootsStore(pinia).refresh();
 
   const runtime = initRuntimeOrchestrator(pinia);
@@ -70,7 +68,6 @@ async function bootstrap() {
   window.addEventListener("codenexus:toast", handleFeatureToast);
   const openSettingsTabs = new Set<AppSettingsTab>([
     "global",
-    "profiles",
     "sound",
     "env",
     "integrations",

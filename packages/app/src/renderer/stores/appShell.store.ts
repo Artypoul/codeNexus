@@ -15,7 +15,7 @@ import { setUiI18nLanguage } from "../i18n";
 import { normalizeRegisteredMainView, shouldForceLeftSidebarVisible, type FeatureMainView } from "../features/registry";
 
 export type IntegrationsDrawerTab = "skills" | "mcp";
-export type SettingsTab = "global" | "profiles" | "sound" | "image" | "env" | "integrations" | "update";
+export type SettingsTab = "global" | "sound" | "image" | "env" | "integrations" | "update";
 export type SettingsIntegrationsTab = "skills" | "mcp";
 
 const DEFAULT_LEFT_SIDEBAR_WIDTH_PX = 300;

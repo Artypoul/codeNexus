@@ -70,15 +70,6 @@ export function safeJsonStringify(value: unknown): string {
   }
 }
 
-export function tryParseObjectJson(text: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
-
 export function truncateText(value: unknown, maxLen: number): string | undefined {
   const text = typeof value === "string" ? value : value === null || value === undefined ? "" : String(value);
   if (!text) return undefined;
@@ -89,13 +80,6 @@ export function truncateText(value: unknown, maxLen: number): string | undefined
 export function toNullableText(value: unknown): string | null {
   const text = String(value ?? "").trim();
   return text || null;
-}
-
-export function maskSecret(value: unknown): string | null {
-  const text = String(value ?? "").trim();
-  if (!text) return null;
-  if (text.length <= 10) return "********";
-  return `${text.slice(0, 4)}...${text.slice(-4)}`;
 }
 
 export function toIntegerInRange(value: unknown, fallback: number, min: number, max: number): number {
