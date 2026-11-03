@@ -129,10 +129,6 @@ export type HistoryThreadContentResult = {
   eventsPage: HistoryThreadEventsPage;
 };
 
-export type HistoryThreadRunningStateArgs = {
-  threadId: string;
-};
-
 export type HistoryThreadRunningStateResult = {
   threadId: string;
   running: boolean;

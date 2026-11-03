@@ -1,8 +1,6 @@
 import { isServerNotificationMethod, type ServerNotificationMethod } from "../../app/events/protocolMethods";
 import type { OfficialCodexServerNotification } from "@codenexus/shared/codex-protocol";
 
-export type NotificationMethod = ServerNotificationMethod;
-
 type SupportedOfficialServerNotification = Extract<
   OfficialCodexServerNotification,
   { method: ServerNotificationMethod }

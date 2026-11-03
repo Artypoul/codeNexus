@@ -283,7 +283,6 @@ type SupportedCodexServerRequestResultMap = {
 /** 官方 method 集合。 */
 export type CodexOfficialRpcMethod = ClientRequest["method"];
 export type CodexRpcMethod = CodexOfficialRpcMethod;
-export type CodexClientNotificationMethod = ClientNotification["method"];
 export type CodexServerRequestMethod = ServerRequest["method"];
 export type SupportedCodexServerRequestMethod = CodexServerRequestMethod;
 export type CodexServerNotificationMethod = ServerNotification["method"];
@@ -334,15 +333,6 @@ export type CodexRpcResult<M extends CodexRpcMethod> =
   M extends keyof SupportedCodexRpcResultMap
     ? SupportedCodexRpcResultMap[M]
     : unknown;
-
-/** ServerRequest 的 params/result/response args，用于约束客户端 respond 必须带 method。 */
-export type CodexServerRequestParams<
-  M extends SupportedCodexServerRequestMethod,
-> = M extends SupportedCodexServerRequestMethod
-  ? Extract<ServerRequest, { method: M }> extends { params: infer P }
-    ? P
-    : undefined
-  : unknown;
 
 export type CodexServerRequestResult<
   M extends SupportedCodexServerRequestMethod,

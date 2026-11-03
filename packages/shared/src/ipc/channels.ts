@@ -22,21 +22,3 @@ export {
   IPC_CACHE_CHANNELS,
   IPC_EVENT_CHANNELS,
 };
-
-/*
- * IpcChannel 联合类型
- * ─────────────────────────────────────────────────────────────
- * 作用域：全局 IPC 消息路由
- * 数据结构：所有 domain channel 值的联合
- * 用途：类型守卫、消息分发、事件监听时的类型约束
- */
-type ValueOf<T> = T[keyof T];
-
-export type IpcChannel =
-  | ValueOf<typeof IPC_APP_CHANNELS>
-  | ValueOf<typeof IPC_CODEX_CHANNELS>
-  | ValueOf<typeof IPC_WORKSPACE_CHANNELS>
-  | ValueOf<typeof IPC_HISTORY_CHANNELS>
-  | ValueOf<typeof IPC_CACHE_CHANNELS>
-  | ValueOf<typeof IPC_EVENT_CHANNELS>;
-
