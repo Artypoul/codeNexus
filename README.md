@@ -76,7 +76,7 @@ Project screenshots are stored under `docs/screenshots/`.
 
 CodeNexus now visualizes streaming output from the Codex protocol, including command/process output deltas and streaming file-change updates. This makes long-running tool calls and patch activity easier to follow while a turn is still in progress.
 
-This capability depends on Codex experimental protocol events. Enable the streaming output experimental feature in Settings before using it.
+This capability depends on Codex experimental protocol events. `apply_patch_streaming_events` is disabled by default in Codex 0.166. Enable "Streaming file diff" in Settings before using it; saved changes are hot-reloaded into the running Codex server.
 
 ## Highlights
 
@@ -100,6 +100,8 @@ This capability depends on Codex experimental protocol events. Enable the stream
 | Configuration      | CC Switch recommended for Codex CLI |
 
 For Codex CLI provider, model, account, and environment configuration, use [CC Switch](https://github.com/farion1231/cc-switch), an all-in-one desktop manager for Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw, and related agent tools.
+
+CodeNexus does not write Codex global model configuration from Settings. Models are managed by Codex/CC Switch and selected per session in the composer.
 
 After configuration, make sure Codex CLI is available:
 

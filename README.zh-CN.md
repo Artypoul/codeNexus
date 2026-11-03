@@ -76,7 +76,7 @@ CodeNexus 不是 OpenAI 官方产品。它是围绕 Codex 工作流构建的独�
 
 CodeNexus 已经对 Codex 协议中的流式输出做了可视化处理，包括命令/进程输出增量和流式文件变更更新。长时间运行的工具调用、命令输出和 patch 过程可以在回合执行中持续展示，不需要等到最终结果返回后再查看。
 
-该能力依赖 Codex 的实验性协议事件。使用前需要在设置中开启流式输出实验性功能。
+该能力依赖 Codex 的实验性协议事件，`apply_patch_streaming_events` 在 Codex 0.166 中默认关闭。使用前需要在设置中开启“流式文件 Diff”；保存后配置会热加载到运行中的 Codex 服务。
 
 ## 亮点
 
@@ -100,6 +100,8 @@ CodeNexus 已经对 Codex 协议中的流式输出做了可视化处理，包括
 | 配置工具       | 推荐使用 CC Switch 配置 Codex CLI |
 
 Codex CLI 的 Provider、模型、账号和环境配置，建议使用 [CC Switch](https://github.com/farion1231/cc-switch)。它是一个面向 Claude Code、Codex、Gemini CLI、OpenCode、OpenClaw 等 agent 工具的一体化桌面管理器。
+
+CodeNexus 不在设置页写回 Codex 的全局模型配置；模型由 Codex/CC Switch 管理，并在会话输入框中按会话选择。
 
 配置完成后，确认 Codex CLI 可用：
 

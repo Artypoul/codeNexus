@@ -164,7 +164,7 @@ export function createDefaultGlobalConfigDraft(): GlobalConfigDraft {
     approvalsReviewer: "user",
     sandboxMode: "danger-full-access",
     windowsElevatedSandboxEnabled: false,
-    unifiedExecEnabled: false,
+    unifiedExecEnabled: true,
     applyPatchStreamingEventsEnabled: false,
   };
 }
@@ -224,39 +224,6 @@ export function buildConfigBatchChangesFromDraft(
   baseline: GlobalConfigDraft
 ): ConfigWriteChange[] {
   const changes: ConfigWriteChange[] = [];
-  if (normalizeModelName(draft.model) !== normalizeModelName(baseline.model)) {
-    changes.push({ keyPath: "model", value: normalizeModelName(draft.model) });
-  }
-  if (Boolean(draft.fastModeEnabled) !== Boolean(baseline.fastModeEnabled)) {
-    changes.push({ keyPath: "service_tier", value: Boolean(draft.fastModeEnabled) ? "fast" : "flex" });
-  }
-  if (
-    normalizeOptionalPositiveInteger(draft.modelContextWindow) !==
-    normalizeOptionalPositiveInteger(baseline.modelContextWindow)
-  ) {
-    changes.push({
-      keyPath: "model_context_window",
-      value: normalizeOptionalPositiveInteger(draft.modelContextWindow),
-    });
-  }
-  if (
-    normalizeOptionalPositiveInteger(draft.modelAutoCompactTokenLimit) !==
-    normalizeOptionalPositiveInteger(baseline.modelAutoCompactTokenLimit)
-  ) {
-    changes.push({
-      keyPath: "model_auto_compact_token_limit",
-      value: normalizeOptionalPositiveInteger(draft.modelAutoCompactTokenLimit),
-    });
-  }
-  const draftReasoningEffort = normalizeEffort(draft.modelReasoningEffort);
-  if (draftReasoningEffort && draftReasoningEffort !== normalizeEffort(baseline.modelReasoningEffort)) {
-    changes.push({ keyPath: "model_reasoning_effort", value: draftReasoningEffort });
-  }
-  if (
-    normalizeReasoningSummary(draft.modelReasoningSummary) !== normalizeReasoningSummary(baseline.modelReasoningSummary)
-  ) {
-    changes.push({ keyPath: "model_reasoning_summary", value: normalizeReasoningSummary(draft.modelReasoningSummary) });
-  }
   const normalizedDraftApprovalPolicy = normalizeApprovalPolicy(draft.approvalPolicy);
   const normalizedBaselineApprovalPolicy = normalizeApprovalPolicy(baseline.approvalPolicy);
   if (JSON.stringify(normalizedDraftApprovalPolicy) !== JSON.stringify(normalizedBaselineApprovalPolicy)) {

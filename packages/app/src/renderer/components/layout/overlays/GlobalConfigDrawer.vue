@@ -100,145 +100,14 @@
               </div>
             </section>
 
+            <section class="global-config-guide-entry global-config-local-entry">
+              <div class="guide-entry-text">
+                <div class="guide-entry-title">{{ t("globalConfig.modelManagedTitle") }}</div>
+                <div class="guide-entry-desc">{{ t("globalConfig.modelManagedDesc") }}</div>
+              </div>
+            </section>
+
             <div class="global-config-grid">
-              <section class="global-config-section">
-                <label class="global-row" :class="{ 'is-dirty': isGlobalConfigFieldDirty('model') }">
-                  <span class="context-label dim">{{ t("globalConfig.model") }}</span>
-                  <div class="global-field-stack">
-                    <SelectDropdown
-                      id="sel-global-model"
-                      class="context-input mono"
-                      :modelValue="globalModelValue"
-                      :disabled="globalControlsDisabled"
-                      :options="globalModelOptions"
-                      @update:modelValue="onModelChanged"
-                    />
-                    <div class="global-model-manage-hint">{{ t("globalConfig.modelCatalogHint") }}</div>
-                  </div>
-                </label>
-                <div
-                  class="global-row global-row-service-tier"
-                  :class="{ 'is-dirty': isGlobalConfigFieldDirty('fastModeEnabled') }"
-                >
-                  <span class="context-label dim">{{ t("globalConfig.serviceTier") }}</span>
-                  <div class="global-field-stack service-tier-field">
-                    <div
-                      id="service-tier-toggle"
-                      class="service-tier-segment"
-                      :class="{ 'is-fast': configStore.draft.fastModeEnabled, 'is-disabled': globalControlsDisabled }"
-                      role="radiogroup"
-                      :aria-label="t('globalConfig.serviceTier')"
-                      :aria-disabled="globalControlsDisabled ? 'true' : 'false'"
-                      @keydown.left.prevent="onServiceTierArrowKey(false)"
-                      @keydown.right.prevent="onServiceTierArrowKey(true)"
-                      @keydown.up.prevent="onServiceTierArrowKey(false)"
-                      @keydown.down.prevent="onServiceTierArrowKey(true)"
-                    >
-                      <span class="service-tier-thumb" aria-hidden="true"></span>
-                      <button
-                        id="btn-service-tier-flex"
-                        type="button"
-                        class="service-tier-option mono"
-                        role="radio"
-                        :aria-checked="!configStore.draft.fastModeEnabled ? 'true' : 'false'"
-                        :tabindex="configStore.draft.fastModeEnabled ? -1 : 0"
-                        :disabled="globalControlsDisabled"
-                        @click="setServiceTier(false)"
-                      >
-                        {{ t("globalConfig.standard") }}
-                      </button>
-                      <button
-                        id="btn-service-tier-fast"
-                        type="button"
-                        class="service-tier-option mono"
-                        role="radio"
-                        :aria-checked="configStore.draft.fastModeEnabled ? 'true' : 'false'"
-                        :tabindex="configStore.draft.fastModeEnabled ? 0 : -1"
-                        :disabled="globalControlsDisabled"
-                        @click="setServiceTier(true)"
-                      >
-                        {{ t("globalConfig.fast") }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div class="global-row">
-                  <span class="context-label dim">{{ t("globalConfig.modelCatalog") }}</span>
-                  <div class="global-field-stack global-model-manager">
-                    <div class="global-model-add-row">
-                      <div class="global-model-manage-hint">{{ modelCatalogStatusText }}</div>
-                      <button
-                        class="btn-mini"
-                        type="button"
-                        :disabled="!canRefreshModelCatalog"
-                        @click="onRefreshModelCatalog"
-                      >
-                        {{ t("common.refresh") }}
-                      </button>
-                    </div>
-                    <div v-if="modelCatalogStore.errorText" class="global-field-error">
-                      {{ t("globalConfig.modelCatalogError", { message: modelCatalogStore.errorText }) }}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="global-config-section">
-                <div class="global-row">
-                  <span class="context-label dim">{{ t("globalConfig.contextPreset") }}</span>
-                  <div class="global-field-stack">
-                    <div class="row" style="align-items: center; gap: 8px; flex-wrap: wrap">
-                      <button
-                        class="btn-mini"
-                        type="button"
-                        :disabled="globalControlsDisabled"
-                        @click="apply400kContextPreset"
-                      >
-                        400K
-                      </button>
-                      <span class="dim mono">400000 / 360000</span>
-                    </div>
-                  </div>
-                </div>
-                <label class="global-row" :class="{ 'is-dirty': isGlobalConfigFieldDirty('modelContextWindow') }">
-                  <span class="context-label dim">{{ t("globalConfig.contextWindow") }}</span>
-                  <div class="global-field-stack">
-                    <input
-                      class="context-input mono"
-                      :class="{ 'is-invalid': Boolean(modelContextWindowError) }"
-                      inputmode="numeric"
-                      :value="modelContextWindowInputText"
-                      :placeholder="t('globalConfig.contextWindowPlaceholder')"
-                      :disabled="globalControlsDisabled"
-                      :aria-invalid="modelContextWindowError ? 'true' : 'false'"
-                      @input="onModelContextWindowInput"
-                    />
-                    <span v-if="modelContextWindowError" class="global-field-error">{{ modelContextWindowError }}</span>
-                  </div>
-                </label>
-                <label
-                  class="global-row"
-                  :class="{ 'is-dirty': isGlobalConfigFieldDirty('modelAutoCompactTokenLimit') }"
-                >
-                  <span class="context-label dim">{{ t("globalConfig.autoCompactLimit") }}</span>
-                  <div class="global-field-stack">
-                    <input
-                      class="context-input mono"
-                      :class="{ 'is-invalid': Boolean(modelAutoCompactTokenLimitError) }"
-                      inputmode="numeric"
-                      :value="modelAutoCompactTokenLimitInputText"
-                      :placeholder="t('globalConfig.autoCompactLimitPlaceholder')"
-                      :disabled="globalControlsDisabled"
-                      :aria-invalid="modelAutoCompactTokenLimitError ? 'true' : 'false'"
-                      @input="onModelAutoCompactTokenLimitInput"
-                    />
-                    <span v-if="modelAutoCompactTokenLimitError" class="global-field-error">{{
-                      modelAutoCompactTokenLimitError
-                    }}</span>
-                  </div>
-                </label>
-              </section>
-
               <section class="global-config-section">
                 <div
                   v-if="configRequirementsSummaryText"
@@ -247,31 +116,6 @@
                 >
                   {{ configRequirementsSummaryText }}
                 </div>
-                <label class="global-row" :class="{ 'is-dirty': isGlobalConfigFieldDirty('modelReasoningEffort') }">
-                  <span class="context-label dim">{{ t("globalConfig.reasoningEffort") }}</span>
-                  <div class="global-field-stack">
-                    <SelectDropdown
-                      id="sel-global-reasoning-effort"
-                      :modelValue="globalReasoningEffortValue"
-                      class="context-input mono"
-                      :disabled="globalControlsDisabled"
-                      :options="globalReasoningEffortOptions"
-                      @update:modelValue="onReasoningEffortChanged"
-                    />
-                  </div>
-                </label>
-                <label class="global-row" :class="{ 'is-dirty': isGlobalConfigFieldDirty('modelReasoningSummary') }">
-                  <span class="context-label dim">{{ t("globalConfig.reasoningSummary") }}</span>
-                  <div class="global-field-stack">
-                    <SelectDropdown
-                      id="sel-global-reasoning-summary"
-                      v-model="configStore.draft.modelReasoningSummary"
-                      class="context-input mono"
-                      :disabled="globalControlsDisabled"
-                      :options="OFFICIAL_REASONING_SUMMARY_OPTIONS"
-                    />
-                  </div>
-                </label>
                 <label class="global-row" :class="{ 'is-dirty': isGlobalConfigFieldDirty('approvalPolicy') }">
                   <span class="context-label dim">{{ t("globalConfig.approvalPolicy") }}</span>
                   <div class="global-field-stack">
@@ -511,7 +355,6 @@ import {
 import {
   OFFICIAL_APPROVALS_REVIEWER_OPTIONS,
   OFFICIAL_APPROVAL_POLICY_OPTIONS,
-  OFFICIAL_REASONING_SUMMARY_OPTIONS,
   OFFICIAL_SANDBOX_MODE_OPTIONS,
   createDefaultGranularApprovalPolicy,
   createDefaultGlobalConfigDraft,
@@ -519,24 +362,15 @@ import {
   normalizeApprovalPolicy,
 } from "../../../domain/serverInterop";
 import type { GlobalConfigDraft } from "../../../domain/types";
-import { useModelCatalogStore } from "../../../stores/modelCatalog.store";
 import { type UiLanguage } from "@codenexus/shared/localSettings";
-import {
-  buildModelPickerOptions,
-  resolveModelSelectionValue,
-  resolveReasoningEffort,
-  resolveReasoningEfforts,
-} from "@codenexus/shared/modelCatalog";
-import { buildReasoningEffortOptions } from "../../../shared/reasoningEffortOptions";
 
 const runtime = getRuntimeOrchestrator();
-const { t, te } = useI18n();
+const { t } = useI18n();
 const runtimeStore = useRuntimeStore();
 const appShellStore = useAppShellStore();
 const configStore = useConfigStore();
 const configRequirementsStore = useConfigRequirementsStore();
 const typographyStore = useTypographyStore();
-const modelCatalogStore = useModelCatalogStore();
 
 const props = defineProps<{ mode?: "drawer" | "settings" }>();
 const isSettings = computed(() => props.mode === "settings");
@@ -621,9 +455,7 @@ const runWithGlobalConfigDirtyGuard = async (
       const confirmedDiscard = await confirmModal({
         title: t("globalConfig.pending.discardTitle"),
         message: copy.unsavableMessage,
-        detail: globalConfigValidationError.value
-          ? t("globalConfig.pending.unsavableWithReason", { reason: globalConfigValidationError.value })
-          : t("globalConfig.pending.unsavableMessage"),
+        detail: t("globalConfig.pending.unsavableMessage"),
         confirmText: copy.discardLabel,
         cancelText: t("globalConfig.pending.continueEditing"),
         danger: true,
@@ -693,12 +525,21 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", onWindowKeydown);
 });
 
-watch(open, async (next) => {
-  if (!next) return;
-  await nextTick();
-  closeBtnRef.value?.focus();
-  void modelCatalogStore.ensureModels({ maxAgeMs: 60_000 });
-});
+watch(
+  () => [open.value, runtimeStore.serverId] as const,
+  async ([next, serverId], previous) => {
+    if (!next) return;
+    await nextTick();
+    closeBtnRef.value?.focus();
+
+    if (!serverId) return;
+    if (previous?.[0] === true && previous[1] === serverId) return;
+    if (configStore.saving || globalConfigActionPending.value || configStore.loadState === "loading") return;
+    if (configStore.isDirty) return;
+    await runtime.refreshGlobalConfig();
+  },
+  { immediate: true }
+);
 
 const globalConfigRefreshFxNonce = ref(0);
 const onRefreshGlobalConfig = () => {
@@ -714,9 +555,6 @@ const globalControlsDisabled = computed(
 );
 const canRefreshGlobalConfig = computed(
   () => Boolean(runtimeStore.serverId) && !configStore.saving && !globalConfigActionPending.value
-);
-const canRefreshModelCatalog = computed(
-  () => Boolean(runtimeStore.serverId) && modelCatalogStore.loadState !== "loading"
 );
 
 type RestrictedSelectState = {
@@ -971,12 +809,6 @@ const isGlobalConfigFieldDirty = (key: keyof GlobalConfigDraft): boolean => {
 };
 
 const GLOBAL_CONFIG_DIRTY_KEYS: Array<keyof GlobalConfigDraft> = [
-  "model",
-  "fastModeEnabled",
-  "modelContextWindow",
-  "modelAutoCompactTokenLimit",
-  "modelReasoningEffort",
-  "modelReasoningSummary",
   "approvalPolicy",
   "approvalsReviewer",
   "sandboxMode",
@@ -989,59 +821,9 @@ const globalConfigDirtyCount = computed(
   () => GLOBAL_CONFIG_DIRTY_KEYS.filter((key) => isGlobalConfigFieldDirty(key)).length
 );
 
-const normalizeOptionalPositiveIntegerInput = (value: unknown): number | null => {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return null;
-    const rounded = Math.round(value);
-    return rounded > 0 ? rounded : null;
-  }
-  const digits = String(value ?? "")
-    .replace(/\\D+/g, "")
-    .trim();
-  if (!digits) return null;
-  const parsed = Number.parseInt(digits, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-};
-
-const formatOptionalPositiveIntegerInput = (value: number | null | undefined): string => {
-  return value == null || !Number.isFinite(value) || value <= 0 ? "" : String(Math.round(value));
-};
-
-const globalConfigFieldErrors = computed(() => {
-  const contextWindow = normalizeOptionalPositiveIntegerInput(configStore.draft.modelContextWindow);
-  const compactLimit = normalizeOptionalPositiveIntegerInput(configStore.draft.modelAutoCompactTokenLimit);
-  const baselineContextWindow = normalizeOptionalPositiveIntegerInput(configStore.snapshot.modelContextWindow);
-  const baselineCompactLimit = normalizeOptionalPositiveIntegerInput(configStore.snapshot.modelAutoCompactTokenLimit);
-  const contextChanged = contextWindow !== baselineContextWindow;
-  const compactChanged = compactLimit !== baselineCompactLimit;
-  const errors = { modelContextWindow: "", modelAutoCompactTokenLimit: "" };
-  if (!contextChanged && !compactChanged) return errors;
-  if (contextWindow == null && compactLimit == null) return errors;
-  if (contextWindow == null) {
-    return { ...errors, modelContextWindow: t("globalConfig.validation.fillContextWindow") };
-  }
-  if (compactLimit == null) {
-    return { ...errors, modelAutoCompactTokenLimit: t("globalConfig.validation.fillAutoCompactLimit") };
-  }
-  if (compactLimit >= contextWindow) {
-    return { ...errors, modelAutoCompactTokenLimit: t("globalConfig.validation.autoCompactLessThanContext") };
-  }
-  return errors;
-});
-
-const modelContextWindowError = computed(() => globalConfigFieldErrors.value.modelContextWindow);
-const modelAutoCompactTokenLimitError = computed(() => globalConfigFieldErrors.value.modelAutoCompactTokenLimit);
-const globalConfigValidationError = computed(
-  () => modelContextWindowError.value || modelAutoCompactTokenLimitError.value || ""
-);
-
 const canSaveGlobalConfig = computed(
   () =>
-    Boolean(runtimeStore.serverId) &&
-    !configStore.saving &&
-    configStore.loadState === "ready" &&
-    configStore.isDirty &&
-    !globalConfigValidationError.value
+    Boolean(runtimeStore.serverId) && !configStore.saving && configStore.loadState === "ready" && configStore.isDirty
 );
 
 const canResetGlobalConfig = computed(
@@ -1051,7 +833,7 @@ const canResetGlobalConfig = computed(
 
 const globalConfigStatusKind = computed(() => {
   if (!runtimeStore.serverId) return "neutral";
-  if (configStore.loadState === "error" || globalConfigValidationError.value) return "error";
+  if (configStore.loadState === "error") return "error";
   if (configStore.saving || configStore.loadState === "loading") return "info";
   if (configStore.isDirty) return "warning";
   return "success";
@@ -1062,7 +844,6 @@ const globalConfigStatusText = computed(() => {
   if (configStore.saving) return t("globalConfig.status.saving");
   if (configStore.loadState === "loading") return t("globalConfig.status.loading");
   if (configStore.loadState === "error") return configStore.statusText || t("globalConfig.status.loadFailed");
-  if (globalConfigValidationError.value) return globalConfigValidationError.value;
   return configStore.isDirty ? t("globalConfig.status.dirty") : t("globalConfig.status.synced");
 });
 
@@ -1075,7 +856,6 @@ const globalConfigActionsSummary = computed(() => {
 
 const globalConfigActionsHint = computed(() => {
   if (!runtimeStore.serverId) return t("globalConfig.actionsHint.disconnected");
-  if (globalConfigValidationError.value) return t("globalConfig.actionsHint.validation");
   return t("globalConfig.actionsHint.saveManually");
 });
 
@@ -1085,102 +865,6 @@ const onSaveGlobalConfig = () => {
 
 const onResetGlobalConfig = () => {
   runtime.resetGlobalConfig();
-};
-
-const globalModelValue = computed(() =>
-  resolveModelSelectionValue(
-    modelCatalogStore.models,
-    configStore.draft.model,
-    modelCatalogStore.preferredModelValue || null
-  )
-);
-
-const globalModelOptions = computed(() =>
-  buildModelPickerOptions({
-    models: modelCatalogStore.models,
-    current: globalModelValue.value,
-    preferredModelValue: modelCatalogStore.preferredModelValue || null,
-  })
-);
-
-const onModelChanged = (nextRaw: string) => {
-  const next = String(nextRaw ?? "").trim();
-  if (!next) return;
-  const nextEffort = resolveReasoningEffort(
-    modelCatalogStore.models,
-    next,
-    configStore.draft.modelReasoningEffort,
-    modelCatalogStore.preferredModelEffort || null
-  );
-  configStore.setDraft({ model: next, modelReasoningEffort: nextEffort });
-};
-
-const modelCatalogStatusText = computed(() => {
-  if (!runtimeStore.serverId) return t("globalConfig.modelCatalogConnectFirst");
-  if (modelCatalogStore.loadState === "loading") return t("globalConfig.modelCatalogLoading");
-  if (modelCatalogStore.loadState === "error") return t("globalConfig.modelCatalogErrorShort");
-  if (modelCatalogStore.models.length > 0) {
-    return t("globalConfig.modelCatalogLoaded", { count: modelCatalogStore.visibleModels.length });
-  }
-  return t("globalConfig.modelCatalogEmpty");
-});
-
-const onRefreshModelCatalog = () => {
-  void modelCatalogStore.refreshModels();
-};
-
-const globalReasoningEffortOptions = computed(() =>
-  buildReasoningEffortOptions(resolveReasoningEfforts(modelCatalogStore.models, globalModelValue.value), t, te)
-);
-
-const globalReasoningEffortValue = computed(() =>
-  resolveReasoningEffort(
-    modelCatalogStore.models,
-    globalModelValue.value,
-    configStore.draft.modelReasoningEffort,
-    modelCatalogStore.preferredModelEffort || null
-  )
-);
-
-const onReasoningEffortChanged = (nextRaw: string) => {
-  const next = String(nextRaw ?? "").trim();
-  if (!next) return;
-  configStore.setDraft({ modelReasoningEffort: next });
-};
-
-const modelContextWindowInputText = computed(() =>
-  formatOptionalPositiveIntegerInput(configStore.draft.modelContextWindow)
-);
-const modelAutoCompactTokenLimitInputText = computed(() =>
-  formatOptionalPositiveIntegerInput(configStore.draft.modelAutoCompactTokenLimit)
-);
-
-const onModelContextWindowInput = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  configStore.setDraft({ modelContextWindow: normalizeOptionalPositiveIntegerInput(target?.value ?? "") });
-};
-
-const onModelAutoCompactTokenLimitInput = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  configStore.setDraft({ modelAutoCompactTokenLimit: normalizeOptionalPositiveIntegerInput(target?.value ?? "") });
-};
-
-const setServiceTier = (fastModeEnabled: boolean) => {
-  if (globalControlsDisabled.value) return;
-  configStore.setDraft({ fastModeEnabled });
-};
-
-const onServiceTierArrowKey = (fastModeEnabled: boolean) => {
-  setServiceTier(fastModeEnabled);
-};
-
-const CONTEXT_WINDOW_PRESET_400K = 400000;
-const AUTO_COMPACT_TOKEN_LIMIT_PRESET_400K = 360000;
-const apply400kContextPreset = () => {
-  configStore.setDraft({
-    modelContextWindow: CONTEXT_WINDOW_PRESET_400K,
-    modelAutoCompactTokenLimit: AUTO_COMPACT_TOKEN_LIMIT_PRESET_400K,
-  });
 };
 
 // 断连时给 store 一个可用的 baseline，避免首次打开抽屉时表单空态闪烁。
@@ -1224,12 +908,7 @@ if (!configStore.snapshot) configStore.applySnapshot(createDefaultGlobalConfigDr
   gap: 10px;
 }
 
-.global-model-manager {
-  gap: 10px;
-}
-
-.global-model-manage-hint,
-.global-model-empty {
+.global-model-manage-hint {
   font-size: 12.5px;
   line-height: 1.4;
   color: var(--text-2);
@@ -1253,42 +932,6 @@ if (!configStore.snapshot) configStore.applySnapshot(createDefaultGlobalConfigDr
 .global-config-requirements-summary.is-error {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
   color: var(--danger);
-}
-
-.global-model-add-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.global-model-add-row .context-input {
-  flex: 1 1 220px;
-  min-width: 0;
-}
-
-.global-model-list {
-  display: grid;
-  gap: 8px;
-}
-
-.global-model-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-  background: color-mix(in srgb, var(--surface-2) 30%, transparent);
-}
-
-.global-model-item-id {
-  font-size: 13px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .typography-controls {
