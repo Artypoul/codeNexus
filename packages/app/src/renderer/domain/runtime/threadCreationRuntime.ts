@@ -12,13 +12,7 @@ import type { useRuntimeStore } from "../../stores/runtime.store";
 import type { useThreadStore } from "../../stores/thread.store";
 import type { useTimelineStore } from "../../stores/timeline.store";
 import { buildComposeDraftFromUserTurnInputs } from "../composeFileMentions";
-import {
-  createDefaultGlobalConfigDraft,
-  normalizeEffort,
-  normalizeModelName,
-  normalizeReasoningSummary,
-  normalizeSandboxMode,
-} from "../serverInterop";
+import { createDefaultGlobalConfigDraft, normalizeReasoningSummary, normalizeSandboxMode } from "../serverInterop";
 import type { ComposeImageAttachment, LocalThreadItem, UserTurnInput } from "../types";
 import type { ThreadStartParams } from "@codenexus/generated/codex-app-server/v2/ThreadStartParams";
 import type { ThreadStartConfigOverrides } from "@codenexus/shared/modelToolFeatureOverrides";
@@ -55,6 +49,9 @@ export type ThreadCreationRuntimeDeps = {
   messageQueueStore: MessageQueueStore;
   normalizeWorkspacePath: (value: string) => string;
   getServerIdForWorkspace: (workspacePath: string) => string;
+  resolveModel: (value: string) => string;
+  resolveEffort: (modelValue: string, effort: string) => string;
+  ensureModelCatalog: () => Promise<unknown>;
   startServer: () => Promise<boolean>;
   clearThreadRuntimeState: (threadId: string) => void;
   setThreadWorkspace: (threadId: string, workspacePath: string | undefined) => void;
@@ -111,6 +108,9 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
     messageQueueStore,
     normalizeWorkspacePath,
     getServerIdForWorkspace,
+    resolveModel,
+    resolveEffort,
+    ensureModelCatalog,
     startServer,
     clearThreadRuntimeState,
     setThreadWorkspace,
@@ -165,18 +165,20 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
     const serverIdBeforeStart = getServerIdForWorkspace(workspaceBeforeStart);
     const previousThreadId = String(runtimeStore.currentThreadId ?? "").trim();
     const globalDraft = configStore.draft ?? createDefaultGlobalConfigDraft();
+    const runtimeModel = resolveModel(runtimeStore.model);
+    const globalModel = resolveModel(globalDraft.model);
     const newThreadComposeSeed = buildNewThreadComposeSeed({
       previousThreadId,
       runtime: {
         composeMode: runtimeStore.composeMode,
-        model: normalizeModelName(runtimeStore.model),
-        reasoningEffort: normalizeEffort(runtimeStore.reasoningEffort),
+        model: runtimeModel,
+        reasoningEffort: resolveEffort(runtimeModel, runtimeStore.reasoningEffort),
         reasoningSummary: normalizeReasoningSummary(runtimeStore.reasoningSummary),
         sandboxMode: normalizeSandboxMode(runtimeStore.sandboxMode),
       },
       global: {
-        model: normalizeModelName(globalDraft.model),
-        reasoningEffort: normalizeEffort(globalDraft.modelReasoningEffort),
+        model: globalModel,
+        reasoningEffort: resolveEffort(globalModel, globalDraft.modelReasoningEffort),
         reasoningSummary: normalizeReasoningSummary(globalDraft.modelReasoningSummary),
         sandboxMode: normalizeSandboxMode(globalDraft.sandboxMode),
       },
@@ -246,9 +248,29 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
       return;
     }
     try {
+      await ensureModelCatalog();
+      const resolvedSeedModel = resolveModel(newThreadComposeSeed.model);
+      if (!resolvedSeedModel) {
+        const candidate = latestQueuedCandidateForThread(optimisticThreadId);
+        clearThreadRuntimeState(optimisticThreadId);
+        await restorePreviousThreadAfterFailure(previousThreadId, candidate);
+        showToast({
+          kind: "error",
+          title: translate("runtime.threadCreateFailedTitle"),
+          message: translate("runtime.noModelAvailable"),
+        });
+        return;
+      }
+      const resolvedSeedEffort = resolveEffort(resolvedSeedModel, newThreadComposeSeed.reasoningEffort);
+      runtimeStore.seedThreadComposeStateFromSeed(optimisticThreadId, {
+        ...newThreadComposeSeed,
+        model: resolvedSeedModel,
+        reasoningEffort: resolvedSeedEffort,
+      });
+
       // `thread/start` 的 `sandbox` 使用 kebab-case，见 schema 的 v2/ThreadStartParams.json。
       const { params: threadStartParams, configOverrides: modelConfigOverrides } = buildThreadStartParamsForModel({
-        model: newThreadComposeSeed.model,
+        model: resolvedSeedModel,
         workspace,
         sandboxMode: newThreadComposeSeed.sandboxMode,
       });

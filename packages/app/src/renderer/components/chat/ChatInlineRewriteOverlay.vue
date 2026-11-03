@@ -11,7 +11,6 @@
       :reasoningEffort="draft.reasoningEffort"
       :sandboxMode="draft.sandboxMode"
       :modelOptions="modelOptions"
-      :reasoningEffortOptions="reasoningEffortOptions"
       :sandboxModeOptions="sandboxModeOptions"
       sandboxRiskText=""
       contextUsageTooltip=""
@@ -49,6 +48,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import ComposerPanel from "../layout/composer/ComposerPanel.vue";
 import type { ChatInlineRewriteDraft } from "../layout/types/chat.types";
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
 
 type SelectOption = {
   value: string;
@@ -58,8 +58,7 @@ type SelectOption = {
 
 const props = defineProps<{
   draft: ChatInlineRewriteDraft;
-  modelOptions: readonly string[];
-  reasoningEffortOptions: readonly SelectOption[];
+  modelOptions: readonly ModelPickerOption[];
   sandboxModeOptions: readonly SelectOption[];
   sendDisabled?: boolean;
 }>();

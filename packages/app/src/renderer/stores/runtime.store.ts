@@ -49,14 +49,10 @@ function isComposeMode(value: unknown): value is CollaborationModeKind {
   return value === "default" || value === "plan";
 }
 
-const REASONING_EFFORT_OPTIONS = ["low", "medium", "high", "xhigh"] as const;
-
 function normalizeReasoningEffort(value: unknown): string {
-  const raw = String(value ?? "")
+  return String(value ?? "")
     .trim()
     .toLowerCase();
-  const hit = REASONING_EFFORT_OPTIONS.find((item) => item === raw);
-  return hit ?? DEFAULT_COMPOSE_STATE.reasoningEffort;
 }
 
 function normalizeComposeState(value: unknown): ThreadComposeState {
@@ -66,13 +62,7 @@ function normalizeComposeState(value: unknown): ThreadComposeState {
     composeInput:
       typeof anyValue?.composeInput === "string" ? anyValue.composeInput : DEFAULT_COMPOSE_STATE.composeInput,
     composeMode: isComposeMode(anyValue?.composeMode) ? anyValue.composeMode : DEFAULT_COMPOSE_STATE.composeMode,
-    model: (() => {
-      const raw = typeof anyValue?.model === "string" ? String(anyValue.model).trim() : "";
-      if (!raw) return DEFAULT_COMPOSE_STATE.model;
-      // 迁移：已移除的内置模型 ID 统一回落到当前默认模型。
-      if (raw === "gpt-5.2-codex") return DEFAULT_COMPOSE_STATE.model;
-      return raw;
-    })(),
+    model: typeof anyValue?.model === "string" ? String(anyValue.model).trim() : "",
     reasoningEffort: normalizeReasoningEffort(anyValue?.reasoningEffort),
     reasoningSummary:
       typeof anyValue?.reasoningSummary === "string"

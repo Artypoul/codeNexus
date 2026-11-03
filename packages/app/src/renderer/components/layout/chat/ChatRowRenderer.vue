@@ -10,7 +10,6 @@
     :formattedTime="formatTime(renderedRow.event.createdAt)"
     :inlineRewriteDraft="inlineRewriteDraft?.anchorEventId === renderedRow.event.id ? inlineRewriteDraft : null"
     :modelOptions="modelOptions"
-    :reasoningEffortOptions="reasoningEffortOptions"
     :sandboxModeOptions="sandboxModeOptions"
     :sendDisabled="isTurnRunning"
     @click="handleUserBubbleClick"
@@ -290,6 +289,7 @@ import type {
   PlanDeltaExecUiState,
   ThumbLoadErrorPayload,
 } from "../types/chat.types";
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
 
 defineOptions({ name: "ChatRowRenderer" });
 
@@ -314,9 +314,8 @@ const props = defineProps<{
   workspaceRoot: string;
   viewPrefs: { showTimestamps: boolean };
   planExecStateByEventId: Record<string, PlanDeltaExecUiState | undefined>;
-  modelOptions: readonly OptionInput[];
+  modelOptions: readonly ModelPickerOption[];
   isTurnRunning: boolean;
-  reasoningEffortOptions: readonly OptionInput[];
   sandboxModeOptions: readonly OptionInput[];
   userMessageParts: (event: TimelineEventItem) => ChatUserMessagePart[];
   userMessageImageCount: (event: TimelineEventItem) => number;

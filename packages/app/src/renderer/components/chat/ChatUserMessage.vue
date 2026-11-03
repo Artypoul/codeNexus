@@ -54,7 +54,6 @@
         v-if="inlineRewriteDraft"
         :draft="inlineRewriteDraft"
         :modelOptions="modelOptions"
-        :reasoningEffortOptions="reasoningEffortOptions"
         :sandboxModeOptions="sandboxModeOptions"
         :sendDisabled="sendDisabled"
         @update="$emit('inline-rewrite-update', $event)"
@@ -75,6 +74,7 @@ import type { TimelineEventItem } from "../../domain/types";
 import type { EnvironmentContextBlock } from "../../domain/taggedMessageBlocks";
 import { CHAT_ROW_BASE_CLASS } from "../layout/chat/chatPresentation";
 import type { ChatInlineRewriteDraft, ChatUserMessagePart } from "../layout/types/chat.types";
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
 
 type SelectOption = {
   value: string;
@@ -90,8 +90,7 @@ defineProps<{
   showTimestamps: boolean;
   formattedTime: string;
   inlineRewriteDraft?: ChatInlineRewriteDraft | null;
-  modelOptions: readonly string[];
-  reasoningEffortOptions: readonly SelectOption[];
+  modelOptions: readonly ModelPickerOption[];
   sandboxModeOptions: readonly SelectOption[];
   sendDisabled?: boolean;
 }>();

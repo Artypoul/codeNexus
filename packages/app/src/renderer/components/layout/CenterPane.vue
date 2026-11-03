@@ -58,11 +58,10 @@
             :historyRewriteSource="runtimeStore.historyRewriteSource"
             :statusText="composerStatusText"
             :composeMode="runtimeStore.composeMode"
-            :model="runtimeStore.model"
-            :reasoningEffort="runtimeStore.reasoningEffort"
+            :model="effectiveModelValue"
+            :reasoningEffort="effectiveReasoningEffort"
             :sandboxMode="runtimeStore.sandboxMode"
             :modelOptions="modelOptions"
-            :reasoningEffortOptions="reasoningEffortOptions"
             :sandboxModeOptions="sandboxModeOptions"
             :sandboxRiskText="sandboxRiskText"
             :serviceTierLabel="serviceTierLabel"
@@ -178,7 +177,11 @@ import { useSkillsUiStore } from "../../stores/skillsUi.store";
 import { useThreadStore } from "../../stores/thread.store";
 import { useTimelineStore } from "../../stores/timeline.store";
 import { CENTER_TIMELINE_SOFT_MIN_WIDTH_PX } from "../../domain/layoutWidthBudget";
-import { buildModelPickerOptions } from "@codenexus/shared/modelCatalog";
+import {
+  buildModelPickerOptions,
+  resolveModelSelectionValue,
+  resolveReasoningEffort,
+} from "@codenexus/shared/modelCatalog";
 import { showToast } from "../../ui/toast";
 
 const { t } = useI18n();
@@ -284,12 +287,6 @@ function observeComposerPanelSize() {
   measureComposerDockHeight();
 }
 
-const reasoningEffortOptions = computed(() => [
-  { value: "low", label: t("composer.low") },
-  { value: "medium", label: t("composer.medium") },
-  { value: "high", label: t("composer.high") },
-  { value: "xhigh", label: t("composer.xhigh") },
-]);
 const sandboxModeOptions = computed(() => [
   { value: "read-only", label: t("composer.readOnlyShort") },
   { value: "workspace-write", label: t("composer.workspaceWriteShort") },
@@ -309,10 +306,26 @@ const emptyStateMode = computed<"default" | "pendingThread">(() => {
   if (isPendingThreadId(tid)) return "pendingThread";
   return "default";
 });
+const effectiveModelValue = computed(() =>
+  resolveModelSelectionValue(
+    modelCatalogStore.models,
+    runtimeStore.model,
+    modelCatalogStore.preferredModelValue || null
+  )
+);
+const effectiveReasoningEffort = computed(() =>
+  resolveReasoningEffort(
+    modelCatalogStore.models,
+    effectiveModelValue.value,
+    runtimeStore.reasoningEffort,
+    modelCatalogStore.preferredModelEffort || null
+  )
+);
 const modelOptions = computed(() =>
   buildModelPickerOptions({
-    customIds: modelCatalogStore.customIds,
-    current: runtimeStore.model,
+    models: modelCatalogStore.models,
+    current: runtimeStore.model || effectiveModelValue.value,
+    preferredModelValue: modelCatalogStore.preferredModelValue || null,
   })
 );
 
@@ -623,9 +636,10 @@ const sendTitle = computed(() => {
 });
 const sendDisabled = computed(() => {
   return (
-    !hasMeaningfulComposeText(runtimeStore.composeInput) &&
-    runtimeStore.composeAttachments.length === 0 &&
-    runtimeStore.composeFileMentions.length === 0
+    !effectiveModelValue.value ||
+    (!hasMeaningfulComposeText(runtimeStore.composeInput) &&
+      runtimeStore.composeAttachments.length === 0 &&
+      runtimeStore.composeFileMentions.length === 0)
   );
 });
 const interruptTitle = computed(() => t("composer.stopCurrentTask"));
@@ -641,6 +655,9 @@ const serviceTierTooltip = computed(() => {
 });
 
 const composerStatusText = computed(() => {
+  if (!effectiveModelValue.value) {
+    return modelCatalogStore.loadState === "loading" ? t("composer.modelsLoading") : t("composer.noModels");
+  }
   const tid = currentThreadId.value;
   if (!isPendingThreadId(tid)) return "";
   const pending = runtimeStore.pendingThreadInitSendCountByThread.get(tid) ?? 0;
@@ -654,6 +671,12 @@ function onComposeInputUpdate(value: string) {
 
 function onModelUpdate(value: string) {
   runtimeStore.model = value;
+  runtimeStore.reasoningEffort = resolveReasoningEffort(
+    modelCatalogStore.models,
+    value,
+    runtimeStore.reasoningEffort,
+    modelCatalogStore.preferredModelEffort || null
+  );
 }
 
 function onReasoningEffortUpdate(value: string) {

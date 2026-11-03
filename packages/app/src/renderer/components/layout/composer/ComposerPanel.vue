@@ -112,7 +112,6 @@
               :model="model"
               :reasoningEffort="reasoningEffort"
               :modelOptions="modelOptions"
-              :reasoningEffortOptions="reasoningEffortOptions"
               :preservePointerFocus="variant === 'inline'"
               :interactionOwnerId="interactionOwnerId"
               @update:model="emit('update:model', $event)"
@@ -200,6 +199,7 @@
 import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
 import { Bot, ImagePlus, ListTodo, SendHorizontal, Square } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
 import type { CollaborationModeKind, ComposeImageAttachment, ComposeWorkspaceFileMention } from "../../../domain/types";
 import {
   COMPOSE_FILE_TOKEN_CHAR,
@@ -248,8 +248,7 @@ const props = defineProps<{
   model: string;
   reasoningEffort: string;
   sandboxMode: SandboxMode;
-  modelOptions: readonly string[];
-  reasoningEffortOptions: readonly SelectOption[];
+  modelOptions: readonly ModelPickerOption[];
   sandboxModeOptions: readonly SelectOption[];
   sandboxRiskText: string;
   serviceTierLabel?: string;

@@ -11,8 +11,6 @@ import type { UserTurnInput } from "../types";
 import {
   normalizeApprovalPolicy,
   normalizeApprovalsReviewer,
-  normalizeEffort,
-  normalizeModelName,
   normalizeReasoningSummary,
   normalizeSandboxMode,
 } from "../serverInterop";
@@ -25,6 +23,8 @@ export type TurnStartRuntimeDeps = {
   getReasoningEffort: () => string;
   getReasoningSummary: () => string;
   getSandboxMode: () => string;
+  resolveModel: (value: string) => string;
+  resolveEffort: (modelValue: string, effort: string) => string;
   getApprovalPolicy: () => AskForApproval;
   getApprovalsReviewer: () => unknown;
   getInstructionProfile: () => CodexInstructionProfile | null;
@@ -52,8 +52,14 @@ export function createTurnStartRuntime(deps: TurnStartRuntimeDeps): TurnStartRun
   const startTurnWithInput: TurnStartRuntime["startTurnWithInput"] = async (params) => {
     const composeMode = params.composeModeOverride ?? deps.getComposeMode();
     const wantsPlan = composeMode === "plan";
-    const requestedModel = normalizeModelName(params.model ?? deps.getModel());
-    const requestedEffort = normalizeEffort(params.effort ?? deps.getReasoningEffort());
+    const requestedModel = deps.resolveModel(String(params.model ?? deps.getModel()).trim());
+    if (!requestedModel) {
+      return { ok: false as const, error: "no model available" };
+    }
+    const requestedEffort = deps.resolveEffort(
+      requestedModel,
+      String(params.effort ?? deps.getReasoningEffort()).trim()
+    );
     const requestedSummary = normalizeReasoningSummary(params.summary ?? deps.getReasoningSummary());
     const hasApprovalPolicyOverride = params.approvalPolicy != null;
     const requestedApprovalPolicy = normalizeApprovalPolicy(
@@ -72,7 +78,7 @@ export function createTurnStartRuntime(deps: TurnStartRuntimeDeps): TurnStartRun
       mode: composeMode,
       settings: {
         model: requestedModel,
-        reasoning_effort: requestedEffort,
+        reasoning_effort: requestedEffort || null,
         developer_instructions: developerInstructions,
       },
     };
@@ -88,7 +94,7 @@ export function createTurnStartRuntime(deps: TurnStartRuntimeDeps): TurnStartRun
         approvalsReviewer: requestedApprovalsReviewer as TurnStartParams["approvalsReviewer"],
         sandboxPolicy: sandboxPolicy as TurnStartParams["sandboxPolicy"],
         model: requestedModel,
-        effort: requestedEffort,
+        ...(requestedEffort ? { effort: requestedEffort } : {}),
         ...(requestedSummary !== "auto" ? { summary: requestedSummary } : {}),
       };
     };

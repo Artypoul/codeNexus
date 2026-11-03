@@ -1,4 +1,5 @@
 import type { Pinia } from "pinia";
+import { watch } from "vue";
 import { codexDesktop } from "../api/codexDesktopClient";
 import { showToast } from "../ui/toast";
 import { translate } from "../i18n/translate";
@@ -11,6 +12,7 @@ import { useGoalShutdownStore } from "../stores/goalShutdown.store";
 import { useAppShellStore } from "../stores/appShell.store";
 import { useConfigStore } from "../stores/config.store";
 import { useConfigRequirementsStore } from "../stores/configRequirements.store";
+import { useModelCatalogStore } from "../stores/modelCatalog.store";
 import { useSkillsStore } from "../stores/skills.store";
 import { useMcpStore } from "../stores/mcp.store";
 import { useMcpResourceStore } from "../stores/mcpResource.store";
@@ -19,7 +21,6 @@ import { useMessageQueueStore } from "../stores/messageQueue.store";
 import { useCodexProfilesStore } from "../stores/codexProfiles.store";
 import { useCodexSkillRootsStore } from "../stores/codexSkillRoots.store";
 import { useCodexConfigSwitcherStore } from "../stores/codexConfigSwitcher.store";
-import { usePaperStore } from "@codenexus/feature-paper";
 import { useApprovalStore } from "../stores/approval.store";
 import { useWorkspaceFilesStore } from "../stores/workspaceFiles.store";
 import { type ThreadReplayCache } from "./runtime/historyReplayRuntime";
@@ -72,6 +73,7 @@ import { createRuntimeDisposeRuntime } from "./runtime/runtimeDisposeRuntime";
 import { createRuntimeStartupRuntime } from "./runtime/runtimeStartupRuntime";
 import type { ThreadContentCacheEntry } from "./runtime/rendererCacheRuntime";
 import type { ThreadMemoryMode } from "@codenexus/generated/codex-app-server/ThreadMemoryMode";
+import { resolveModelSelectionValue, resolveReasoningEffort } from "@codenexus/shared/modelCatalog";
 import type {
   ComposeImageAttachment,
   ComposeWorkspaceFileMention,
@@ -216,6 +218,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   const appShellStore = useAppShellStore(pinia);
   const configStore = useConfigStore(pinia);
   const configRequirementsStore = useConfigRequirementsStore(pinia);
+  const modelCatalogStore = useModelCatalogStore(pinia);
   const skillsStore = useSkillsStore(pinia);
   const mcpStore = useMcpStore(pinia);
   const mcpResourceStore = useMcpResourceStore(pinia);
@@ -226,7 +229,6 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   const codexProfilesStore = useCodexProfilesStore(pinia);
   const codexSkillRootsStore = useCodexSkillRootsStore(pinia);
   const codexConfigSwitcherStore = useCodexConfigSwitcherStore(pinia);
-  const paperStore = usePaperStore(pinia);
 
   // 运行期缓存：会话恢复、历史分页、右侧面板快照。
   const resumedThreadIds = new Set<string>();
@@ -244,6 +246,15 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
 
   const normalizeWorkspacePath = (value: string) => String(value ?? "").trim();
 
+  const preferredModelValue = () =>
+    String(configRequirementsStore.requirements?.models?.newThread?.model ?? "").trim() || null;
+  const preferredModelEffort = () =>
+    String(configRequirementsStore.requirements?.models?.newThread?.modelReasoningEffort ?? "").trim() || null;
+  const resolveModelValue = (value: unknown) =>
+    resolveModelSelectionValue(modelCatalogStore.models, value, preferredModelValue());
+  const resolveEffortValue = (modelValue: unknown, effort: unknown) =>
+    resolveReasoningEffort(modelCatalogStore.models, modelValue, effort, preferredModelEffort());
+
   const runtimeTimelineEventRuntime = createRuntimeTimelineEventRuntime({
     appTimelineId: APP_TIMELINE_ID,
     timelineStore,
@@ -259,7 +270,6 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
 
   const threadStartParamsRuntime = createThreadStartParamsRuntime({
     getMainView: () => appShellStore.mainView,
-    getPaperMode: () => paperStore.mode,
     getApprovalPolicy: () => configStore.draft.approvalPolicy,
     getApprovalsReviewer: () => configStore.draft.approvalsReviewer,
     normalizeWorkspacePath,
@@ -496,7 +506,11 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     translate,
     showToast,
   });
-  const { applyCodexProfile } = codexProfileRuntime;
+  const { applyCodexProfile: applyCodexProfileBase } = codexProfileRuntime;
+  const applyCodexProfile = async (profileId: string) => {
+    await applyCodexProfileBase(profileId);
+    void modelCatalogStore.refreshModels();
+  };
 
   const externalUrlRuntime = createExternalUrlRuntime({ translate });
   const { openExternalUrl } = externalUrlRuntime;
@@ -607,6 +621,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     hasSkillsSnapshot,
     hasMcpSnapshot,
     ensureGlobalConfigLoadedOnce,
+    ensureModelCatalog: () => modelCatalogStore.ensureModels({ maxAgeMs: 5 * 60_000 }),
     refreshSkills,
     refreshMcp,
   });
@@ -732,6 +747,9 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     messageQueueStore,
     normalizeWorkspacePath,
     getServerIdForWorkspace,
+    resolveModel: (value) => resolveModelValue(value),
+    resolveEffort: (modelValue, effort) => resolveEffortValue(modelValue, effort),
+    ensureModelCatalog: () => modelCatalogStore.ensureModels({ maxAgeMs: 60_000 }),
     startServer,
     clearThreadRuntimeState,
     setThreadWorkspace,
@@ -762,6 +780,8 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     getReasoningEffort: () => runtimeStore.reasoningEffort,
     getReasoningSummary: () => runtimeStore.reasoningSummary,
     getSandboxMode: () => runtimeStore.sandboxMode,
+    resolveModel: (value) => resolveModelValue(value),
+    resolveEffort: (modelValue, effort) => resolveEffortValue(modelValue, effort),
     getApprovalPolicy: () => configStore.draft.approvalPolicy,
     getApprovalsReviewer: () => configStore.draft.approvalsReviewer,
     getInstructionProfile: resolveCurrentInstructionProfile,
@@ -786,8 +806,8 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     const composeInput = String(draft.composeInput ?? "");
     const composeAttachments = cloneComposeAttachmentsForSend(draft.composeAttachments);
     const composeFileMentions = cloneComposeMentionsForSend(draft.composeFileMentions);
-    const requestedModel = String(draft.model ?? runtimeStore.model ?? "").trim();
-    const requestedReasoningEffort = String(draft.reasoningEffort ?? runtimeStore.reasoningEffort ?? "").trim();
+    const rawModel = String(draft.model ?? runtimeStore.model ?? "").trim();
+    const rawReasoningEffort = String(draft.reasoningEffort ?? runtimeStore.reasoningEffort ?? "").trim();
     const requestedSandboxMode = String(draft.sandboxMode ?? runtimeStore.sandboxMode ?? "").trim();
     const requestedComposeMode = draft.composeMode ?? runtimeStore.composeMode;
     const input = buildUserTurnInput(composeInput, composeAttachments, composeFileMentions);
@@ -815,6 +835,17 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
       });
       return false;
     }
+    await modelCatalogStore.ensureModels({ maxAgeMs: 60_000 });
+    const requestedModel = resolveModelValue(rawModel);
+    if (!requestedModel) {
+      showToast({
+        kind: "error",
+        title: translate("runtime.cannotSendTitle"),
+        message: translate("runtime.noModelAvailable"),
+      });
+      return false;
+    }
+    const requestedReasoningEffort = resolveEffortValue(requestedModel, rawReasoningEffort);
     if (!runtimeStore.currentThreadId) {
       void createThread();
     }
@@ -1020,6 +1051,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     messageQueueStore,
     normalizeWorkspacePath,
     getWorkspaceForThread,
+    resolveModel: (value) => resolveModelValue(value),
     ensureServerForWorkspace,
     ensureThreadResumed,
     ensureThreadModelToolCompatibility,
@@ -1146,6 +1178,20 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     translate,
   });
   disposers.push(...runtimeStartupRuntime.startRuntime());
+  disposers.push(
+    watch(
+      () => runtimeStore.serverId,
+      (serverId) => {
+        const id = String(serverId ?? "").trim();
+        if (!id) {
+          modelCatalogStore.resetCatalog();
+          return;
+        }
+        void modelCatalogStore.ensureModels({ maxAgeMs: 5 * 60_000, serverId: id });
+      },
+      { immediate: true, flush: "post" }
+    )
+  );
 
   const runtimeDisposeRuntime = createRuntimeDisposeRuntime({
     flushPendingComposeStateSaves: () => runtimeStore.flushPendingComposeStateSaves(),

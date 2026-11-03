@@ -43,6 +43,7 @@ export type MessageQueueRuntimeDeps = {
   messageQueueStore: MessageQueueStore;
   normalizeWorkspacePath: (value: string) => string;
   getWorkspaceForThread: (threadId: string) => string;
+  resolveModel: (value: string) => string;
   ensureServerForWorkspace: (workspacePath: string) => Promise<string>;
   ensureThreadResumed: (threadId: string) => Promise<boolean>;
   ensureThreadModelToolCompatibility: EnsureThreadModelToolCompatibility;
@@ -77,6 +78,7 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
     messageQueueStore,
     normalizeWorkspacePath,
     getWorkspaceForThread,
+    resolveModel,
     ensureServerForWorkspace,
     ensureThreadResumed,
     ensureThreadModelToolCompatibility,
@@ -157,7 +159,7 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
       threadId,
       threadWorkspace,
       threadServerId,
-      model: runtimeStore.model,
+      model: resolveModel(runtimeStore.model),
     });
     if (!compatibility.ok) {
       messageQueueStore.markStatus(threadId, next.id, "failed");

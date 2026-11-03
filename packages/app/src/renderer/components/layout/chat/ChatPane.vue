@@ -49,7 +49,6 @@
         :planExecStateByEventId="planExecStateByEventId"
         :modelOptions="modelOptions"
         :isTurnRunning="isTurnRunning"
-        :reasoningEffortOptions="reasoningEffortOptions"
         :sandboxModeOptions="sandboxModeOptions"
         :userMessageParts="userMessageParts"
         :userMessageImageCount="userMessageImageCount"
@@ -483,15 +482,6 @@ function onPinnedUserClick() {
   scrollDomRowToTop(rowId, offsetPx);
 }
 
-const reasoningEffortOptions = computed(
-  () =>
-    [
-      { value: "low", label: t("composer.low") },
-      { value: "medium", label: t("composer.medium") },
-      { value: "high", label: t("composer.high") },
-      { value: "xhigh", label: t("composer.xhigh") },
-    ] as const
-);
 const sandboxModeOptions = computed(
   () =>
     [
@@ -501,6 +491,10 @@ const sandboxModeOptions = computed(
     ] as const
 );
 const modelOptions = computed(() =>
-  buildModelPickerOptions({ customIds: modelCatalogStore.customIds, current: runtimeStore.model })
+  buildModelPickerOptions({
+    models: modelCatalogStore.models,
+    current: runtimeStore.model,
+    preferredModelValue: modelCatalogStore.preferredModelValue || null,
+  })
 );
 </script>

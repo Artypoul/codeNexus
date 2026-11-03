@@ -108,12 +108,12 @@
                     <SelectDropdown
                       id="sel-global-model"
                       class="context-input mono"
-                      :modelValue="configStore.draft.model"
+                      :modelValue="globalModelValue"
                       :disabled="globalControlsDisabled"
                       :options="globalModelOptions"
                       @update:modelValue="onModelChanged"
                     />
-                    <div class="global-model-manage-hint">{{ t("globalConfig.builtinModelHint") }}</div>
+                    <div class="global-model-manage-hint">{{ t("globalConfig.modelCatalogHint") }}</div>
                   </div>
                 </label>
                 <div
@@ -163,67 +163,22 @@
                   </div>
                 </div>
                 <div class="global-row">
-                  <span class="context-label dim">{{ t("globalConfig.customModels") }}</span>
+                  <span class="context-label dim">{{ t("globalConfig.modelCatalog") }}</span>
                   <div class="global-field-stack global-model-manager">
                     <div class="global-model-add-row">
-                      <SelectDropdown
-                        id="sel-global-custom-model-available"
-                        v-model="remoteModelPick"
-                        class="context-input mono"
-                        :disabled="remoteModelSelectDisabled"
-                        :options="remoteModelDropdownOptions"
-                        :minPopoverWidth="0"
-                        :aria-label="t('globalConfig.availableModels')"
-                      />
+                      <div class="global-model-manage-hint">{{ modelCatalogStatusText }}</div>
                       <button
                         class="btn-mini"
                         type="button"
-                        :disabled="!canRefreshRemoteModels"
-                        @click="onRefreshRemoteModels"
+                        :disabled="!canRefreshModelCatalog"
+                        @click="onRefreshModelCatalog"
                       >
                         {{ t("common.refresh") }}
                       </button>
-                      <button class="btn-mini" type="button" :disabled="!canAddRemoteModel" @click="onAddRemoteModel">
-                        {{ t("common.add") }}
-                      </button>
                     </div>
-                    <div v-if="remoteModelStatusText" class="global-model-manage-hint">{{ remoteModelStatusText }}</div>
-                    <div v-if="modelCatalogStore.remoteErrorText" class="global-field-error">
-                      {{ t("globalConfig.loadFailed", { message: modelCatalogStore.remoteErrorText }) }}
-                    </div>
-
-                    <div class="global-model-add-row">
-                      <input
-                        id="inp-global-custom-model"
-                        class="context-input mono"
-                        :value="customModelInput"
-                        :placeholder="t('globalConfig.customModelPlaceholder')"
-                        :disabled="modelCatalogControlsDisabled"
-                        @input="onCustomModelInput"
-                        @keydown.enter.prevent="onAddCustomModel"
-                      />
-                      <button class="btn-mini" type="button" :disabled="!canAddCustomModel" @click="onAddCustomModel">
-                        {{ t("common.add") }}
-                      </button>
-                    </div>
-                    <div v-if="customModelHintText" class="global-model-manage-hint">{{ customModelHintText }}</div>
                     <div v-if="modelCatalogStore.errorText" class="global-field-error">
-                      {{ t("globalConfig.saveFailed", { message: modelCatalogStore.errorText }) }}
+                      {{ t("globalConfig.modelCatalogError", { message: modelCatalogStore.errorText }) }}
                     </div>
-                    <div v-if="modelCatalogStore.customIds.length > 0" class="global-model-list">
-                      <div v-for="id in modelCatalogStore.customIds" :key="id" class="global-model-item">
-                        <span class="global-model-item-id mono">{{ id }}</span>
-                        <button
-                          class="btn-mini"
-                          type="button"
-                          :disabled="modelCatalogControlsDisabled"
-                          @click="onRemoveCustomModel(id)"
-                        >
-                          {{ t("common.delete") }}
-                        </button>
-                      </div>
-                    </div>
-                    <div v-else class="global-model-empty">{{ t("globalConfig.noCustomModels") }}</div>
                   </div>
                 </div>
               </section>
@@ -297,10 +252,11 @@
                   <div class="global-field-stack">
                     <SelectDropdown
                       id="sel-global-reasoning-effort"
-                      v-model="configStore.draft.modelReasoningEffort"
+                      :modelValue="globalReasoningEffortValue"
                       class="context-input mono"
                       :disabled="globalControlsDisabled"
-                      :options="OFFICIAL_REASONING_EFFORT_OPTIONS"
+                      :options="globalReasoningEffortOptions"
+                      @update:modelValue="onReasoningEffortChanged"
                     />
                   </div>
                 </label>
@@ -543,7 +499,6 @@ import { RotateCw } from "lucide-vue-next";
 import SelectDropdown from "../../ui/SelectDropdown.vue";
 import { getRuntimeOrchestrator } from "../../../domain/runtimeOrchestrator";
 import { actionModal, confirmModal } from "../../../ui/modal";
-import { showToast } from "../../../ui/toast";
 import { useRuntimeStore } from "../../../stores/runtime.store";
 import { useAppShellStore } from "../../../stores/appShell.store";
 import { useConfigStore } from "../../../stores/config.store";
@@ -556,7 +511,6 @@ import {
 import {
   OFFICIAL_APPROVALS_REVIEWER_OPTIONS,
   OFFICIAL_APPROVAL_POLICY_OPTIONS,
-  OFFICIAL_REASONING_EFFORT_OPTIONS,
   OFFICIAL_REASONING_SUMMARY_OPTIONS,
   OFFICIAL_SANDBOX_MODE_OPTIONS,
   createDefaultGranularApprovalPolicy,
@@ -567,10 +521,16 @@ import {
 import type { GlobalConfigDraft } from "../../../domain/types";
 import { useModelCatalogStore } from "../../../stores/modelCatalog.store";
 import { type UiLanguage } from "@codenexus/shared/localSettings";
-import { DEFAULT_MODEL_NAME, buildModelPickerOptions, normalizeModelId } from "@codenexus/shared/modelCatalog";
+import {
+  buildModelPickerOptions,
+  resolveModelSelectionValue,
+  resolveReasoningEffort,
+  resolveReasoningEfforts,
+} from "@codenexus/shared/modelCatalog";
+import { buildReasoningEffortOptions } from "../../../shared/reasoningEffortOptions";
 
 const runtime = getRuntimeOrchestrator();
-const { t } = useI18n();
+const { t, te } = useI18n();
 const runtimeStore = useRuntimeStore();
 const appShellStore = useAppShellStore();
 const configStore = useConfigStore();
@@ -737,7 +697,7 @@ watch(open, async (next) => {
   if (!next) return;
   await nextTick();
   closeBtnRef.value?.focus();
-  void modelCatalogStore.ensureRemoteModels();
+  void modelCatalogStore.ensureModels({ maxAgeMs: 60_000 });
 });
 
 const globalConfigRefreshFxNonce = ref(0);
@@ -755,7 +715,9 @@ const globalControlsDisabled = computed(
 const canRefreshGlobalConfig = computed(
   () => Boolean(runtimeStore.serverId) && !configStore.saving && !globalConfigActionPending.value
 );
-const modelCatalogControlsDisabled = computed(() => modelCatalogStore.saving);
+const canRefreshModelCatalog = computed(
+  () => Boolean(runtimeStore.serverId) && modelCatalogStore.loadState !== "loading"
+);
 
 type RestrictedSelectState = {
   hasRestrictions: boolean;
@@ -769,7 +731,6 @@ const approvalsReviewerLabels = computed<Record<string, string>>(() => ({
 
 const approvalPolicyLabels = computed<Record<string, string>>(() => ({
   untrusted: "untrusted",
-  "on-failure": "on-failure",
   "on-request": "on-request",
   never: "never",
   granular: t("globalConfig.approvalPolicyGranular"),
@@ -1126,136 +1087,65 @@ const onResetGlobalConfig = () => {
   runtime.resetGlobalConfig();
 };
 
+const globalModelValue = computed(() =>
+  resolveModelSelectionValue(
+    modelCatalogStore.models,
+    configStore.draft.model,
+    modelCatalogStore.preferredModelValue || null
+  )
+);
+
 const globalModelOptions = computed(() =>
   buildModelPickerOptions({
-    customIds: modelCatalogStore.customIds,
-    current: configStore.draft.model,
+    models: modelCatalogStore.models,
+    current: globalModelValue.value,
+    preferredModelValue: modelCatalogStore.preferredModelValue || null,
   })
 );
 
 const onModelChanged = (nextRaw: string) => {
-  const next = normalizeModelId(nextRaw);
+  const next = String(nextRaw ?? "").trim();
   if (!next) return;
-  configStore.setDraft({ model: next });
+  const nextEffort = resolveReasoningEffort(
+    modelCatalogStore.models,
+    next,
+    configStore.draft.modelReasoningEffort,
+    modelCatalogStore.preferredModelEffort || null
+  );
+  configStore.setDraft({ model: next, modelReasoningEffort: nextEffort });
 };
 
-const customModelInput = ref("");
-const normalizedCustomModelInput = computed(() => normalizeModelId(customModelInput.value));
-const customModelExists = computed(() => {
-  const next = normalizedCustomModelInput.value;
-  return Boolean(next) && modelCatalogStore.availableModelIds.includes(next);
-});
-const canAddCustomModel = computed(
-  () => Boolean(normalizedCustomModelInput.value) && !customModelExists.value && !modelCatalogControlsDisabled.value
-);
-const customModelHintText = computed(() => {
-  const next = normalizedCustomModelInput.value;
-  if (!next) return t("globalConfig.customModel.addHint");
-  if (customModelExists.value) return t("globalConfig.customModel.exists");
-  return t("globalConfig.customModel.addSuccessHint");
-});
-
-const remoteModelPick = ref("");
-const normalizedRemoteModelPick = computed(() => normalizeModelId(remoteModelPick.value));
-const remoteModelPickExists = computed(() => {
-  const next = normalizedRemoteModelPick.value;
-  return Boolean(next) && modelCatalogStore.availableModelIds.includes(next);
-});
-const canRefreshRemoteModels = computed(
-  () => Boolean(runtimeStore.serverId) && modelCatalogStore.remoteLoadState !== "loading"
-);
-const canAddRemoteModel = computed(
-  () => Boolean(normalizedRemoteModelPick.value) && !remoteModelPickExists.value && !modelCatalogControlsDisabled.value
-);
-const remoteModelSelectDisabled = computed(
-  () =>
-    !runtimeStore.serverId ||
-    modelCatalogStore.remoteLoadState === "loading" ||
-    modelCatalogStore.remoteIds.length === 0
-);
-const remoteModelStatusText = computed(() => {
-  if (!runtimeStore.serverId) return t("globalConfig.remoteModels.connectFirst");
-  if (modelCatalogStore.remoteLoadState === "loading") return t("globalConfig.remoteModels.loading");
-  if (modelCatalogStore.remoteLoadState === "error") return t("globalConfig.remoteModels.error");
-  if (modelCatalogStore.remoteIds.length > 0) {
-    return t("globalConfig.remoteModels.loaded", { count: modelCatalogStore.remoteIds.length });
+const modelCatalogStatusText = computed(() => {
+  if (!runtimeStore.serverId) return t("globalConfig.modelCatalogConnectFirst");
+  if (modelCatalogStore.loadState === "loading") return t("globalConfig.modelCatalogLoading");
+  if (modelCatalogStore.loadState === "error") return t("globalConfig.modelCatalogErrorShort");
+  if (modelCatalogStore.models.length > 0) {
+    return t("globalConfig.modelCatalogLoaded", { count: modelCatalogStore.visibleModels.length });
   }
-  return t("globalConfig.remoteModels.refreshHint");
-});
-const remoteModelDropdownOptions = computed(() => {
-  const hasServer = Boolean(runtimeStore.serverId);
-  const loading = modelCatalogStore.remoteLoadState === "loading";
-  const errored = modelCatalogStore.remoteLoadState === "error";
-  const ids = modelCatalogStore.remoteIds;
-  let placeholder = t("globalConfig.remoteModels.notLoaded");
-  if (!hasServer) placeholder = t("globalConfig.remoteModels.disconnected");
-  else if (loading) placeholder = t("globalConfig.remoteModels.loadingShort");
-  else if (errored) placeholder = t("globalConfig.remoteModels.errorShort");
-  else if (ids.length === 0) placeholder = t("globalConfig.remoteModels.notLoaded");
-  else placeholder = t("globalConfig.remoteModels.choose");
-  return [{ value: "", label: placeholder, disabled: true }, ...ids.map((id) => ({ value: id, label: id }))];
+  return t("globalConfig.modelCatalogEmpty");
 });
 
-const onRefreshRemoteModels = () => {
-  void modelCatalogStore.refreshRemoteModels();
+const onRefreshModelCatalog = () => {
+  void modelCatalogStore.refreshModels();
 };
 
-const onAddRemoteModel = async () => {
-  const next = normalizedRemoteModelPick.value;
-  if (!next || remoteModelPickExists.value || modelCatalogControlsDisabled.value) return;
-  const added = await modelCatalogStore.addCustomModel(next);
-  if (added) remoteModelPick.value = "";
-};
+const globalReasoningEffortOptions = computed(() =>
+  buildReasoningEffortOptions(resolveReasoningEfforts(modelCatalogStore.models, globalModelValue.value), t, te)
+);
 
-const onCustomModelInput = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  customModelInput.value = String(target?.value ?? "");
-};
+const globalReasoningEffortValue = computed(() =>
+  resolveReasoningEffort(
+    modelCatalogStore.models,
+    globalModelValue.value,
+    configStore.draft.modelReasoningEffort,
+    modelCatalogStore.preferredModelEffort || null
+  )
+);
 
-const onAddCustomModel = async () => {
-  const next = normalizedCustomModelInput.value;
-  if (!next || customModelExists.value || modelCatalogControlsDisabled.value) return;
-  const added = await modelCatalogStore.addCustomModel(next);
-  if (added) customModelInput.value = "";
-};
-
-const onRemoveCustomModel = async (id: string) => {
-  if (modelCatalogControlsDisabled.value) return;
-  const removedId = normalizeModelId(id);
-  if (!removedId) return;
-  const globalWasDirty = configStore.isDirty;
-  const removed = await modelCatalogStore.removeCustomModel(removedId);
-  if (!removed) return;
-
-  const fallbackModel = DEFAULT_MODEL_NAME;
-  const reverted: string[] = [];
-  if (normalizeModelId(runtimeStore.model) === removedId) {
-    runtimeStore.model = fallbackModel;
-    await runtimeStore.saveThreadComposeStateNow();
-    reverted.push(t("globalConfig.customModel.currentReverted"));
-  }
-
-  if (normalizeModelId(configStore.draft.model) === removedId) {
-    configStore.setDraft({ model: fallbackModel });
-    reverted.push(t("globalConfig.customModel.globalReverted"));
-    if (!globalWasDirty && canSaveGlobalConfig.value) {
-      await runtime.saveGlobalConfig({ source: "auto", silentSuccessToast: true });
-    } else if (globalWasDirty) {
-      reverted.push(t("globalConfig.customModel.globalSaveSkippedDirty"));
-    }
-  }
-
-  if (reverted.length > 0) {
-    showToast({
-      kind: globalWasDirty ? "warn" : "info",
-      title: t("globalConfig.customModel.removeFallbackTitle"),
-      message: t("globalConfig.customModel.removeFallbackMessage", {
-        model: removedId,
-        fallback: fallbackModel,
-        details: reverted.join("；"),
-      }),
-    });
-  }
+const onReasoningEffortChanged = (nextRaw: string) => {
+  const next = String(nextRaw ?? "").trim();
+  if (!next) return;
+  configStore.setDraft({ modelReasoningEffort: next });
 };
 
 const modelContextWindowInputText = computed(() =>

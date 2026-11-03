@@ -6,7 +6,6 @@
           <ChatPlanDeltaActions
             :execState="execState"
             :modelOptions="modelOptions"
-            :reasoningEffortOptions="reasoningEffortOptions"
             :sandboxModeOptions="sandboxModeOptions"
             :disabled="planActionDisabled"
             embedded
@@ -21,7 +20,6 @@
           <ChatPlanDeltaActions
             :execState="execState"
             :modelOptions="modelOptions"
-            :reasoningEffortOptions="reasoningEffortOptions"
             :sandboxModeOptions="sandboxModeOptions"
             :disabled="planActionDisabled"
             :embedded="true"
@@ -76,6 +74,7 @@ import {
   type ParsedMemoryCitation,
 } from "../../domain/taggedMessageBlocks";
 import type { MemoryCitation, MemoryCitationEntry } from "@codenexus/generated/codex-app-server/v2";
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
 
 type OptionInput =
   | string
@@ -112,9 +111,8 @@ const props = defineProps<{
   isStructuredFinalAnswer: boolean;
   markdownHtml: string;
   execState: PlanDeltaExecUiState | null;
-  modelOptions: readonly OptionInput[];
+  modelOptions: readonly ModelPickerOption[];
   isTurnRunning: boolean;
-  reasoningEffortOptions: readonly OptionInput[];
   sandboxModeOptions: readonly OptionInput[];
 }>();
 

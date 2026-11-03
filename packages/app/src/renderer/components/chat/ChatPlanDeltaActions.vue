@@ -3,8 +3,7 @@
     <ComposerModelReasoningPicker
       :model="execState.model"
       :reasoningEffort="execState.reasoningEffort"
-      :modelOptions="normalizedModelOptions"
-      :reasoningEffortOptions="normalizedReasoningEffortOptions"
+      :modelOptions="modelOptions"
       :disabled="disabled"
       @update:model="(value) => $emit('update:model', value)"
       @update:reasoningEffort="(value) => $emit('update:reasoning-effort', value)"
@@ -35,6 +34,7 @@ import ComposerModelReasoningPicker from "../layout/composer/ComposerModelReason
 import ComposerSandboxPicker from "../layout/composer/ComposerSandboxPicker.vue";
 import type { PlanDeltaExecUiState } from "../layout/types/chat.types";
 import type { SandboxMode } from "../../stores/runtime.store";
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
 
 type OptionInput =
   | string
@@ -51,8 +51,7 @@ type SelectOption = {
 
 const props = defineProps<{
   execState: PlanDeltaExecUiState;
-  modelOptions: readonly OptionInput[];
-  reasoningEffortOptions: readonly OptionInput[];
+  modelOptions: readonly ModelPickerOption[];
   sandboxModeOptions: readonly OptionInput[];
   disabled: boolean;
   embedded?: boolean;
@@ -72,12 +71,6 @@ const rootClass = computed(() =>
 const optionValue = (option: OptionInput): string => (typeof option === "string" ? option : option.value);
 const optionLabel = (option: OptionInput): string => (typeof option === "string" ? option : option.label);
 
-const normalizedModelOptions = computed(() => props.modelOptions.map((option) => optionValue(option)).filter(Boolean));
-const normalizedReasoningEffortOptions = computed<SelectOption[]>(() =>
-  props.reasoningEffortOptions
-    .map((option) => ({ value: optionValue(option), label: optionLabel(option) }))
-    .filter((option) => option.value)
-);
 const normalizedSandboxModeOptions = computed<SelectOption[]>(() =>
   props.sandboxModeOptions
     .map((option) => ({ value: optionValue(option), label: optionLabel(option) }))

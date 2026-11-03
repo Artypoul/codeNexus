@@ -1,5 +1,4 @@
 import type { SandboxMode } from "@codenexus/generated/codex-app-server/v2/SandboxMode";
-import { DEFAULT_MODEL_NAME } from "./modelCatalog";
 
 /**
  * 每个线程的本地输入草稿。
@@ -30,8 +29,8 @@ export const DEFAULT_LOCAL_THREAD_COMPOSE_STATE: LocalThreadComposeState = {
   sandboxMode: "danger-full-access",
   composeInput: "",
   composeMode: "default",
-  model: DEFAULT_MODEL_NAME,
-  reasoningEffort: "xhigh",
+  model: "",
+  reasoningEffort: "",
   reasoningSummary: "auto",
 };
 
@@ -40,8 +39,6 @@ export const DEFAULT_LOCAL_DRAFT_STATE: LocalDraftState = {
   updatedAt: 0,
   threads: {},
 };
-
-const REASONING_EFFORT_OPTIONS = ["low", "medium", "high", "xhigh"] as const;
 
 function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -58,11 +55,7 @@ function toComposeMode(value: unknown): LocalDraftComposeMode {
 }
 
 function normalizeModelName(value: unknown): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return DEFAULT_LOCAL_THREAD_COMPOSE_STATE.model;
-  // 迁移：已移除的内置模型 ID 统一回落到当前默认模型。
-  if (raw === "gpt-5.2-codex") return DEFAULT_LOCAL_THREAD_COMPOSE_STATE.model;
-  return raw;
+  return String(value ?? "").trim();
 }
 
 function toSandboxMode(value: unknown): LocalDraftSandboxMode {
@@ -77,11 +70,9 @@ function toSandboxMode(value: unknown): LocalDraftSandboxMode {
 }
 
 function toReasoningEffort(value: unknown): string {
-  const raw = String(value ?? "")
+  return String(value ?? "")
     .trim()
     .toLowerCase();
-  const hit = REASONING_EFFORT_OPTIONS.find((item) => item === raw);
-  return hit ?? DEFAULT_LOCAL_THREAD_COMPOSE_STATE.reasoningEffort;
 }
 
 /** 从持久化内容恢复单线程草稿，未知字段回落到当前默认输入设置。 */

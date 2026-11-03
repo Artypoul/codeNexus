@@ -1,78 +1,252 @@
+import type { Model } from "@codenexus/generated/codex-app-server/v2/Model";
+
 /**
- * 模型选择器的共享目录。
+ * Codex `model/list` 目录的纯函数工具。
  *
- * 内置模型作为默认候选，自定义模型只作为附加项进入列表，避免用户配置覆盖内置排序。
+ * 选择值统一使用 `Model.model`（后端模型名）；`Model.id` 只用于目录去重和元数据。
  */
-export const BUILTIN_MODEL_IDS = [
-  "gpt-5.5",
-  "gpt-5.2",
-  "gpt-5.4",
-  "gpt-5.4-mini",
-  "gpt-5.3-codex",
-  "gpt-5.3-codex-spark",
-] as const;
 
-export const DEFAULT_MODEL_NAME = BUILTIN_MODEL_IDS[0];
+export type ModelPickerOption = {
+  /** 发送给 Codex 的后端模型名。 */
+  value: string;
+  /** 目录中的稳定 id。 */
+  catalogId: string;
+  /** 选择器展示文本。 */
+  label: string;
+  description?: string;
+  reasoningEfforts: Array<{ value: string; description?: string }>;
+  defaultReasoningEffort: string;
+  /** false 表示当前值不在目录中（例如第三方 provider 模型）。 */
+  known: boolean;
+};
 
-const BUILTIN_MODEL_ID_SET = new Set<string>(BUILTIN_MODEL_IDS);
+function toRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
-/** 已下线的历史模型不再进入自定义模型列表，但旧线程仍可通过当前值回显。 */
-const REMOVED_MODEL_ID_SET = new Set<string>(["gpt-5.2-codex"]);
-
-export function normalizeModelId(value: unknown): string {
+function trimText(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-export function normalizeModelIdList(value: unknown): string[] {
+function normalizeReasoningEfforts(
+  value: unknown,
+): Array<{ value: string; description?: string }> {
   const list = Array.isArray(value) ? value : [];
   const seen = new Set<string>();
-  const ids: string[] = [];
+  const efforts: Array<{ value: string; description?: string }> = [];
   for (const item of list) {
-    const id = normalizeModelId(item);
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
+    const record = toRecord(item);
+    const effort = trimText(record?.reasoningEffort ?? record?.value);
+    if (!effort || seen.has(effort)) continue;
+    seen.add(effort);
+    const description = trimText(record?.description);
+    efforts.push(
+      description ? { value: effort, description } : { value: effort },
+    );
   }
-  return ids;
+  return efforts;
 }
 
-/** 自定义模型列表只保留非内置、非下线且去重后的模型 ID。 */
-export function normalizeCustomModelIds(value: unknown): string[] {
-  const list = Array.isArray(value) ? value : [];
+function normalizeModelEntry(value: unknown): Model | null {
+  const record = toRecord(value);
+  if (!record) return null;
+  const id = trimText(record.id);
+  const model = trimText(record.model);
+  if (!id || !model) return null;
+  return { ...(record as unknown as Model), id, model };
+}
+
+export function normalizeModelCatalog(data: unknown): Model[] {
+  const list = Array.isArray(data) ? data : [];
   const seen = new Set<string>();
-  const ids: string[] = [];
+  const models: Model[] = [];
   for (const item of list) {
-    const id = normalizeModelId(item);
-    if (
-      !id ||
-      REMOVED_MODEL_ID_SET.has(id) ||
-      BUILTIN_MODEL_ID_SET.has(id) ||
-      seen.has(id)
-    )
-      continue;
-    seen.add(id);
-    ids.push(id);
+    const model = normalizeModelEntry(item);
+    if (!model || seen.has(model.id)) continue;
+    seen.add(model.id);
+    models.push(model);
   }
-  return ids;
+  return models;
 }
 
-/** 可选模型列表始终以内置模型开头，再追加有效自定义模型。 */
-export function buildAvailableModelIds(
-  customIds: readonly string[] | null | undefined,
-): string[] {
-  const ids: string[] = [...BUILTIN_MODEL_IDS];
-  for (const item of normalizeCustomModelIds(customIds ?? [])) ids.push(item);
-  return ids;
+export async function collectModelPages(
+  fetchPage: (
+    cursor: string | null,
+  ) => Promise<{ data: unknown; nextCursor: unknown }>,
+  opts?: { maxPages?: number },
+): Promise<Model[]> {
+  const maxPages = Math.max(1, Math.min(50, Math.round(opts?.maxPages ?? 12)));
+  const seenCursors = new Set<string>();
+  const seenIds = new Set<string>();
+  const models: Model[] = [];
+  let cursor: string | null = null;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const response = await fetchPage(cursor);
+    for (const model of normalizeModelCatalog(response.data)) {
+      if (seenIds.has(model.id)) continue;
+      seenIds.add(model.id);
+      models.push(model);
+    }
+    const nextCursor = trimText(response.nextCursor);
+    if (!nextCursor || seenCursors.has(nextCursor)) break;
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  }
+
+  return models;
 }
 
-/** 当前模型即使不在候选列表里也会临时置顶，保证旧线程或外部模型能回显。 */
-export function buildModelPickerOptions(args?: {
-  customIds?: readonly string[] | null;
+export function resolveModelEntry(
+  models: readonly Model[],
+  value: unknown,
+): Model | null {
+  const text = trimText(value);
+  if (!text) return null;
+  const matches = models.filter(
+    (model) => model.model === text || model.id === text,
+  );
+  return matches.find((model) => !model.hidden) ?? matches[0] ?? null;
+}
+
+export function resolveDefaultModel(
+  models: readonly Model[],
+  preferredModelValue?: string | null,
+): Model | null {
+  const preferred = resolveModelEntry(models, preferredModelValue);
+  if (preferred) return preferred;
+  return (
+    models.find((model) => model.isDefault && !model.hidden) ??
+    models.find((model) => !model.hidden) ??
+    models[0] ??
+    null
+  );
+}
+
+export function resolveModelSelectionValue(
+  models: readonly Model[],
+  value: unknown,
+  preferredModelValue?: string | null,
+): string {
+  const text = trimText(value);
+  if (!text)
+    return resolveDefaultModel(models, preferredModelValue)?.model ?? "";
+  return resolveModelEntry(models, text)?.model ?? text;
+}
+
+export function resolveModelBackendValue(
+  models: readonly Model[],
+  value: unknown,
+  preferredModelValue?: string | null,
+): string {
+  return resolveModelSelectionValue(models, value, preferredModelValue);
+}
+
+function toPickerOption(model: Model, known = true): ModelPickerOption {
+  const efforts = normalizeReasoningEfforts(model.supportedReasoningEfforts);
+  return {
+    value: model.model,
+    catalogId: model.id,
+    label:
+      trimText(model.displayName) ||
+      trimText(model.model) ||
+      trimText(model.id),
+    description: trimText(model.description) || undefined,
+    reasoningEfforts: efforts,
+    defaultReasoningEffort:
+      trimText(model.defaultReasoningEffort) || efforts[0]?.value || "",
+    known,
+  };
+}
+
+export function buildModelPickerOptions(args: {
+  models: readonly Model[];
   current?: unknown;
-}): string[] {
-  const available = buildAvailableModelIds(args?.customIds);
-  const current = normalizeModelId(args?.current);
-  if (!current) return available;
-  if (available.includes(current)) return available;
-  return [current, ...available];
+  preferredModelValue?: string | null;
+}): ModelPickerOption[] {
+  const visibleOptions: ModelPickerOption[] = [];
+  const seenValues = new Set<string>();
+  for (const model of args.models) {
+    if (model.hidden || seenValues.has(model.model)) continue;
+    seenValues.add(model.model);
+    visibleOptions.push(toPickerOption(model));
+  }
+
+  const current = resolveModelSelectionValue(
+    args.models,
+    args.current,
+    args.preferredModelValue,
+  );
+  if (!current || visibleOptions.some((option) => option.value === current)) {
+    return visibleOptions;
+  }
+
+  const entry = resolveModelEntry(args.models, current);
+  if (entry) return [toPickerOption(entry), ...visibleOptions];
+
+  return [
+    {
+      value: current,
+      catalogId: "",
+      label: current,
+      reasoningEfforts: [],
+      defaultReasoningEffort: "",
+      known: false,
+    },
+    ...visibleOptions,
+  ];
+}
+
+function resolveEffortEntry(
+  models: readonly Model[],
+  value: unknown,
+): Model | null {
+  const text = trimText(value);
+  const entry = resolveModelEntry(models, text);
+  if (entry) return entry;
+  return text ? null : resolveDefaultModel(models);
+}
+
+export function resolveReasoningEfforts(
+  models: readonly Model[],
+  value: unknown,
+): ModelPickerOption["reasoningEfforts"] {
+  const entry = resolveEffortEntry(models, value);
+  return entry
+    ? normalizeReasoningEfforts(entry.supportedReasoningEfforts)
+    : [];
+}
+
+export function resolveReasoningEffort(
+  models: readonly Model[],
+  value: unknown,
+  requested: unknown,
+  preferredEffort?: string | null,
+): string {
+  const entry = resolveEffortEntry(models, value);
+  const efforts = entry
+    ? normalizeReasoningEfforts(entry.supportedReasoningEfforts)
+    : [];
+  const requestedText = trimText(requested);
+
+  if (efforts.length === 0) {
+    return requestedText || trimText(preferredEffort);
+  }
+
+  const findEffort = (candidate: unknown): string | undefined => {
+    const normalized = trimText(candidate).toLowerCase();
+    if (!normalized) return undefined;
+    return efforts.find((effort) => effort.value.toLowerCase() === normalized)
+      ?.value;
+  };
+
+  return (
+    findEffort(requestedText) ??
+    findEffort(entry?.defaultReasoningEffort) ??
+    findEffort(preferredEffort) ??
+    efforts[0]?.value ??
+    ""
+  );
 }

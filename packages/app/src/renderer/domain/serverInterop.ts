@@ -12,7 +12,6 @@ import type { ListMcpServerStatusResponse } from "@codenexus/generated/codex-app
 import type { SkillsListResponse } from "@codenexus/generated/codex-app-server/v2/SkillsListResponse";
 import type { SandboxMode } from "@codenexus/generated/codex-app-server/v2/SandboxMode";
 import { configValueToCodexMcpServerConfig } from "@codenexus/shared/codexMcp";
-import { DEFAULT_MODEL_NAME, normalizeModelId } from "@codenexus/shared/modelCatalog";
 
 export type ConfigWriteChange = {
   keyPath: string;
@@ -43,10 +42,8 @@ function readPathValue(root: unknown, path: string): { found: boolean; value: un
 }
 
 export const OFFICIAL_REASONING_SUMMARY_OPTIONS = ["auto", "concise", "detailed", "none"] as const;
-export const OFFICIAL_REASONING_EFFORT_OPTIONS = ["low", "medium", "high", "xhigh"] as const;
 export const OFFICIAL_APPROVAL_POLICY_STRING_OPTIONS = [
   "untrusted",
-  "on-failure",
   "on-request",
   "never",
 ] as const satisfies readonly Extract<AskForApproval, string>[];
@@ -62,26 +59,22 @@ export const OFFICIAL_SANDBOX_MODE_OPTIONS = [
   "danger-full-access",
 ] as const satisfies readonly SandboxMode[];
 
-function normalizeEnumValue<T extends string>(
-  value: unknown,
-  fallback: T,
-  allowed: readonly T[],
-  aliases?: Record<string, T>
-): T {
+function normalizeEnumValue<T extends string>(value: unknown, fallback: T, allowed: readonly T[]): T {
   const raw = String(value ?? "").trim();
   if (!raw) return fallback;
-  const mapped = aliases?.[raw] ?? aliases?.[raw.toLowerCase()] ?? raw;
-  const normalized = String(mapped).toLowerCase();
+  const normalized = raw.toLowerCase();
   const canonical = allowed.find((item) => item.toLowerCase() === normalized);
   return canonical ?? fallback;
 }
 
 export function normalizeModelName(value: unknown): string {
-  return normalizeModelId(value) || DEFAULT_MODEL_NAME;
+  return String(value ?? "").trim();
 }
 
 export function normalizeEffort(value: unknown): ReasoningEffort {
-  return normalizeEnumValue(value, "high", OFFICIAL_REASONING_EFFORT_OPTIONS);
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 export function createDefaultGranularApprovalPolicy(): Extract<AskForApproval, { granular: unknown }> {
@@ -161,11 +154,11 @@ function normalizeOptionalPositiveInteger(value: unknown): number | null {
 
 export function createDefaultGlobalConfigDraft(): GlobalConfigDraft {
   return {
-    model: DEFAULT_MODEL_NAME,
+    model: "",
     fastModeEnabled: true,
     modelContextWindow: null,
     modelAutoCompactTokenLimit: null,
-    modelReasoningEffort: "xhigh",
+    modelReasoningEffort: "",
     modelReasoningSummary: "auto",
     approvalPolicy: "never",
     approvalsReviewer: "user",
@@ -255,8 +248,9 @@ export function buildConfigBatchChangesFromDraft(
       value: normalizeOptionalPositiveInteger(draft.modelAutoCompactTokenLimit),
     });
   }
-  if (normalizeEffort(draft.modelReasoningEffort) !== normalizeEffort(baseline.modelReasoningEffort)) {
-    changes.push({ keyPath: "model_reasoning_effort", value: normalizeEffort(draft.modelReasoningEffort) });
+  const draftReasoningEffort = normalizeEffort(draft.modelReasoningEffort);
+  if (draftReasoningEffort && draftReasoningEffort !== normalizeEffort(baseline.modelReasoningEffort)) {
+    changes.push({ keyPath: "model_reasoning_effort", value: draftReasoningEffort });
   }
   if (
     normalizeReasoningSummary(draft.modelReasoningSummary) !== normalizeReasoningSummary(baseline.modelReasoningSummary)

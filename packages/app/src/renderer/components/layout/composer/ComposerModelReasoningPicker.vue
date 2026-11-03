@@ -11,7 +11,7 @@
     @click="onTriggerClick"
     @keydown="onTriggerKeydown"
   >
-    <span class="composer-model-reasoning-model mono">{{ model }}</span>
+    <span class="composer-model-reasoning-model mono">{{ modelLabel }}</span>
     <span class="composer-model-reasoning-divider" aria-hidden="true"></span>
     <span class="composer-model-reasoning-effort composer-select--effort mono" :class="reasoningToneClass">
       {{ selectedReasoningLabel }}
@@ -63,19 +63,19 @@
 
     <Transition name="ui-select-popover">
       <div
-        v-if="open && activeModel"
+        v-if="open && activeModel && activeReasoningEfforts.length > 0"
         ref="reasoningPopoverRef"
         class="composer-model-reasoning-popover composer-model-reasoning-popover--sub app-scrollbar"
         :style="reasoningPopoverStyle"
         :data-composer-owner="interactionOwnerId || undefined"
         role="listbox"
-        :aria-label="t('composer.modelReasoningFor', { model: activeModel })"
+        :aria-label="t('composer.modelReasoningFor', { model: activeModelLabel })"
         @pointerdown="onPreservePointerFocus"
       >
         <div class="composer-model-reasoning-popover-head composer-model-reasoning-popover-head--sub">
           <div class="composer-model-reasoning-popover-title">
             <span>{{ t("composer.reasoningEffort") }}</span>
-            <strong class="mono">{{ activeModel }}</strong>
+            <strong class="mono">{{ activeModelLabel }}</strong>
           </div>
         </div>
         <div class="composer-model-reasoning-list" role="presentation">
@@ -103,11 +103,8 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { Check, ChevronDown, ChevronRight } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-
-type SelectOption = {
-  value: string;
-  label: string;
-};
+import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
+import { reasoningEffortLabel } from "../../../shared/reasoningEffortOptions";
 
 type VisibleOption = {
   value: string;
@@ -120,8 +117,7 @@ type VisibleOption = {
 const props = defineProps<{
   model: string;
   reasoningEffort: string;
-  modelOptions: readonly string[];
-  reasoningEffortOptions: readonly SelectOption[];
+  modelOptions: readonly ModelPickerOption[];
   preservePointerFocus?: boolean;
   interactionOwnerId?: string;
   disabled?: boolean;
@@ -132,7 +128,7 @@ const emit = defineEmits<{
   (event: "update:reasoningEffort", value: string): void;
 }>();
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const open = ref(false);
 const activeModel = ref("");
 const triggerRef = ref<HTMLButtonElement | null>(null);
@@ -144,7 +140,7 @@ const reasoningPopoverStyle = ref<Record<string, string>>({});
 const POPOVER_GAP_PX = 6;
 const VIEWPORT_PADDING_PX = 8;
 const POPOVER_MAX_HEIGHT_PX = 320;
-const MODEL_POPOVER_MIN_WIDTH_PX = 224;
+const MODEL_POPOVER_MIN_WIDTH_PX = 360;
 const REASONING_POPOVER_WIDTH_PX = 176;
 
 function onPreservePointerFocus(event: PointerEvent) {
@@ -162,38 +158,92 @@ function normalizeToneKey(value: unknown): string {
 }
 
 const modelToneClass = computed(() => `is-${normalizeToneKey(props.model)}`);
-const reasoningToneClass = computed(() => `is-${normalizeToneKey(props.reasoningEffort)}`);
-const disabled = computed(() => Boolean(props.disabled));
+const reasoningToneClass = computed(() => `is-${normalizeToneKey(effectiveReasoningEffort.value)}`);
+const disabled = computed(() => Boolean(props.disabled) || props.modelOptions.length === 0);
+
+const selectedModelOption = computed(() => props.modelOptions.find((option) => option.value === props.model) ?? null);
+const modelLabel = computed(() => selectedModelOption.value?.label ?? props.model);
+const effectiveReasoningEffort = computed(() => {
+  const option = selectedModelOption.value;
+  if (!option) return props.reasoningEffort;
+  if (option.reasoningEfforts.some((effort) => effort.value === props.reasoningEffort)) {
+    return props.reasoningEffort;
+  }
+  return option.defaultReasoningEffort || option.reasoningEfforts[0]?.value || props.reasoningEffort;
+});
+
+const activeModelOption = computed(
+  () => props.modelOptions.find((option) => option.value === activeModel.value) ?? null
+);
+const activeModelLabel = computed(() => activeModelOption.value?.label ?? activeModel.value);
+const activeReasoningEfforts = computed(() => activeModelOption.value?.reasoningEfforts ?? []);
 
 const selectedReasoningLabel = computed(() => {
-  const hit = props.reasoningEffortOptions.find((option) => option.value === props.reasoningEffort);
-  return hit?.label ?? props.reasoningEffort;
+  const effort = effectiveReasoningEffort.value;
+  if (!effort) return "";
+  return reasoningEffortLabel(effort, t, te);
 });
 
 const modelPickerOptions = computed<VisibleOption[]>(() =>
-  props.modelOptions.map((value) => ({
-    value,
-    label: value,
-    toneClass: `composer-select--model is-${normalizeToneKey(value)}`,
-    selected: value === props.model,
-    active: value === activeModel.value,
+  props.modelOptions.map((option) => ({
+    value: option.value,
+    label: option.label,
+    toneClass: `composer-select--model is-${normalizeToneKey(option.value)}`,
+    selected: option.value === props.model,
+    active: option.value === activeModel.value,
   }))
 );
 
 const reasoningPickerOptions = computed<VisibleOption[]>(() =>
-  props.reasoningEffortOptions.map((option) => ({
-    value: option.value,
-    label: option.label,
-    toneClass: `composer-select--effort is-${normalizeToneKey(option.value)}`,
-    selected: activeModel.value === props.model && option.value === props.reasoningEffort,
+  activeReasoningEfforts.value.map((effort) => ({
+    value: effort.value,
+    label: reasoningEffortLabel(effort.value, t, te),
+    toneClass: `composer-select--effort is-${normalizeToneKey(effort.value)}`,
+    selected: activeModel.value === props.model && effort.value === effectiveReasoningEffort.value,
   }))
 );
+
+function measureModelPopoverContentWidth(popover: HTMLElement | null): number {
+  if (!popover) return 0;
+  const labels = Array.from(popover.querySelectorAll<HTMLElement>(".composer-model-reasoning-option-label"));
+  if (labels.length === 0) return 0;
+
+  const labelStyle = window.getComputedStyle(labels[0]);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  let maxLabelWidth = 0;
+  if (context) {
+    context.font = `${labelStyle.fontWeight || "700"} ${labelStyle.fontSize || "12px"} ${labelStyle.fontFamily || "monospace"}`;
+    for (const label of labels) {
+      maxLabelWidth = Math.max(maxLabelWidth, context.measureText(label.textContent ?? "").width);
+    }
+  }
+  if (maxLabelWidth <= 0) {
+    for (const label of labels) {
+      maxLabelWidth = Math.max(maxLabelWidth, label.scrollWidth);
+    }
+  }
+  if (!maxLabelWidth) return 0;
+
+  let metaWidth = 32;
+  popover.querySelectorAll<HTMLElement>(".composer-model-reasoning-option-meta").forEach((meta) => {
+    metaWidth = Math.max(metaWidth, meta.getBoundingClientRect().width);
+  });
+  const computed = window.getComputedStyle(popover);
+  const horizontalPadding =
+    (Number.parseFloat(computed.paddingLeft) || 0) + (Number.parseFloat(computed.paddingRight) || 0);
+  const rowPadding = 12;
+  const rowGap = 8;
+  return Math.ceil(maxLabelWidth + metaWidth + horizontalPadding + rowPadding + rowGap + 4);
+}
 
 function updatePopoverPosition() {
   const trigger = triggerRef.value;
   if (!trigger) return;
   const rect = trigger.getBoundingClientRect();
-  const width = Math.max(MODEL_POPOVER_MIN_WIDTH_PX, Math.round(rect.width));
+  const contentWidth = measureModelPopoverContentWidth(popoverRef.value);
+  const viewportMaxWidth = Math.max(MODEL_POPOVER_MIN_WIDTH_PX, window.innerWidth - VIEWPORT_PADDING_PX * 2);
+  const width = Math.min(viewportMaxWidth, Math.max(MODEL_POPOVER_MIN_WIDTH_PX, Math.round(rect.width), contentWidth));
   let left = Math.round(rect.left);
   left = Math.max(VIEWPORT_PADDING_PX, Math.min(left, window.innerWidth - width - VIEWPORT_PADDING_PX));
 
@@ -279,6 +329,14 @@ async function showReasoningForModel(value: string) {
 
 async function onModelClick(value: string) {
   emit("update:model", value);
+  const option = props.modelOptions.find((item) => item.value === value);
+  if (
+    option &&
+    option.reasoningEfforts.length > 0 &&
+    !option.reasoningEfforts.some((effort) => effort.value === props.reasoningEffort)
+  ) {
+    emit("update:reasoningEffort", option.defaultReasoningEffort || option.reasoningEfforts[0].value);
+  }
   await showReasoningForModel(value);
 }
 
