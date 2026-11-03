@@ -147,7 +147,7 @@
   display: grid;
   align-content: start;
   gap: 8px;
-  padding: 8px var(--lsb-pad-x) 24px;
+  padding: 8px max(0px, calc(var(--lsb-pad-x) - 11px)) 24px var(--lsb-pad-x);
 }
 
 @media (max-width: 1500px) {

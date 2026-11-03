@@ -252,6 +252,10 @@
   transition: transform 140ms ease;
 }
 
+.lsb-group-head .lsb-chevron {
+  margin-right: -5px;
+}
+
 .lsb-chevron.open {
   transform: rotate(180deg);
 }
