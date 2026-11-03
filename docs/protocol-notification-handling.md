@@ -188,9 +188,11 @@
 - `update.move_path !== null` 时视为 rename
 - `PatchApplyStatus`: `inProgress` / `completed` / `failed` / `declined`
 
-`item/fileChange/outputDelta` 是官方保留的 deprecated 通知；当前白名单不再做特殊排除，它只会走默认 timeline / debug 分支，不参与文件变更卡片聚合。
+`item/fileChange/outputDelta` 是官方保留的 deprecated 通知，服务端不再发送。生成协议和白名单仍保留该方法以满足协议完整性断言，但应用接收入口会显式忽略它，不再进入 timeline / debug 分支。
 
 当前官方文件变更通知仍然进入主 `timelineStore` 并聚合成文件变更卡片；同时在 `timelineDebugEnabled` 开启时，`item/fileChange/patchUpdated` 以及 `item/started` / `item/completed` 中的 `fileChange` 生命周期事件会额外写入 `debugTimelineStore`，用于查看原始官方事件。
+
+`features.apply_patch_streaming_events` 在 Codex 0.166 中默认关闭，CodeNexus 的默认配置与其保持一致。设置页保存该开关时会通过 `config/batchWrite` 持久化，并设置 `reloadUserConfig: true`，让已加载线程重新读取运行时配置。
 
 ## 后续补齐建议
 

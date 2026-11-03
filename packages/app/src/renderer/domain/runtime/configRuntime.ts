@@ -63,6 +63,7 @@ export function createConfigRuntime(deps: ConfigRuntimeDeps): ConfigRuntime {
           mergeStrategy: "replace" as const,
         })),
         filePath: targetFilePath,
+        reloadUserConfig: true,
       },
     });
   };

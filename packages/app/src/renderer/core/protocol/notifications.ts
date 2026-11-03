@@ -1,6 +1,8 @@
 import { isServerNotificationMethod, type ServerNotificationMethod } from "../../app/events/protocolMethods";
 import type { OfficialCodexServerNotification } from "@codenexus/shared/codex-protocol";
 
+const IGNORED_DEPRECATED_SERVER_NOTIFICATION_METHODS = new Set<string>(["item/fileChange/outputDelta"]);
+
 type SupportedOfficialServerNotification = Extract<
   OfficialCodexServerNotification,
   { method: ServerNotificationMethod }
@@ -79,6 +81,7 @@ export function normalizeNotification(
 
   const method = methodRaw.trim();
   if (!method) return null;
+  if (IGNORED_DEPRECATED_SERVER_NOTIFICATION_METHODS.has(method)) return null;
 
   const paramsRaw = payload.params;
   const paramsRecord = toRecord(paramsRaw);
