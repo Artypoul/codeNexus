@@ -287,7 +287,6 @@
       v-else-if="node.kind === 'mcpToolGroup'"
       :open="isMcpToolGroupOpen(node.group.id)"
       :tagText="mcpToolGroupTagText(node.group)"
-      :groupClass="mcpToolGroupClass(node.group)"
       :summaryText="mcpToolGroupSummaryText(node.group)"
       :statsText="mcpToolGroupStatsText(node.group)"
       :items="node.group.items"
@@ -351,7 +350,6 @@ import {
   isMarkdownEvent,
   isReasoningStreamEvent,
   isLocalUserEvent,
-  mcpToolGroupClass,
   mcpToolGroupStatsText,
   mcpToolGroupSummaryText,
   mcpToolGroupTagText,

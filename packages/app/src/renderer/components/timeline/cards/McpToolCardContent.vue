@@ -1,28 +1,38 @@
 <template>
-  <TimelineCardShell
-    class="w-full simple-mcp-tool-event"
-    :cardClass="groupClass"
-    :tagText="tagText"
-    :statusText="''"
-    :statusKind="''"
+  <Collapsible
+    class="chat-inline-activity mcp-tool-activity"
+    :class="{ 'is-running': isRunning }"
+    :aria-busy="isRunning"
     :open="open"
-    :keepMounted="true"
+    motion="height"
     @update:open="emit('update:open', $event)"
   >
-    <template #icon>
-      <Terminal class="h-[13px] w-[13px] flex-none text-[color:var(--accent)] [stroke-width:2.2]" aria-hidden="true" />
+    <template #trigger="{ triggerProps, open: isOpen }">
+      <div
+        class="chat-inline-activity__line chat-inline-activity__line--compact chat-inline-activity__line--full mcp-tool-line"
+        v-bind="triggerProps"
+      >
+        <span class="chat-inline-activity__icon mcp-tool-icon-wrap" aria-hidden="true">
+          <ModelContextProtocolIcon class="chat-inline-activity__svg mcp-tool-icon" />
+        </span>
+        <span class="mcp-tool-tag">{{ tagText }}</span>
+        <ExecutionWaveText
+          v-if="isRunning"
+          class="chat-inline-activity__text mcp-tool-summary"
+          color="var(--accent)"
+          :text="summaryText"
+          :cycle-max-chars="0"
+        />
+        <span v-else class="chat-inline-activity__text mcp-tool-summary">{{ summaryText }}</span>
+        <span class="chat-inline-activity__meta mcp-tool-stats mono">{{ statsText }}</span>
+        <ChevronDown class="mcp-tool-chevron" :class="{ 'rotate-180': isOpen }" aria-hidden="true" />
+      </div>
     </template>
-    <div class="grid gap-1.5 px-2.5 pb-2.5">
-      <div class="mono dim">{{ summaryText }}</div>
-      <div class="mono dim text-[11px]">{{ statsText }}</div>
-      <ol class="m-0 grid gap-1.5 pl-4">
-        <li
-          v-for="item in items"
-          :key="item.id"
-          class="grid gap-1 rounded-[4px] border border-[var(--ui-well-border)] bg-[var(--ui-well-bg)] px-2 py-1.5"
-          :class="itemClass(item)"
-        >
-          <div class="flex items-center justify-between gap-2">
+
+    <div class="mcp-tool-body">
+      <ol class="mcp-tool-list">
+        <li v-for="item in items" :key="item.id" class="mcp-tool-item" :class="itemClass(item)">
+          <div class="mcp-tool-item-head">
             <span class="mcp-tool-item-status inline-flex min-w-0 items-center gap-1.5 text-[11px]">
               <ExecutionWaveText
                 v-if="item.status === 'running'"
@@ -33,7 +43,9 @@
               />
               <span v-else class="mono">{{ item.tool }}</span>
             </span>
-            <span class="mono dim flex-none whitespace-nowrap text-[10px]">{{ itemMetricsText(item) }}</span>
+            <span class="mono dim flex-none whitespace-nowrap text-[10px]">
+              {{ itemStatusText(item) }} · {{ itemMetricsText(item) }}
+            </span>
           </div>
           <div class="mono dim whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[10px]">
             {{ itemTitle(item) }}
@@ -143,16 +155,18 @@
         </li>
       </ol>
     </div>
-  </TimelineCardShell>
+  </Collapsible>
 </template>
 
 <script setup lang="ts">
-// MCP tool card content for input/output summaries and expandable details.
+// MCP tool row: inline activity header with expandable tool call details.
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Terminal } from "lucide-vue-next";
-import TimelineCardShell from "../TimelineCardShell.vue";
+import { ChevronDown } from "lucide-vue-next";
+import Collapsible from "../../ui/Collapsible.vue";
 import DetailDisclosure from "../../ui/DetailDisclosure.vue";
 import ExecutionWaveText from "../../ui/ExecutionWaveText.vue";
+import ModelContextProtocolIcon from "../../ui/ModelContextProtocolIcon.vue";
 
 export type McpToolCallStatus = "running" | "completed" | "failed" | "unknown";
 
@@ -183,10 +197,9 @@ export type McpToolItem = {
 };
 
 // Business data and behavior are injected by the parent; this component only renders UI.
-defineProps<{
+const props = defineProps<{
   open: boolean;
   tagText: string;
-  groupClass: string;
   summaryText: string;
   statsText: string;
   items: McpToolItem[];
@@ -205,4 +218,5 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const isRunning = computed(() => props.items.some((item) => item.status === "running"));
 </script>

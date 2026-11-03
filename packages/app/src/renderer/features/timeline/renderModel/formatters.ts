@@ -799,13 +799,6 @@ function ensureMcpToolCallStatus(item: McpToolCallItem): McpToolCallStatus {
   return "unknown";
 }
 
-export function mcpToolGroupClass(group: McpToolGroupNode) {
-  if (group.stats.running > 0) return "border-[var(--timeline-status-running-border)]";
-  if (group.stats.failed > 0) return "border-[var(--timeline-status-failed-border)]";
-  if (group.stats.completed > 0) return "border-[var(--timeline-status-completed-border)]";
-  return "border-[var(--timeline-status-unknown-border)]";
-}
-
 export function mcpToolGroupTagText(group: McpToolGroupNode) {
   if (group.stats.failed > 0) return translate("timelineFormat.mcp.groupFailed");
   if (group.stats.running > 0) return translate("timelineFormat.mcp.groupRunning");

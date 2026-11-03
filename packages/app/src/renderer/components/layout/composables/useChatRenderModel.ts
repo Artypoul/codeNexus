@@ -21,6 +21,7 @@ import { i18n } from "../../../i18n";
 import { translate } from "../../../i18n/translate";
 import { canReuseAuxGroup, type AuxGroupCacheEntry } from "./auxGroupCache";
 import { createTurnRowsCacheState, syncTurnRows } from "./turnRowsCache";
+import { createLruCache } from "../../../shared/lruCache";
 import type {
   ChatAuxActivityGroupRow,
   ChatAuxActivitySummaryItem,
@@ -340,9 +341,15 @@ export function useChatRenderModel(
   const runtimeStore = useRuntimeStore();
   const threadStore = useThreadStore();
   // turn 级行缓存：只有受影响的 turn 会重建节点，流式文本变化只替换行里的事件引用。
-  const turnRowsCache = createTurnRowsCacheState();
+  const turnRowsCaches = createLruCache<string, ReturnType<typeof createTurnRowsCacheState>>(
+    4,
+    12_000,
+    (cache) => cache.snapshot.length
+  );
   // aux 活动组缓存：组成员与展示标记不变时复用上一帧的组对象。
-  const auxGroupCache: Array<AuxGroupCacheEntry | undefined> = [];
+  const auxGroupCaches = createLruCache<string, Array<AuxGroupCacheEntry | undefined>>(4, 12_000, (entries) =>
+    entries.reduce((sum, entry) => sum + (entry?.row.items.length ?? 0), 0)
+  );
   // 事件对象在内容变化时会被整体替换，因此对象身份可用作签名缓存键。
   const eventSignatureCache = new WeakMap<TimelineEventItem, string>();
 
@@ -667,7 +674,8 @@ export function useChatRenderModel(
       definitionsStructureSignature(definitions),
     ].join("\u0000");
 
-    return syncTurnRows(turnRowsCache, {
+    const turnRowsCache = turnRowsCaches.get(contextKey) ?? createTurnRowsCacheState();
+    const rows = syncTurnRows(turnRowsCache, {
       events,
       contextKey,
       computeTurnKey: (event) => eventTurnGroupKey(event, threadKey),
@@ -684,6 +692,8 @@ export function useChatRenderModel(
         return buildChatRowsFromNodes(nodes, threadKey);
       },
     });
+    turnRowsCaches.set(contextKey, turnRowsCache);
+    return rows;
   };
 
   const baseChatRows = computed<ChatRow[]>(() => {
@@ -732,6 +742,8 @@ export function useChatRenderModel(
 
   const chatRows = computed<ChatRow[]>(() => {
     const rows = rowsWithTokenUsageSummaries.value;
+    const contextKey = `${runtimeStore.timelineKey}\u0000${workspaceRoot()}`;
+    const auxGroupCache = auxGroupCaches.get(contextKey) ?? [];
     const grouped: ChatRow[] = [];
     let pending: ChatAuxiliaryRow[] = [];
     let groupIndex = 0;
@@ -813,6 +825,7 @@ export function useChatRenderModel(
     flushPending(null);
     // 组数量可能变少，截断多余的缓存条目。
     auxGroupCache.length = auxGroupCursor;
+    auxGroupCaches.set(contextKey, auxGroupCache);
     return grouped;
   });
 

@@ -214,7 +214,6 @@
       <McpToolCardContent
         :open="isMcpToolGroupOpen((renderedRow as any).group.id)"
         :tagText="mcpToolGroupTagText((renderedRow as any).group)"
-        :groupClass="`${mcpToolGroupClass((renderedRow as any).group)} opacity-[0.96]`"
         :summaryText="mcpToolGroupSummaryText((renderedRow as any).group)"
         :statsText="mcpToolGroupStatsText((renderedRow as any).group)"
         :items="(renderedRow as any).group.items"
@@ -269,7 +268,6 @@ import type {
 } from "../../../features/timeline/renderModel/buildTimelineNodes";
 import {
   formatTime,
-  mcpToolGroupClass,
   mcpToolGroupStatsText,
   mcpToolGroupSummaryText,
   mcpToolGroupTagText,

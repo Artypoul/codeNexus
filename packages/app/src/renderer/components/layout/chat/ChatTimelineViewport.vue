@@ -108,8 +108,10 @@ defineSlots<{
   default(props: { row: ChatRenderedRow }): unknown;
 }>();
 
-let pendingLayoutNotifyRafId: number | null = null;
+let layoutChangePending = false;
 let pendingHeightRestoreRafId: number | null = null;
+let pendingScrollMetricsRafId: number | null = null;
+let userRowElements: HTMLElement[] | null = null;
 let scrollElementCleanup: (() => void) | null = null;
 let scrollElementResizeObserver: ResizeObserver | null = null;
 
@@ -132,12 +134,20 @@ const viewportRef = ref<HTMLElement | null>(null);
 
 const renderedRows = computed<RenderedTimelineRow[]>(() => {
   let nextTop = 0;
+  let previousGroup: ChatTimelineRowGroup | null = null;
   return props.rows.map((row, index) => {
     const presentation = getChatRowPresentation(row);
     const height = measuredOrEstimatedHeight(row.id, presentation.estimatedHeightPx);
-    const top = nextTop + rowGapBefore(index);
+    const gap =
+      index === 0
+        ? 0
+        : previousGroup === presentation.group
+          ? rowGapPx.value[presentation.group]
+          : rowGapPx.value.mixed;
+    const top = nextTop + gap;
     const bottom = top + height;
     nextTop = bottom;
+    previousGroup = presentation.group;
     return {
       row,
       index,
@@ -148,6 +158,8 @@ const renderedRows = computed<RenderedTimelineRow[]>(() => {
     };
   });
 });
+
+const userRows = computed(() => renderedRows.value.filter((item) => item.row.kind === "user"));
 
 const totalHeightPx = computed(() => {
   const rows = renderedRows.value;
@@ -209,22 +221,6 @@ function measuredOrEstimatedHeight(rowId: string, estimatedHeightPx: number): nu
   const measured = rowHeightsByKey.value.get(heightCacheKey(rowId));
   if (Number.isFinite(measured) && measured && measured > 0) return measured;
   return Math.max(1, Math.round(estimatedHeightPx || 1));
-}
-
-function rowGapBefore(index: number): number {
-  if (index <= 0) return 0;
-  const rows = props.rows;
-  const previous = rows[index - 1];
-  const current = rows[index];
-  if (!previous || !current) return 0;
-  const previousGroup = getChatRowPresentation(previous).group;
-  const currentGroup = getChatRowPresentation(current).group;
-  if (previousGroup === currentGroup) return gapForGroup(currentGroup);
-  return rowGapPx.value.mixed;
-}
-
-function gapForGroup(group: ChatTimelineRowGroup): number {
-  return rowGapPx.value[group];
 }
 
 function firstRowIndexAtOrAfter(offsetPx: number): number {
@@ -315,12 +311,18 @@ function updateScrollMetrics() {
 }
 
 function scheduleLayoutChangeNotify() {
-  if (!props.onLayoutChange) return;
-  if (pendingLayoutNotifyRafId != null) return;
-  pendingLayoutNotifyRafId = requestAnimationFrame(() => {
-    pendingLayoutNotifyRafId = null;
+  layoutChangePending = true;
+  scheduleScrollMetricsUpdate();
+}
+
+function scheduleScrollMetricsUpdate() {
+  if (pendingScrollMetricsRafId != null) return;
+  pendingScrollMetricsRafId = requestAnimationFrame(() => {
+    pendingScrollMetricsRafId = null;
+    const notifyLayoutChange = layoutChangePending;
+    layoutChangePending = false;
     updateScrollMetrics();
-    props.onLayoutChange?.();
+    if (notifyLayoutChange) props.onLayoutChange?.();
   });
 }
 
@@ -501,23 +503,28 @@ function findPinnedUserRowId(): string {
     const viewport = viewportRef.value;
     if (!viewport) return "";
     const top = element.getBoundingClientRect().top;
-    let pinned = "";
-    for (const row of Array.from(viewport.querySelectorAll<HTMLElement>(".chat-timeline-row"))) {
-      const kind = String(row.dataset.rowKind ?? "").trim();
-      if (kind !== "user") continue;
-      const rowRect = row.getBoundingClientRect();
-      if (rowRect.top > top) break;
-      if (rowRect.bottom <= top) pinned = String(row.dataset.rowId ?? "").trim();
+    userRowElements ??= Array.from(
+      viewport.querySelectorAll<HTMLElement>(":scope > .chat-timeline-row[data-row-kind='user']")
+    );
+    let low = 0;
+    let high = userRowElements.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (userRowElements[mid].getBoundingClientRect().bottom <= top) low = mid + 1;
+      else high = mid;
     }
-    return pinned;
+    return userRowElements[low - 1]?.dataset.rowId ?? "";
   }
   const localScrollTop = Math.max(0, scrollTopPx.value - viewportTopPx.value);
-  let pinned = "";
-  for (const item of renderedRows.value) {
-    if (item.top > localScrollTop) break;
-    if (item.row.kind === "user" && item.bottom <= localScrollTop) pinned = item.row.id;
+  const rows = userRows.value;
+  let low = 0;
+  let high = rows.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (rows[mid].bottom <= localScrollTop) low = mid + 1;
+    else high = mid;
   }
-  return pinned;
+  return rows[low - 1]?.row.id ?? "";
 }
 
 function syncPinnedUserRow() {
@@ -538,7 +545,7 @@ function attachScrollElement(element: HTMLElement | null | undefined) {
     return;
   }
 
-  const onScroll = () => updateScrollMetrics();
+  const onScroll = scheduleScrollMetricsUpdate;
   element.addEventListener("scroll", onScroll, { passive: true });
   scrollElementCleanup = () => element.removeEventListener("scroll", onScroll);
   if (typeof ResizeObserver !== "undefined") {
@@ -553,17 +560,19 @@ function attachScrollElement(element: HTMLElement | null | undefined) {
   updateScrollMetrics();
 }
 
-watch(rowStructureSignature, () => scheduleLayoutChangeNotify(), { flush: "post" });
-
 watch(
-  () => [props.timelineKey, rowStructureSignature.value, scrollTopPx.value, viewportTopPx.value] as const,
-  () => syncPinnedUserRow(),
+  rowStructureSignature,
+  () => {
+    userRowElements = null;
+    scheduleLayoutChangeNotify();
+  },
   { flush: "post" }
 );
 
 watch(
   () => props.timelineKey,
   () => {
+    userRowElements = null;
     rowHeightsByKey.value = new Map();
     disconnectVirtualRowObservers();
     updateScrollMetrics();
@@ -595,6 +604,7 @@ watch(
 );
 
 watch(virtualEnabled, () => {
+  userRowElements = null;
   if (!virtualEnabled.value) disconnectVirtualRowObservers();
   syncViewportAdapter();
   void nextTick(() => {
@@ -612,6 +622,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (pendingScrollMetricsRafId != null) cancelAnimationFrame(pendingScrollMetricsRafId);
+  pendingScrollMetricsRafId = null;
+  userRowElements = null;
   props.onPinnedUserRowChange?.("");
   props.onViewportAdapterChange?.(null);
   if (pendingHeightRestoreRafId != null) cancelAnimationFrame(pendingHeightRestoreRafId);
@@ -622,7 +635,6 @@ onBeforeUnmount(() => {
   scrollElementResizeObserver?.disconnect();
   scrollElementResizeObserver = null;
   disconnectVirtualRowObservers();
-  if (pendingLayoutNotifyRafId != null) cancelAnimationFrame(pendingLayoutNotifyRafId);
-  pendingLayoutNotifyRafId = null;
+  layoutChangePending = false;
 });
 </script>

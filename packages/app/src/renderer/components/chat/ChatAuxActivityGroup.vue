@@ -35,11 +35,12 @@
           </span>
         </span>
         <span class="chat-aux-activity__state">{{ statusText }}</span>
-        <ChevronDown
-          class="chat-aux-activity__chevron h-3.5 w-3.5 [stroke-width:2.35]"
-          :class="{ 'rotate-180': open }"
-          aria-hidden="true"
-        />
+        <span class="chat-aux-activity__chevron-box" aria-hidden="true">
+          <ChevronDown
+            class="chat-aux-activity__chevron h-3.5 w-3.5 [stroke-width:2.35]"
+            :class="{ 'rotate-180': open }"
+          />
+        </span>
       </button>
 
       <div
@@ -49,7 +50,12 @@
         @transitionend="onBodyTransitionEnd"
       >
         <div class="chat-aux-activity__body-frame">
-          <div ref="scrollerRef" class="chat-aux-activity__body app-scrollbar" @scroll="onBodyScroll">
+          <div
+            v-if="bodyMounted"
+            ref="scrollerRef"
+            class="chat-aux-activity__body app-scrollbar"
+            @scroll="onBodyScroll"
+          >
             <div ref="contentRef" class="chat-aux-activity__items">
               <div v-for="item in items" :key="item.id" class="chat-aux-activity__item" :data-aux-kind="item.kind">
                 <slot :item="item" />
@@ -93,6 +99,8 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const activityRef = ref<HTMLElement | null>(null);
 const open = ref(!props.defaultCollapsed);
+const bodyMounted = ref(open.value);
+let bodyUnmountTimer: ReturnType<typeof setTimeout> | null = null;
 const userTouched = ref(false);
 const nowMs = ref(Date.now());
 let elapsedTimer: ReturnType<typeof setInterval> | null = null;
@@ -201,8 +209,36 @@ function toggleOpen() {
 
 function onBodyTransitionEnd(event: TransitionEvent) {
   if (event.target !== event.currentTarget || event.propertyName !== "grid-template-rows") return;
+  if (!open.value) unmountBody();
   emit("layout-change");
 }
+
+function clearBodyUnmountTimer() {
+  if (bodyUnmountTimer == null) return;
+  clearTimeout(bodyUnmountTimer);
+  bodyUnmountTimer = null;
+}
+
+function unmountBody() {
+  clearBodyUnmountTimer();
+  bodyMounted.value = false;
+}
+
+watch(
+  open,
+  (next) => {
+    clearBodyUnmountTimer();
+    if (next) {
+      bodyMounted.value = true;
+    } else if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      unmountBody();
+    } else if (bodyMounted.value) {
+      // transitionend is not guaranteed (hidden windows or interrupted motion).
+      bodyUnmountTimer = setTimeout(unmountBody, 280);
+    }
+  },
+  { flush: "sync" }
+);
 
 function syncElapsedTimer() {
   if (elapsedTimer) {
@@ -243,6 +279,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearBodyUnmountTimer();
   if (elapsedTimer) clearInterval(elapsedTimer);
   activityResizeObserver?.disconnect();
   activityResizeObserver = null;
@@ -283,6 +320,7 @@ watch(
 watch(
   () => props.items.map((item) => item.id).join("\n"),
   () => {
+    if (!open.value) return;
     void nextTick(() => {
       scheduleScrollToBottom();
       emit("layout-change");
