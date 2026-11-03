@@ -1,22 +1,18 @@
 <template>
   <component
     :is="as"
-    class="break-words whitespace-pre-wrap text-[color:var(--wave-color)]"
+    class="wave-text break-words whitespace-pre-wrap text-[color:var(--wave-color)]"
+    :class="{ 'wave-text--animated': animated }"
     :style="rootStyle"
     :aria-label="text"
+    >{{ text }}</component
   >
-    <template v-for="(ch, i) in chars" :key="`c:${i}`">
-      <br v-if="ch === '\n'" aria-hidden="true" />
-      <span v-else class="inline-block opacity-[var(--wave-min-op)]" aria-hidden="true" :style="charStyle(i)">{{
-        ch
-      }}</span>
-    </template>
-  </component>
 </template>
 
 <script setup lang="ts">
-// 波浪文字动画：用于“思考中/生成中”等场景的动态提示文本。
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+// 波浪文字动画：单个文本节点 + CSS 遮罩扫光。
+// 早期实现把每个字符渲染成一个 span 并各自挂动画，多卡片同时 running 时节点与动画数量会线性膨胀。
+import { computed } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -44,87 +40,26 @@ const props = withDefaults(
   }
 );
 
-const chars = computed(() => Array.from(String(props.text ?? "")));
-const waveCharCount = computed(() => {
-  const len = chars.value.length;
-  const maxChars = Math.floor(Number(props.cycleMaxChars) || 0);
-  if (maxChars <= 0) return len;
-  return Math.min(len, Math.max(1, maxChars));
-});
-const animationPhase = ref(0);
-const timerId = ref<number | null>(null);
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const animated = computed(() => Boolean(props.enabled) && String(props.text ?? "").trim().length > 0);
 
-// 统一导出 CSS 变量，样式层只关心 token。
+// 把逐字符节奏换算成一次完整扫光的总时长，保持原有的“从暗到亮再回落”观感。
 const rootStyle = computed(() => {
   const minOpacity = clamp01(Number(props.minOpacity));
   const maxOpacity = clamp01(Number(props.maxOpacity));
-  const durSec = Math.max(0.1, Number(props.charAnimDurationSec) || 1);
+  const animSec = Math.max(0.1, Number(props.charAnimDurationSec) || 1);
+  const delaySec = Math.max(0, Number(props.charDelaySec) || 0);
+  const pauseSec = Math.max(0, Number(props.pauseSec) || 0);
+  const charCount = Array.from(String(props.text ?? "")).length;
+  const maxChars = Math.floor(Number(props.cycleMaxChars) || 0);
+  const cycleChars = maxChars > 0 ? Math.min(charCount, Math.max(1, maxChars)) : Math.max(1, charCount);
+  const sweepSec = Math.max(0.6, (cycleChars - 1) * delaySec + animSec + pauseSec);
   return {
     "--wave-color": String(props.color ?? "var(--accent)"),
     "--wave-min-op": String(Number.isFinite(minOpacity) ? minOpacity : 0.25),
     "--wave-max-op": String(Number.isFinite(maxOpacity) ? maxOpacity : 1),
-    "--wave-dur": `${durSec}s`,
+    "--wave-dur": `${Math.round(sweepSec * 100) / 100}s`,
   } as Record<string, string>;
 });
-
-// 每个字符按索引施加延迟，实现“波浪”效果。
-const charStyle = (index: number) => {
-  if (!props.enabled) return { animation: "none" } as Record<string, string>;
-  if (index >= waveCharCount.value) {
-    return {
-      animation: "none",
-      opacity: "var(--wave-max-op)",
-    } as Record<string, string>;
-  }
-  const delaySec = Math.max(0, Number(props.charDelaySec) || 0);
-  return {
-    animationName: animationPhase.value % 2 === 0 ? "wave-text-opacity-a" : "wave-text-opacity-b",
-    animationDuration: "var(--wave-dur)",
-    animationTimingFunction: "ease-in-out",
-    animationIterationCount: "1",
-    animationDelay: `${index * delaySec}s`,
-    animationFillMode: "both",
-  } as Record<string, string>;
-};
-
-function clearTimer() {
-  if (timerId.value == null) return;
-  window.clearTimeout(timerId.value);
-  timerId.value = null;
-}
-
-// 计算一轮动画总时长并安排下一轮循环。
-function scheduleNextRound() {
-  clearTimer();
-
-  const text = String(props.text ?? "").trim();
-  if (!props.enabled || !text) return;
-
-  const delayMs = Math.max(0, Number(props.charDelaySec) || 0) * 1000;
-  const animMs = Math.max(100, (Number(props.charAnimDurationSec) || 1) * 1000);
-  const pauseMs = Math.max(0, Number(props.pauseSec) || 0) * 1000;
-  const cycleLen = Math.max(1, waveCharCount.value);
-
-  const totalMs = Math.max(0, (cycleLen - 1) * delayMs) + animMs;
-  timerId.value = window.setTimeout(() => {
-    animationPhase.value += 1;
-    scheduleNextRound();
-  }, totalMs + pauseMs);
-}
-
-function start() {
-  clearTimer();
-  animationPhase.value += 1;
-  scheduleNextRound();
-}
-
-onMounted(() => start());
-onBeforeUnmount(() => clearTimer());
-
-watch(
-  () => [props.text, props.enabled, props.charDelaySec, props.charAnimDurationSec, props.pauseSec, props.cycleMaxChars],
-  () => start()
-);
 </script>

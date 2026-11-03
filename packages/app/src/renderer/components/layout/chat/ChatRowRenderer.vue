@@ -149,7 +149,8 @@
     :isOpen="isReasoningOpen((renderedRow as any).item)"
     :summaryTitle="(renderedRow as any).item.title || t('chat.reasoning')"
     :durationText="reasoningDurationText((renderedRow as any).item.durationMs)"
-    :html="toReasoningHtml((renderedRow as any).item.text)"
+    :html="isReasoningOpen((renderedRow as any).item) ? toReasoningHtml((renderedRow as any).item.text) : ''"
+    :text="(renderedRow as any).item.text"
     :rawText="(renderedRow as any).item.rawText"
     :rawContentCount="(renderedRow as any).item.rawContentCount"
     @toggle="(next) => setReasoningOpen((renderedRow as any).item, next)"
@@ -356,12 +357,18 @@ const reasoningDurationText = (durationMs: number | null | undefined) => {
   return `${Math.max(1, Math.round(durationMs / 1000))}s`;
 };
 
+// 思考块收起时不参与渲染，展开后同一段文本会重复取用；只保留当前文本即可。
+let reasoningHtmlCache: { source: string; html: string; tick: number } | null = null;
 const toReasoningHtml = (text: string) => {
   const source = String(text ?? "").trim();
   if (!source) return `<p>${t("chat.emptyContent")}</p>`;
-  void markdownRendererTick.value;
+  const tick = markdownRendererTick.value;
+  if (reasoningHtmlCache?.tick === tick && reasoningHtmlCache.source === source) {
+    return reasoningHtmlCache.html;
+  }
   const html = renderMarkdownToSafeHtml(source);
   refreshWhenReady();
+  reasoningHtmlCache = { source, html, tick };
   return html;
 };
 

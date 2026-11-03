@@ -278,27 +278,46 @@ body::-webkit-scrollbar-button {
   }
 }
 
-@keyframes wave-text-opacity-a {
-  0% {
-    opacity: var(--wave-min-op, 0.25);
+/* 波浪文字：单文本节点 + 遮罩扫光，替代逐字符 span 动画。 */
+.wave-text--animated {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / var(--wave-min-op, 0.25)) 0%,
+    rgb(0 0 0 / var(--wave-max-op, 1)) 12%,
+    rgb(0 0 0 / var(--wave-max-op, 1)) 26%,
+    rgb(0 0 0 / var(--wave-min-op, 0.25)) 40%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / var(--wave-min-op, 0.25)) 0%,
+    rgb(0 0 0 / var(--wave-max-op, 1)) 12%,
+    rgb(0 0 0 / var(--wave-max-op, 1)) 26%,
+    rgb(0 0 0 / var(--wave-min-op, 0.25)) 40%
+  );
+  /* 用 em 而非百分比：百分比 mask-position 在 Chromium 下位移不生效。 */
+  -webkit-mask-size: 14em 100%;
+  mask-size: 14em 100%;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  animation: wave-text-sweep var(--wave-dur, 2s) linear infinite;
+}
+
+@keyframes wave-text-sweep {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
   }
-  50% {
-    opacity: var(--wave-max-op, 1);
-  }
-  100% {
-    opacity: var(--wave-min-op, 0.25);
+  to {
+    -webkit-mask-position: 14em 0;
+    mask-position: 14em 0;
   }
 }
 
-@keyframes wave-text-opacity-b {
-  0% {
-    opacity: var(--wave-min-op, 0.25);
-  }
-  50% {
-    opacity: var(--wave-max-op, 1);
-  }
-  100% {
-    opacity: var(--wave-min-op, 0.25);
+@media (prefers-reduced-motion: reduce) {
+  .wave-text--animated {
+    animation: none;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 }
 
@@ -313,10 +332,6 @@ body::-webkit-scrollbar-button {
 .event.simple-mcp-tool-event .ui-collapsible-content,
 .event.simple-mcp-tool-event .ui-collapsible-content.is-open {
   transform: none;
-}
-
-.event.simple-mcp-tool-event .ui-collapsible-content {
-  will-change: grid-template-rows, opacity;
 }
 
 /* 聊天视图 */

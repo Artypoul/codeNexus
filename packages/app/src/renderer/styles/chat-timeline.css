@@ -50,6 +50,7 @@
   --chat-aux-border-running: color-mix(in srgb, var(--accent) 44%, var(--border) 56%);
   --chat-aux-body-bg: color-mix(in srgb, var(--ui-well-bg-strong) 34%, transparent);
   --chat-aux-count-bg: color-mix(in srgb, var(--ui-well-bg-strong) 54%, transparent);
+  --chat-aux-meteor-core: color-mix(in srgb, var(--accent) 78%, var(--text) 22%);
 
   --chat-status-running: var(--accent);
   --chat-status-ok: var(--success);
@@ -107,7 +108,6 @@
   top: 0;
   left: 0;
   margin-top: 0 !important;
-  will-change: transform;
 }
 
 .timeline-pane--chat .chat-timeline-row + .chat-timeline-row {
@@ -640,31 +640,45 @@
     background-color 160ms ease;
 }
 
-.timeline-pane--chat .chat-aux-activity__meteor {
+.timeline-pane--chat .chat-aux-activity__meteor-svg {
   position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 3;
-  width: 54px;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--accent) 14%, transparent) 30%,
-    color-mix(in srgb, var(--accent) 72%, white 10%) 72%,
-    color-mix(in srgb, white 92%, var(--accent) 8%) 100%
-  );
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 70%, transparent));
-  opacity: 0;
-  offset-anchor: 100% 50%;
-  offset-distance: 0%;
-  offset-rotate: auto;
+  inset: -1px;
+  z-index: 1;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
   pointer-events: none;
+  clip-path: inset(0 round var(--chat-radius-lg));
+}
+
+.timeline-pane--chat .chat-aux-activity__meteor-glow,
+.timeline-pane--chat .chat-aux-activity__meteor-tail,
+.timeline-pane--chat .chat-aux-activity__meteor-head {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 4.5 45.5 4.5 45.5;
+  stroke-dashoffset: 0;
+  opacity: 0;
   animation: none;
 }
 
-.timeline-pane--chat .chat-aux-activity > :not(.chat-aux-activity__meteor) {
+.timeline-pane--chat .chat-aux-activity__meteor-glow {
+  stroke: var(--accent);
+  stroke-width: 7;
+}
+
+.timeline-pane--chat .chat-aux-activity__meteor-tail {
+  stroke: var(--accent);
+  stroke-width: 2.8;
+}
+
+.timeline-pane--chat .chat-aux-activity__meteor-head {
+  stroke: var(--chat-aux-meteor-core);
+  stroke-width: 1.45;
+  stroke-dasharray: 1.5 48.5 1.5 48.5;
+}
+
+.timeline-pane--chat .chat-aux-activity > :not(.chat-aux-activity__meteor-svg) {
   position: relative;
   z-index: 2;
 }
@@ -675,36 +689,38 @@
   background: var(--chat-aux-bg-running);
 }
 
-.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor {
-  opacity: 0.95;
+.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor-glow {
+  opacity: 0.12;
   animation: chatAuxMeteorTravel var(--chat-aux-meteor-duration) linear infinite;
 }
 
-.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor--opposite {
-  animation-name: chatAuxMeteorTravelOpposite;
+.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor-tail {
+  opacity: 0.55;
+  animation: chatAuxMeteorTravel var(--chat-aux-meteor-duration) linear infinite;
+}
+
+.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor-head {
+  opacity: 1;
+  animation: chatAuxMeteorTravelHead var(--chat-aux-meteor-duration) linear infinite;
 }
 
 @keyframes chatAuxMeteorTravel {
+  from {
+    stroke-dashoffset: 0;
+  }
+
   to {
-    offset-distance: 100%;
+    stroke-dashoffset: -100;
   }
 }
 
-@keyframes chatAuxMeteorTravelOpposite {
-  0% {
-    offset-distance: 50%;
+@keyframes chatAuxMeteorTravelHead {
+  from {
+    stroke-dashoffset: -3;
   }
 
-  49.999% {
-    offset-distance: 100%;
-  }
-
-  50% {
-    offset-distance: 0%;
-  }
-
-  100% {
-    offset-distance: 50%;
+  to {
+    stroke-dashoffset: -103;
   }
 }
 
@@ -1287,12 +1303,11 @@
   }
 
   .timeline-pane--chat .official-image-card.is-running .official-image-card__icon,
-  .timeline-pane--chat .chat-aux-activity__meteor,
   .timeline-pane--chat .official-image-card__skeleton-glow {
     animation: none;
   }
 
-  .timeline-pane--chat .chat-aux-activity__meteor {
-    opacity: 0;
+  .timeline-pane--chat .chat-aux-activity__meteor-svg {
+    display: none;
   }
 }

@@ -1,12 +1,11 @@
 <template>
   <div :class="[CHAT_ROW_BASE_CLASS, 'chat-row--aux-activity']">
     <section ref="activityRef" class="chat-aux-activity" :class="activityClass" :aria-busy="status === 'running'">
-      <span class="chat-aux-activity__meteor" :style="meteorMotionStyle" aria-hidden="true"></span>
-      <span
-        class="chat-aux-activity__meteor chat-aux-activity__meteor--opposite"
-        :style="meteorMotionStyle"
-        aria-hidden="true"
-      ></span>
+      <svg v-if="meteorReady" class="chat-aux-activity__meteor-svg" aria-hidden="true" focusable="false">
+        <path class="chat-aux-activity__meteor-glow" :d="meteorPath" pathLength="100" fill="none" />
+        <path class="chat-aux-activity__meteor-tail" :d="meteorPath" pathLength="100" fill="none" />
+        <path class="chat-aux-activity__meteor-head" :d="meteorPath" pathLength="100" fill="none" />
+      </svg>
       <button
         class="chat-aux-activity__summary"
         type="button"
@@ -98,7 +97,14 @@ const userTouched = ref(false);
 const nowMs = ref(Date.now());
 let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 let activityResizeObserver: ResizeObserver | null = null;
-const meteorSize = ref({ width: 1, height: 1 });
+type MeteorGeometry = {
+  width: number;
+  height: number;
+  inset: number;
+  radius: number;
+};
+
+const meteorSize = ref<MeteorGeometry>({ width: 1, height: 1, inset: 0.5, radius: 3.5 });
 const {
   contentRef,
   scrollerRef,
@@ -114,12 +120,12 @@ const {
 const titleText = computed(() => t("chat.activity.auxTitle"));
 
 const meteorPath = computed(() => {
-  const width = Math.max(1, Math.round(meteorSize.value.width));
-  const height = Math.max(1, Math.round(meteorSize.value.height));
-  const inset = 3;
+  const width = Math.max(1, meteorSize.value.width);
+  const height = Math.max(1, meteorSize.value.height);
+  const inset = meteorSize.value.inset;
   const right = Math.max(inset, width - inset);
   const bottom = Math.max(inset, height - inset);
-  const radius = Math.min(8, Math.max(0, Math.floor((Math.min(width, height) - inset * 2) / 2)));
+  const radius = Math.max(0, Math.min(meteorSize.value.radius, (Math.min(width, height) - inset * 2) / 2));
   const leftCurve = inset + radius;
   const rightCurve = Math.max(leftCurve, right - radius);
   const topCurve = inset + radius;
@@ -137,9 +143,7 @@ const meteorPath = computed(() => {
     "Z",
   ].join(" ");
 });
-const meteorMotionStyle = computed<Record<string, string>>(() => ({
-  "offset-path": `path("${meteorPath.value}")`,
-}));
+const meteorReady = computed(() => meteorSize.value.width > 16 && meteorSize.value.height > 16);
 
 const elapsedMs = computed(() => {
   const startedAt = Number(props.startedAtMs);
@@ -215,11 +219,18 @@ function syncElapsedTimer() {
 watch(() => [props.elapsedLive, props.startedAtMs] as const, syncElapsedTimer, { immediate: true });
 
 function syncMeteorSize() {
-  const rect = activityRef.value?.getBoundingClientRect();
-  if (!rect) return;
+  const element = activityRef.value;
+  const rect = element?.getBoundingClientRect();
+  if (!element || !rect) return;
+  const styles = getComputedStyle(element);
+  const borderWidth = Number.parseFloat(styles.borderTopWidth) || 0;
+  const borderRadius = Number.parseFloat(styles.borderTopLeftRadius) || 0;
+  const inset = borderWidth / 2;
   meteorSize.value = {
-    width: Math.max(1, Math.round(rect.width)),
-    height: Math.max(1, Math.round(rect.height)),
+    width: Math.max(1, rect.width),
+    height: Math.max(1, rect.height),
+    inset,
+    radius: Math.max(0, borderRadius - inset),
   };
 }
 

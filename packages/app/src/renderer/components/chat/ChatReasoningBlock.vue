@@ -11,7 +11,14 @@
               <span class="ui-leading-icon-slot" aria-hidden="true">
                 <Brain class="h-3 w-3 flex-none text-[var(--fg-warning)] [stroke-width:2.2]" />
               </span>
-              <span class="min-w-0 truncate">{{ summaryTitle || t("chat.activity.reasoning") }}</span>
+              <span
+                ref="liveLineRef"
+                class="reasoning-live-line min-w-0 flex-1"
+                :title="liveLine"
+                :aria-label="liveLine"
+              >
+                <span class="reasoning-live-line__text">{{ liveLine }}</span>
+              </span>
               <span v-if="durationText" class="mono dim whitespace-nowrap">{{ durationText }}</span>
             </span>
             <ChevronDown
@@ -22,7 +29,7 @@
           </div>
         </template>
 
-        <AgentMarkdownContent class="body agent-markdown-body mt-1 text-[var(--text-muted)]" :html="html" />
+        <AgentMarkdownContent v-if="html" class="body agent-markdown-body mt-1 text-[var(--text-muted)]" :html="html" />
 
         <Collapsible
           v-if="hasRawText"
@@ -55,18 +62,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { Brain, ChevronDown } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import Collapsible from "../ui/Collapsible.vue";
 import AgentMarkdownContent from "../ui/AgentMarkdownContent.vue";
 import { CHAT_ROW_TOOL_CLASS } from "../layout/chat/chatPresentation";
+import { toReasoningPreviewLine } from "../../features/timeline/reasoningPreview";
 
 const props = defineProps<{
   isOpen: boolean;
   summaryTitle: string;
   durationText: string;
   html: string;
+  text?: string;
   rawText?: string;
   rawContentCount?: number;
 }>();
@@ -77,9 +86,63 @@ defineEmits<{
 
 const { t } = useI18n();
 const rawOpen = ref(false);
+const liveLineRef = ref<HTMLElement | null>(null);
 const hasRawText = computed(() => String(props.rawText ?? "").trim().length > 0);
 const rawContentCountText = computed(() => {
   const count = Math.max(0, Math.round(Number(props.rawContentCount) || 0));
   return t("chat.activity.segmentCount", { count: Math.max(1, count) });
 });
+
+const liveLine = computed(() => {
+  return toReasoningPreviewLine(props.text ?? "") || props.summaryTitle || t("chat.activity.reasoning");
+});
+
+let liveLineResizeObserver: ResizeObserver | null = null;
+
+function scrollLiveLineToEnd() {
+  const element = liveLineRef.value;
+  if (!element) return;
+  element.scrollLeft = element.scrollWidth;
+}
+
+watch(
+  liveLine,
+  () => {
+    void nextTick(scrollLiveLineToEnd);
+  },
+  { immediate: true, flush: "post" }
+);
+
+watch(
+  liveLineRef,
+  (element) => {
+    liveLineResizeObserver?.disconnect();
+    liveLineResizeObserver = null;
+    if (!element) return;
+    scrollLiveLineToEnd();
+    if (typeof ResizeObserver === "undefined") return;
+    liveLineResizeObserver = new ResizeObserver(scrollLiveLineToEnd);
+    liveLineResizeObserver.observe(element);
+  },
+  { flush: "post" }
+);
+
+onBeforeUnmount(() => {
+  liveLineResizeObserver?.disconnect();
+  liveLineResizeObserver = null;
+});
 </script>
+
+<style scoped>
+.reasoning-live-line {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.reasoning-live-line__text {
+  display: block;
+  width: max-content;
+  max-width: none;
+  white-space: nowrap;
+}
+</style>

@@ -1922,7 +1922,7 @@ export function buildTimelineRenderNodes(params: BuildTimelineNodesParams): Time
       firstIndex: params.index,
       firstCreatedAt: params.createdAt,
       lastCreatedAt: params.createdAt,
-      openDefault: true,
+      openDefault: false,
       sectionTexts: new Map<number, string>(),
       rawContentTexts: new Map<number, string>(),
     };
