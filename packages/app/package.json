@@ -13,6 +13,7 @@
     "lint": "pnpm exec eslint . --ext .ts,.vue,.mjs --max-warnings=0",
     "format": "pnpm exec prettier --ignore-path .prettierignore --write .",
     "format:check": "pnpm exec prettier --ignore-path .prettierignore --check .",
+    "bench:timeline": "node scripts/bench-chat-render-model.mjs",
     "typecheck": "pnpm exec tsc --noEmit",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build",
     "codex:types": "npx -y @openai/codex@0.166.0 app-server generate-ts --experimental --out .\\\\tmp\\\\codex_0.166.0_generated",

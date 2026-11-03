@@ -17,7 +17,10 @@ import {
   buildGuardianApprovalReviewActivity,
   isGuardianApprovalReviewMethod,
 } from "../../../features/guardian/guardianApprovalReview";
+import { i18n } from "../../../i18n";
 import { translate } from "../../../i18n/translate";
+import { canReuseAuxGroup, type AuxGroupCacheEntry } from "./auxGroupCache";
+import { createTurnRowsCacheState, syncTurnRows } from "./turnRowsCache";
 import type {
   ChatAuxActivityGroupRow,
   ChatAuxActivitySummaryItem,
@@ -336,17 +339,12 @@ export function useChatRenderModel(
 ) {
   const runtimeStore = useRuntimeStore();
   const threadStore = useThreadStore();
-  let baseRowsCache: {
-    signature: string;
-    rows: ChatRow[];
-  } | null = null;
-  const turnRowsCacheByKey = new Map<
-    string,
-    {
-      signature: string;
-      rows: ChatRow[];
-    }
-  >();
+  // turn 级行缓存：只有受影响的 turn 会重建节点，流式文本变化只替换行里的事件引用。
+  const turnRowsCache = createTurnRowsCacheState();
+  // aux 活动组缓存：组成员与展示标记不变时复用上一帧的组对象。
+  const auxGroupCache: Array<AuxGroupCacheEntry | undefined> = [];
+  // 事件对象在内容变化时会被整体替换，因此对象身份可用作签名缓存键。
+  const eventSignatureCache = new WeakMap<TimelineEventItem, string>();
 
   const toWebSearchChatItem = (event: TimelineEventItem): ChatWebSearchItem | null => {
     const normalized = extractWebSearchTimelineItem(event);
@@ -610,7 +608,7 @@ export function useChatRenderModel(
     return DIRECT_STREAMING_MODEL_METHODS.has(event.method);
   };
 
-  const eventStructureSignature = (event: TimelineEventItem) => {
+  const computeEventStructureSignature = (event: TimelineEventItem) => {
     const params = toEventParamsObject(event);
     const item = params.item && typeof params.item === "object" ? (params.item as Record<string, any>) : null;
     const base = [
@@ -634,8 +632,24 @@ export function useChatRenderModel(
     return base.join(":");
   };
 
-  const definitionsStructureSignature = (definitions: any) =>
-    definitions instanceof Map ? [...definitions.keys()].sort().join("|") : String(definitions ? "custom" : "");
+  const eventStructureSignature = (event: TimelineEventItem) => {
+    const cached = eventSignatureCache.get(event);
+    if (cached != null) return cached;
+    const signature = computeEventStructureSignature(event);
+    eventSignatureCache.set(event, signature);
+    return signature;
+  };
+
+  // 工具定义索引由 computed 生成，未变化时对象身份稳定，可按 Map 身份缓存签名。
+  const definitionsSignatureCache = new WeakMap<object, string>();
+  const definitionsStructureSignature = (definitions: any) => {
+    if (!(definitions instanceof Map)) return String(definitions ? "custom" : "");
+    const cached = definitionsSignatureCache.get(definitions);
+    if (cached != null) return cached;
+    const signature = [...definitions.keys()].sort().join("|");
+    definitionsSignatureCache.set(definitions, signature);
+    return signature;
+  };
 
   const eventTurnGroupKey = (event: TimelineEventItem, threadKey: string): string => {
     const turnId = String(event.turnId ?? "").trim();
@@ -645,89 +659,31 @@ export function useChatRenderModel(
   };
 
   const buildRowsByTurnCache = (events: TimelineEventItem[], threadKey: string, definitions: any): ChatRow[] => {
-    const definitionsSignature = definitionsStructureSignature(definitions);
-    const groups: Array<{ key: string; events: TimelineEventItem[]; signature: string }> = [];
-    const groupIndexByKey = new Map<string, number>();
+    // 线程 / 工作区 / 工具定义变化时整体失效，签名里已包含上下文信息。
+    const contextKey = [
+      threadKey,
+      workspaceRoot(),
+      String(runtimeStore.timelineKey ?? ""),
+      definitionsStructureSignature(definitions),
+    ].join("\u0000");
 
-    for (const event of events) {
-      const key = eventTurnGroupKey(event, threadKey);
-      let index = groupIndexByKey.get(key);
-      if (index == null) {
-        index = groups.length;
-        groupIndexByKey.set(key, index);
-        groups.push({ key, events: [], signature: "" });
-      }
-      groups[index].events.push(event);
-    }
-
-    for (const group of groups) {
-      group.signature = [
-        threadKey,
-        workspaceRoot(),
-        definitionsSignature,
-        group.key,
-        ...group.events.map(eventStructureSignature),
-      ].join("\n");
-    }
-
-    const signature = groups.map((group) => `${group.key}\n${group.signature}`).join("\n\n");
-    if (baseRowsCache?.signature === signature) {
-      const rows = updateDirectStreamingRows(baseRowsCache.rows, events);
-      baseRowsCache = { signature, rows };
-      return rows;
-    }
-
-    const activeCacheKeys = new Set<string>();
-    const rows: ChatRow[] = [];
-
-    for (const group of groups) {
-      activeCacheKeys.add(group.key);
-      const cached = turnRowsCacheByKey.get(group.key);
-      let groupRows = cached?.signature === group.signature ? cached.rows : null;
-
-      if (!groupRows) {
+    return syncTurnRows(turnRowsCache, {
+      events,
+      contextKey,
+      computeTurnKey: (event) => eventTurnGroupKey(event, threadKey),
+      computeSignature: (turnKey, turnEvents) =>
+        `${contextKey}\u0000${turnKey}\u0000${turnEvents.map(eventStructureSignature).join("\n")}`,
+      buildTurnRows: (_turnKey, turnEvents) => {
         const nodes = buildTimelineRenderNodes({
-          events: group.events,
+          events: turnEvents,
           timelineKey: runtimeStore.timelineKey,
           workspaceRoot: workspaceRoot(),
           debug: false,
           mcpToolDefinitions: definitions,
         });
-        groupRows = buildChatRowsFromNodes(nodes, threadKey);
-        turnRowsCacheByKey.set(group.key, { signature: group.signature, rows: groupRows });
-      }
-
-      rows.push(...groupRows);
-    }
-
-    for (const key of turnRowsCacheByKey.keys()) {
-      if (!activeCacheKeys.has(key)) turnRowsCacheByKey.delete(key);
-    }
-
-    const nextRows = updateDirectStreamingRows(rows, events);
-    baseRowsCache = { signature, rows: nextRows };
-    return nextRows;
-  };
-
-  const updateDirectStreamingRows = (rows: ChatRow[], events: TimelineEventItem[]): ChatRow[] => {
-    const eventsById = new Map(events.map((event) => [event.id, event]));
-    let changed = false;
-    const nextRows = rows.map((row) => {
-      if (row.kind === "assistant") {
-        const event = eventsById.get(row.event.id);
-        if (!event || event === row.event) return row;
-        changed = true;
-        return { ...row, event };
-      }
-      if (row.kind === "assistantCommentary") {
-        const event = eventsById.get(row.event.id);
-        if (!event || event === row.event) return row;
-        changed = true;
-        return { ...row, event };
-      }
-      return row;
+        return buildChatRowsFromNodes(nodes, threadKey);
+      },
     });
-    return changed ? nextRows : rows;
   };
 
   const baseChatRows = computed<ChatRow[]>(() => {
@@ -779,6 +735,9 @@ export function useChatRenderModel(
     const grouped: ChatRow[] = [];
     let pending: ChatAuxiliaryRow[] = [];
     let groupIndex = 0;
+    let auxGroupCursor = 0;
+    // 读取 locale 既注册响应式依赖，也作为组缓存的有效性标记。
+    const locale = String(i18n.global.locale.value ?? "");
     const activeTurnKey = (() => {
       const tid = String(runtimeStore.currentThreadId ?? "").trim();
       const activeTurnId = tid ? String(threadStore.activeTurnIdByThread.get(tid) ?? "").trim() : "";
@@ -819,17 +778,26 @@ export function useChatRenderModel(
         finalAnswerEvent && Number.isFinite(finalAnswerEvent.createdAt)
           ? Math.max(startedAtMs ?? 0, Math.round(Number(finalAnswerEvent.createdAt)))
           : null;
-      grouped.push(
-        buildAuxActivityGroup({
-          items: pending,
-          groupIndex,
-          defaultCollapsed: !shouldStayOpen,
-          startedAtMs,
-          answerStartedAtMs,
-          elapsedLive:
-            !finalAnswerStarted && (groupStatus === "running" || (currentThreadRunning && matchesActiveTurn)),
-        })
-      );
+      const elapsedLive =
+        !finalAnswerStarted && (groupStatus === "running" || (currentThreadRunning && matchesActiveTurn));
+      const flags = {
+        groupIndex,
+        locale,
+        defaultCollapsed: !shouldStayOpen,
+        startedAtMs,
+        answerStartedAtMs,
+        elapsedLive,
+      };
+      const cachedGroup = auxGroupCache[auxGroupCursor];
+      let groupRow: ChatAuxActivityGroupRow;
+      if (cachedGroup && canReuseAuxGroup(cachedGroup, flags, pending)) {
+        groupRow = cachedGroup.row;
+      } else {
+        groupRow = buildAuxActivityGroup({ items: pending, ...flags });
+        auxGroupCache[auxGroupCursor] = { row: groupRow, ...flags };
+      }
+      grouped.push(groupRow);
+      auxGroupCursor += 1;
       groupIndex += 1;
       pending = [];
     };
@@ -843,6 +811,8 @@ export function useChatRenderModel(
       grouped.push(row);
     }
     flushPending(null);
+    // 组数量可能变少，截断多余的缓存条目。
+    auxGroupCache.length = auxGroupCursor;
     return grouped;
   });
 

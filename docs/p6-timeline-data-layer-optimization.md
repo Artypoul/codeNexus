@@ -1,8 +1,9 @@
 # P6：聊天时间线数据层性能优化方案
 
-> 状态：方案待评审（未开工）
+> 状态：阶段 1–5 已落地并通过校验（阶段 4 采用「组级复用」方案，未做行数组原地复用）
 > 范围：`useChatRenderModel`、`timeline.store`、`ChatRow` 行数组的下游消费方
 > 前置：P0–P5（流式 Markdown、思考块懒渲染、观察器合并、`will-change`、输入框测量、WaveText / 毛玻璃）已完成
+> 实施位置：新增 `components/layout/composables/turnRowsCache.ts`，改造 `useChatRenderModel.ts`，修正 `features/history/replayParsers.ts`
 
 ## 1. 背景
 
@@ -38,8 +39,8 @@ P0–P5 已经把「单条消息的渲染成本」压下来了，但**每一帧�
 - `renderEvents` 是**原地修改**的数组（`push` / `renderEvents[index] = event` / `splice`），
   所以 `contentTimelineEvents` 这个 computed 返回的始终是同一个数组引用，失效完全靠 revision 计数器驱动。
 - `flushPendingAppends` 每次都创建**新的 event 对象**（内容变化时），这为「按对象身份做缓存」提供了前提。
-- 例外：`packages/app/src/renderer/features/history/replayParsers.ts:384` 存在 `existing.paramsText = ...` 的原地改写，
-  会破坏对象身份假设，需一并处理（见 §6）。
+- 例外（已修复）：`packages/app/src/renderer/features/history/replayParsers.ts` 原先存在 `existing.paramsText = ...`
+  的原地改写，会破坏对象身份假设；现改为生成新对象后写回数组（见 §6）。
 
 ### 2.2 热点清单
 
@@ -77,7 +78,7 @@ P0–P5 已经把「单条消息的渲染成本」压下来了，但**每一帧�
 
 分五个阶段，每阶段可独立合入、独立回滚。
 
-### 阶段一：事件签名缓存（改动最小，先落地）
+### 阶段一：事件签名缓存（已落地）
 
 `eventStructureSignature` 的结果只取决于事件对象自身字段，而事件内容变化时 store 会创建新对象，
 因此可以按对象身份缓存：
@@ -98,7 +99,9 @@ const eventStructureSignature = (event: TimelineEventItem) => {
 - 变化的事件：仍然只拼一次小字符串，不再每帧重拼。
 - 前提：事件对象不可变，需要先修 `replayParsers.ts:384` 的原地改写。
 
-### 阶段二：turn 分组与签名增量维护
+> 实现：`useChatRenderModel.ts` 的 `eventSignatureCache`（`WeakMap`）+ `replayParsers.ts` 不可变写回。
+
+### 阶段二：turn 分组与签名增量维护（已落地，实现简化）
 
 把「每帧全量分组 + 全量签名」换成「按 turn 增量更新」。
 
@@ -132,7 +135,18 @@ const turnSignatureByKey = new Map<string, string>();
 > 注意：当前 `baseRowsCache` 是单槽缓存，阶段二需要改成按线程存（`Map<threadId, Cache>`），
 > 否则切换线程会让缓存互相覆盖，退化为全量重建。
 
-### 阶段三：按脏事件更新行
+> 实现差异：没有引入 `eventIndexInTurn` 之外的额外索引，也没有让 store 暴露 `flushSeq`。
+> 实际做法是「位置快照 + 对象身份比对」：
+>
+> - 每帧用 `snapshot[i] !== events[i]` 找出脏事件（O(n) 次指针比较，无字符串分配）；
+> - 分组用跨帧存活的 `buckets` / `order` / `keyByIndex` / `indexInTurn`，脏位置 turn 归属不变时原地替换桶内引用；
+> - 尾部追加（流式新增事件的主要形态）走前缀比对 + 追加路径，不重新分组；
+> - 只有增删、换 turn、重排等结构性变化才重建分组，并按 turn 签名决定是否复用行；
+> - 上下文（线程 / 工作区 / timelineKey / 工具定义）变化时直接清空 `turnEntries` 整体失效。
+>
+> 这样渲染层不必依赖 store 内部结构，`flushSeq` / `dirtyEventIds`（§5）均未采用。
+
+### 阶段三：按脏事件更新行（已落地）
 
 `updateDirectStreamingRows` 现在是「重建全量 Map + 全量 map」，改为：
 
@@ -147,7 +161,11 @@ const rowIndexByEventId = new Map<string, number>();
 
 单帧成本从 O(n + m) 降到 O(脏事件数)。
 
-### 阶段四：行数组稳定性（影响面最大，可选）
+> 实现：缓存行在「签名命中但 turn 脏」时就地打补丁（替换 `row.event`）并**写回 `turnEntries`**，
+> 避免下一帧复用到旧事件引用（这是增量缓存最容易漏的一步）。
+> 结构性重建时按 `event.id` 建立一次全量映射，校正历史回放等路径换新的事件对象。
+
+### 阶段四：行数组稳定性（已落地，采用组级复用）
 
 目前只要有任何变化就产出新的 `rows` 数组，`rowsWithTokenUsageSummaries` 等多个下游 computed 会全部重算。
 
@@ -158,14 +176,31 @@ const rowIndexByEventId = new Map<string, number>();
 2. **激进**：`rows` 数组原地复用（`splice` 替换脏位置），另设 `rowsRevision` 计数器通知下游。
    收益最大，但要求所有消费方都不依赖数组引用变化，风险较高，建议单独一轮。
 
-### 阶段五：刷新节奏（可选，独立于以上）
+> 实现选择：保留「变则新建数组」的引用语义，不动 `rows` 数组本身，把下游最贵的一段
+> ——`chatRows` 里的 aux 活动组装配——改成**组级复用**：
+>
+> - 新增 `composables/auxGroupCache.ts` 的 `canReuseAuxGroup`，按「成员行对象 + groupIndex +
+>   locale + defaultCollapsed / startedAtMs / answerStartedAtMs / elapsedLive」判断能否复用；
+> - `chatRows` 每次重建时逐组比对，命中就复用上一帧的 `ChatAuxActivityGroupRow`，
+>   跳过 `buildAuxActivityGroup` 的统计、翻译与数组分配；
+> - 缓存按组顺序存数组，末尾截断；切线程时成员对象不同，自然全部重建。
+>
+> 这样既拿到了大部分收益，又避免了原地复用行数组带来的 Vue 引用比对风险。
+> `rowsWithTokenUsageSummaries` 仍是 O(m) 的浅扫描（每帧约 0.05ms 量级），暂不特殊处理。
+
+### 阶段五：刷新节奏与可见性降频（已落地）
 
 - `flushPendingAppends` 在 `document.visibilityState !== "visible"` 时改为 200–300ms 批量刷新，
   窗口重新可见时立即补一次。
 - 与 `useAgentMarkdownRenderer` 的自适应间隔对齐：UI 侧最多每 48–120ms 消费一次，
   数据层没必要每帧都算。
 
-## 5. 接口改动
+> 实现：新增 `stores/timelineFlushPolicy.ts` 的 `resolveStreamFlushPlan`（纯函数，可单测）：
+> 可见 + 有 rAF → rAF + 120ms 兜底；可见无 rAF → 33ms；后台 → 250ms 定时器（rAF 在后台会被暂停）。
+> `timeline.store` 在 `scheduleFlush` 时读取可见性，并监听 `visibilitychange`，
+> 窗口恢复可见时立即执行挂起的 flush，避免后台降频漏掉最后一帧。
+
+## 5. 接口改动（未采用）
 
 `timeline.store` 需要新增三个只读信息，供渲染层做增量（每次 flush 前清空、flush 后填充）：
 
@@ -195,6 +230,11 @@ threadFlushDeltaForThread(state): (threadId: string) => {
 - 建议在 store 里集中一个 `invalidateThreadStructure(threadId)`，所有结构性变更都走它，
   避免遗漏。
 
+> 落地时没有改动 `timeline.store`：位置快照比对足以识别「哪些事件对象换了」，
+> 而 `renderEvents` 本身就是原地修改的数组，渲染层按索引比对即可，无需 store 额外记账。
+> 这样避免了 store 与渲染层之间的新耦合，也兼容现有的 rAF 合并刷新。
+> 若后续阶段四/五需要更细的脏标记，再考虑补这套接口。
+
 ## 6. 风险与约束
 
 | 风险                 | 说明                                                                                       | 应对                                                                                        |
@@ -211,6 +251,12 @@ threadFlushDeltaForThread(state): (threadId: string) => {
 
 现有测试基础：`packages/**/*.test.ts`（vitest），P0 已在此框架下补过分块渲染用例。
 
+已落地：`packages/app/src/renderer/components/layout/composables/turnRowsCache.test.ts`（9 个用例），
+覆盖首轮构建、无变化引用稳定、流式文本替换、结构变化复用、事件换 turn、上下文失效、
+历史回放换新对象、尾部追加，以及 200 步随机变更序列与全量重建逐步比对。
+阶段四/五补充：`auxGroupCache.test.ts`（7 个用例，成员/标记变化矩阵）与
+`timelineFlushPolicy.test.ts`（3 个用例，前台/后台 × rAF 可用性）。
+
 - **等价性测试**：构造 2000 个事件（含流式增量、turnId 变化、事件删除、线程切换），
   对比「增量实现」与「全量重建」产出的 `ChatRow[]` 快照，要求完全一致。
 - **增量正确性**：单条流式事件连续追加 100 次文本，断言只有该事件对应的行对象变化，
@@ -219,13 +265,34 @@ threadFlushDeltaForThread(state): (threadId: string) => {
 
 ### 7.2 基准脚本
 
-新增 `packages/app/scripts/bench-chat-render-model.mjs`（或在 vitest 里用 bench API）：
+已落地：`packages/app/scripts/bench-chat-render-model.mjs`，运行 `pnpm --filter @codenexus/app bench:timeline`：
 
 - 造 3000 事件 / 200 turn；
 - 循环 1000 次「向最后一个 assistant 事件追加 20 字符」；
 - 输出单次 `buildRowsByTurnCache` 的 p50 / p95 耗时与 GC 次数。
 
 用途是拿到 §3 的基线数字，并作为后续回归门槛。
+
+实测（Node 24 / Windows，3 轮 × 1000 次，单位 ms/帧）：
+
+| 实现 | p50 | p95 | avg |
+| --- | --- | --- | --- |
+| 基线（每帧全量分组 + 全量签名 + 全量行 Map） | 0.742 | 1.156 | 0.802 |
+| 增量（事件签名缓存 + 增量分组 + 脏行补丁） | 0.035 | 0.124 | 0.047 |
+
+p95 下降 **89.3%**，p50 下降约 95%。
+
+极端形态（3000 事件全部属于同一个 turn，`--turns 1`）：增量实现 p50 0.234ms / p95 0.394ms，
+相比基线下降 68%。此时剩余成本主要来自该 turn 自身的签名拼接，不会再随其它 turn 增长。
+
+同一脚本还会跑下游分组装配（200 个 aux 组，`translate` 用查表模拟，不计 vue-i18n 开销）：
+
+| 实现 | p50 | p95 | avg |
+| --- | --- | --- | --- |
+| 基线（每帧重建全部组） | 0.093 | 0.153 | 0.106 |
+| 组级复用 | 0.016 | 0.035 | 0.020 |
+
+p95 下降 **77.2%**；真实环境中 `translate()` 走 vue-i18n，复用收益会更大。
 
 ### 7.3 手工观察点
 
@@ -236,11 +303,14 @@ threadFlushDeltaForThread(state): (threadId: string) => {
 
 ## 8. 验收标准
 
-- [ ] 阶段一、二、三落地后，基准脚本 p95 耗时相比基线下降 ≥ 60%；
-- [ ] 单帧临时字符串分配 ≤ 2KB（`--trace-gc` 或 `process.memoryUsage()` 粗测）；
-- [ ] 等价性测试通过，`ChatRow[]` 快照零差异；
-- [ ] `pnpm run lint` / `typecheck` / `test` / `build` 全部通过；
-- [ ] §7.3 手工观察点无回归。
+- [x] 阶段一、二、三落地后，基准脚本 p95 耗时相比基线下降 ≥ 60%（实测 89.3%）；
+- [x] 单帧字符串分配由 O(全部事件) 降为 O(脏 turn)：基准场景每帧只重算 1 个 turn 的签名（15 条事件，约 1KB 量级）；
+      未做 `--trace-gc` 级精确统计；
+- [x] 等价性测试通过，`ChatRow[]` 快照零差异（含随机变更序列）；
+- [x] `pnpm run lint` / `typecheck` / `test` / `build` 全部通过（87 个测试）；
+- [x] 阶段四：aux 组装配 p95 下降 77%（模拟基准）；行组对象在无变化时保持引用稳定；
+- [x] 阶段五：后台刷新降频到 250ms，恢复可见时立即补一次；
+- [ ] §7.3 手工观察点无回归（需真实长会话运行验证）。
 
 ## 9. 不在本方案范围
 
@@ -260,3 +330,24 @@ threadFlushDeltaForThread(state): (threadId: string) => {
 | 5    | 刷新节奏与可见性降频（可选）            | 0.5 天 | 低   |
 
 建议按 0 → 1 → 2 → 3 推进，每步单独提交并跑一次完整校验；4、5 视阶段三的实测收益再决定是否继续。
+
+## 11. 落地记录
+
+| 阶段 | 状态 | 说明 |
+| --- | --- | --- |
+| 0 基准 + 等价性测试 | 完成 | `scripts/bench-chat-render-model.mjs`、`turnRowsCache.test.ts` |
+| 1 事件签名缓存 | 完成 | `eventSignatureCache` + `replayParsers` 不可变写回 |
+| 2 分组/签名增量 | 完成（简化实现） | 位置快照 + 持久化 buckets，未改 store 接口 |
+| 3 脏事件更新行 | 完成 | 缓存行就地补丁并写回，结构重建时按 id 校对引用 |
+| 4 行数组稳定性 | 完成（组级复用） | `auxGroupCache.ts` + `chatRows` 组缓存；未做行数组原地复用 |
+| 5 可见性降频 | 完成 | `timelineFlushPolicy.ts`，后台 250ms，恢复可见立即 flush |
+
+关键约束（后续改动请保持）：
+
+- `TimelineEventItem` 必须保持不可变；任何字段更新都要生成新对象，否则对象身份缓存与脏检测会失效。
+- 结构重建（`rebuilt`）路径必须按 `event.id` 全量校对缓存行的事件引用，历史回放会整体换新对象。
+- aux 组缓存以「成员行对象身份 + locale + 展示标记」为键；新增会影响组摘要的输入（例如新的行内状态）时，
+  必须同步加进 `AuxGroupFlags`，否则会复用旧摘要。
+
+遗留观察项：§7.3 的四个手工场景仍需在真实长会话（>1000 事件）里跑一遍，
+重点看流式期间滚动/输入是否顺滑、切换线程与历史回放后内容是否完整。

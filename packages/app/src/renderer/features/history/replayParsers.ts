@@ -381,8 +381,12 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
         normalized.payload.text_elements.length > existingTextElementCount ||
         normalized.imageCount > existingImageCount
       ) {
-        existing.paramsText = normalized.displayText;
-        existing.params = normalized.payload;
+        // 事件对象被视为不可变数据：下游会按对象身份做签名缓存，原地改写会让缓存读到旧值。
+        events[existingIdx] = {
+          ...existing,
+          paramsText: normalized.displayText,
+          params: normalized.payload,
+        };
       }
       return;
     }
