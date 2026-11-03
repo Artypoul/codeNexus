@@ -1,4 +1,5 @@
 import { codexDesktop } from "../../api/codexDesktopClient";
+import { createLruCache } from "../../shared/lruCache";
 import {
   ALL_THREAD_SOURCE_KINDS,
   buildHistoryThreadMetadataPatchFromServerThread,
@@ -49,14 +50,16 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
     findThreadListItem,
     requestThreadRead,
   } = deps;
+  const hydratedAtByServer = createLruCache<string, number>(8);
+  const hydrationTtlMs = 60_000;
 
   const requestThreadListPage = async (
     workspacePathValue: string,
     archived: boolean,
-    cursor?: string | null
+    cursor: string | null,
+    serverId: string
   ): Promise<ThreadListResponse> => {
     const workspace = normalizeWorkspacePath(workspacePathValue);
-    const serverId = getServerIdForWorkspace(workspace);
     if (!workspace || !serverId) {
       return { data: [], readStates: null, nextCursor: null, backwardsCursor: null };
     }
@@ -76,7 +79,10 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
     return result;
   };
 
-  const requestAllThreadsForWorkspace = async (workspacePathValue: string): Promise<ServerThread[]> => {
+  const requestAllThreadsForWorkspace = async (
+    workspacePathValue: string,
+    serverId: string
+  ): Promise<ServerThread[]> => {
     const workspace = normalizeWorkspacePath(workspacePathValue);
     if (!workspace) return [];
     const deduped = new Map<string, ServerThread>();
@@ -84,7 +90,8 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
     for (const archived of [false, true]) {
       let cursor: string | null = null;
       while (true) {
-        const page = await requestThreadListPage(workspace, archived, cursor);
+        if (getServerIdForWorkspace(workspace) !== serverId) return [];
+        const page = await requestThreadListPage(workspace, archived, cursor, serverId);
         const threads = Array.isArray(page?.data) ? page.data : [];
         for (const thread of threads) {
           const threadId = normalizeOptionalText(thread?.id);
@@ -104,19 +111,23 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
     const workspace = normalizeWorkspacePath(workspacePathValue);
     const serverId = getServerIdForWorkspace(workspace);
     if (!workspace || !serverId) return;
+    const cacheKey = `${workspace}\u0000${serverId}`;
+    const hydratedAt = hydratedAtByServer.get(cacheKey);
+    if (hydratedAt != null && Date.now() - hydratedAt < hydrationTtlMs) return;
 
     const existing = threadMetadataHydrationPromiseByWorkspace.get(workspace);
     if (existing) return existing;
 
     const task = (async () => {
       try {
-        const threads = await requestAllThreadsForWorkspace(workspace);
+        const threads = await requestAllThreadsForWorkspace(workspace, serverId);
+        if (getServerIdForWorkspace(workspace) !== serverId) return;
         const patches = threads.flatMap((thread) => {
           const patch = buildHistoryThreadMetadataPatchFromServerThread(thread);
           return patch ? [patch] : [];
         });
-        if (patches.length === 0) return;
-        await codexDesktop.history.mergeThreadMetadata({ threads: patches });
+        if (patches.length > 0) await codexDesktop.history.mergeThreadMetadata({ threads: patches });
+        if (getServerIdForWorkspace(workspace) === serverId) hydratedAtByServer.set(cacheKey, Date.now());
       } catch (e: unknown) {
         const msg = readErrorMessage(e);
         console.warn("[runtimeOrchestrator] thread metadata hydration failed", { workspace, msg });

@@ -147,6 +147,7 @@ export const useRuntimeStore = defineStore("runtime", {
   state: () => ({
     serverId: "" as string,
     workspacePath: "" as string,
+    navigationRevision: 0,
     currentThreadId: "" as string,
     // 当前线程输入与参数（在 setCurrentThread 时按线程保存/恢复）。
     sandboxMode: DEFAULT_COMPOSE_STATE.sandboxMode as SandboxMode,

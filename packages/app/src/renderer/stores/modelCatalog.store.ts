@@ -5,10 +5,27 @@ import { collectModelPages, resolveDefaultModel } from "@codenexus/shared/modelC
 import { codexDesktop } from "../api/codexDesktopClient";
 import { useConfigRequirementsStore } from "./configRequirements.store";
 import { useRuntimeStore } from "./runtime.store";
+import { createLruCache } from "../shared/lruCache";
 
 type ModelCatalogLoadState = "idle" | "loading" | "ready" | "error";
 
-let activeRefresh: { serverId: string; promise: Promise<boolean> } | null = null;
+type CatalogSnapshot = { models: Model[]; loadedAt: number };
+function createCatalogCache() {
+  return {
+    snapshots: createLruCache<string, CatalogSnapshot>(6, 6_000, (snapshot) => snapshot.models.length),
+    pending: new Map<string, Promise<CatalogSnapshot>>(),
+    generation: 0,
+  };
+}
+const cacheByStore = new WeakMap<object, ReturnType<typeof createCatalogCache>>();
+function catalogCache(store: object) {
+  let cache = cacheByStore.get(store);
+  if (!cache) {
+    cache = createCatalogCache();
+    cacheByStore.set(store, cache);
+  }
+  return cache;
+}
 
 export const useModelCatalogStore = defineStore("modelCatalog", {
   state: () => ({
@@ -42,15 +59,16 @@ export const useModelCatalogStore = defineStore("modelCatalog", {
       return this.defaultModel?.model ?? "";
     },
     cacheStats(state): { items: number; bytes: number } {
+      void state.loadedAt;
+      const snapshots = catalogCache(this).snapshots.values();
       return {
-        items: state.models.length,
-        bytes: JSON.stringify(state.models).length,
+        items: snapshots.reduce((count, entry) => count + entry.models.length, 0),
+        bytes: JSON.stringify(snapshots.length ? snapshots : [state.models]).length,
       };
     },
   },
   actions: {
     resetCatalog() {
-      activeRefresh = null;
       this.requestSeq += 1;
       this.loadState = "idle";
       this.errorText = "";
@@ -66,19 +84,23 @@ export const useModelCatalogStore = defineStore("modelCatalog", {
         this.resetCatalog();
         return false;
       }
-      if (activeRefresh?.serverId === serverId) {
-        return await activeRefresh.promise;
+      const cache = catalogCache(this);
+      const generation = cache.generation;
+      if (this.loadedServerId !== serverId) {
+        const cached = cache.snapshots.get(serverId);
+        this.models = cached?.models ?? [];
+        this.loadedServerId = cached ? serverId : "";
+        this.loadedAt = cached?.loadedAt ?? 0;
       }
-
       const seq = this.requestSeq + 1;
       this.requestSeq = seq;
       this.loadState = "loading";
       this.loadingServerId = serverId;
       this.errorText = "";
 
-      let promise!: Promise<boolean>;
-      promise = (async () => {
-        try {
+      let pending = cache.pending.get(serverId);
+      if (!pending) {
+        const task = (async () => {
           const models = await collectModelPages(async (cursor) => {
             const params: ModelListParams = {
               cursor,
@@ -98,25 +120,31 @@ export const useModelCatalogStore = defineStore("modelCatalog", {
             };
           });
 
-          if (seq !== this.requestSeq) return false;
-          this.models = models;
-          this.loadedServerId = serverId;
-          this.loadedAt = Date.now();
-          this.loadState = "ready";
-          return true;
-        } catch (error: unknown) {
-          if (seq !== this.requestSeq) return false;
-          this.loadState = "error";
-          this.errorText = error instanceof Error ? error.message : String(error ?? "unknown error");
-          return false;
-        } finally {
-          if (this.loadingServerId === serverId) this.loadingServerId = "";
-          if (activeRefresh?.promise === promise) activeRefresh = null;
-        }
-      })();
-
-      activeRefresh = { serverId, promise };
-      return await promise;
+          const snapshot = { models, loadedAt: Date.now() };
+          if (generation === cache.generation) cache.snapshots.set(serverId, snapshot);
+          return snapshot;
+        })();
+        pending = task.finally(() => {
+          if (cache.pending.get(serverId) === pending) cache.pending.delete(serverId);
+        });
+        cache.pending.set(serverId, pending);
+      }
+      try {
+        const snapshot = await pending;
+        if (seq !== this.requestSeq || generation !== cache.generation) return false;
+        this.models = snapshot.models;
+        this.loadedServerId = serverId;
+        this.loadedAt = snapshot.loadedAt;
+        this.loadState = "ready";
+        return true;
+      } catch (error: unknown) {
+        if (seq !== this.requestSeq) return false;
+        this.loadState = "error";
+        this.errorText = error instanceof Error ? error.message : String(error ?? "unknown error");
+        return false;
+      } finally {
+        if (seq === this.requestSeq) this.loadingServerId = "";
+      }
     },
     async ensureModels(options?: { maxAgeMs?: number; serverId?: string }): Promise<boolean> {
       const runtimeStore = useRuntimeStore();
@@ -125,19 +153,27 @@ export const useModelCatalogStore = defineStore("modelCatalog", {
         this.resetCatalog();
         return false;
       }
-      if (this.loadState === "loading" && this.loadingServerId === serverId && activeRefresh) {
-        return await activeRefresh.promise;
-      }
-
       const maxAgeMs = Math.max(5_000, Number(options?.maxAgeMs ?? 5 * 60_000));
-      const stale = !this.loadedAt || Date.now() - this.loadedAt > maxAgeMs;
-      const serverChanged = this.loadedServerId !== serverId;
-      const shouldReload = serverChanged || stale || this.loadState === "idle" || this.loadState === "error";
-      if (!shouldReload) return false;
+      if (catalogCache(this).pending.has(serverId)) return this.refreshModels({ serverId });
+      const cached = catalogCache(this).snapshots.get(serverId);
+      if (cached && Date.now() - cached.loadedAt <= maxAgeMs) {
+        this.requestSeq += 1;
+        this.models = cached.models;
+        this.loadedServerId = serverId;
+        this.loadedAt = cached.loadedAt;
+        this.loadingServerId = "";
+        this.loadState = "ready";
+        this.errorText = "";
+        return false;
+      }
 
       return await this.refreshModels({ serverId });
     },
     clearCache() {
+      const cache = catalogCache(this);
+      cache.generation += 1;
+      cache.snapshots.clear();
+      cache.pending.clear();
       this.resetCatalog();
     },
   },

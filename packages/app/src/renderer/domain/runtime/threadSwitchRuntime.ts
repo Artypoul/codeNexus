@@ -28,7 +28,7 @@ export type ThreadSwitchRuntimeDeps = {
   applyCachedRightPanels: (workspacePath: string) => void;
   hasReplayCache: (threadId: string) => boolean;
   hydrateReplayFromCacheIfNeeded: (threadId: string) => boolean;
-  loadHistoryMessages: (threadId: string) => Promise<boolean>;
+  loadHistoryMessages: (threadId: string, options?: { isCurrent?: () => boolean }) => Promise<boolean>;
   ensureThreadResumed: (threadId: string) => Promise<boolean>;
   refreshThreadGoal: (threadId: string) => Promise<unknown>;
   hydrateThreadHandoffDiagnostics: (threadId: string, opts?: { force?: boolean }) => Promise<unknown>;
@@ -72,12 +72,22 @@ export function createThreadSwitchRuntime(deps: ThreadSwitchRuntimeDeps): Thread
     refreshRightPanels,
     pushEvent,
   } = deps;
-
-  let latestSwitchThreadSeq = 0;
+  // A switch can be cancelled or superseded. Only the switch that actually owns
+  // the loading state may clear it, otherwise a cancelled navigation leaves the
+  // previous thread spinning forever.
+  const loadingOwnerSeqByThread = new Map<string, number>();
 
   const switchThread = async (threadId: string) => {
     const id = String(threadId ?? "").trim();
     if (!id) return;
+    const switchSeq = ++runtimeStore.navigationRevision;
+    const isActiveSwitch = () => switchSeq === runtimeStore.navigationRevision;
+    const ownsLoading = () => loadingOwnerSeqByThread.get(id) === switchSeq;
+    const clearOwnedLoading = () => {
+      if (!ownsLoading()) return;
+      loadingOwnerSeqByThread.delete(id);
+      threadStore.clearLoadingThread(id);
+    };
     const switchStartedAt = perfNow();
     const target = findThreadListItem(id);
     const targetRunning = threadStore.runningThreadIds.has(id);
@@ -90,8 +100,7 @@ export function createThreadSwitchRuntime(deps: ThreadSwitchRuntimeDeps): Thread
       const confirmed = await workspaceFilesStore.confirmResetDirtyTabsForWorkspaceChange(nextCwd);
       if (!confirmed) return;
     }
-    const switchSeq = ++latestSwitchThreadSeq;
-    const isActiveSwitch = () => switchSeq === latestSwitchThreadSeq;
+    if (!isActiveSwitch()) return;
     appendDebugLog("thread.switch", "begin", {
       threadId: id,
       running: targetRunning,
@@ -100,6 +109,7 @@ export function createThreadSwitchRuntime(deps: ThreadSwitchRuntimeDeps): Thread
       fastActivate: canFastActivateRunningThread,
     });
     threadStore.setLoadingThread(id);
+    loadingOwnerSeqByThread.set(id, switchSeq);
     runtimeStore.setCurrentThread(id);
     threadStore.setCurrentThread(id);
     const reusedReplayCache = hydrateReplayFromCacheIfNeeded(id);
@@ -110,18 +120,21 @@ export function createThreadSwitchRuntime(deps: ThreadSwitchRuntimeDeps): Thread
         existingTimelineEventCount: existingTimelineEvents.length,
       });
     }
-    const historyLoadPromise = shouldLoadHistory ? loadHistoryMessages(id) : Promise.resolve(true);
+    const historyLoadPromise = shouldLoadHistory
+      ? loadHistoryMessages(id, { isCurrent: () => runtimeStore.currentThreadId === id })
+      : Promise.resolve(true);
     if (shouldLoadHistory) {
       void historyLoadPromise.finally(() => {
-        if (isActiveSwitch()) threadStore.clearLoadingThread(id);
+        clearOwnedLoading();
       });
     } else {
-      threadStore.clearLoadingThread(id);
+      clearOwnedLoading();
     }
     try {
       if (didWorkspaceChange) {
         runtimeStore.setWorkspace(nextCwd);
         threadStore.setWorkspace(nextCwd);
+        void workspaceFilesStore.ensureReady(false);
         pushEvent("workspace:history", nextCwd, { threadId: appTimelineId });
         syncActiveServerByWorkspace(nextCwd);
       }
@@ -142,7 +155,7 @@ export function createThreadSwitchRuntime(deps: ThreadSwitchRuntimeDeps): Thread
 
       void ensureThreadResumed(id);
       void refreshThreadGoal(id);
-      void hydrateThreadHandoffDiagnostics(id, { force: true });
+      void hydrateThreadHandoffDiagnostics(id);
 
       const mode = didWorkspaceChange ? "full" : "light";
       void nextTick().then(() => {
@@ -152,7 +165,7 @@ export function createThreadSwitchRuntime(deps: ThreadSwitchRuntimeDeps): Thread
 
       void refreshRightPanels();
     } finally {
-      threadStore.clearLoadingThread(id);
+      clearOwnedLoading();
     }
   };
 

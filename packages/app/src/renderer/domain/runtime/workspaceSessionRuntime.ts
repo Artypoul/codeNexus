@@ -85,6 +85,7 @@ export function createWorkspaceSessionRuntime(deps: WorkspaceSessionRuntimeDeps)
   const workspaceByServerId = new Map<string, string>();
   const workspaceByThreadId = new Map<string, string>();
   let warnedExperimentalApiUnavailable = false;
+  const serverStartsByWorkspace = new Map<string, Promise<string>>();
 
   const setThreadWorkspace = (threadIdValue: string, workspacePathValue: string | undefined) => {
     const threadId = String(threadIdValue ?? "").trim();
@@ -192,7 +193,7 @@ export function createWorkspaceSessionRuntime(deps: WorkspaceSessionRuntimeDeps)
     return workspace;
   };
 
-  const ensureServerForWorkspace = async (workspacePathValue: string): Promise<string> => {
+  const startWorkspaceServer = async (workspacePathValue: string): Promise<string> => {
     const workspace = normalizeWorkspacePath(workspacePathValue);
     if (!workspace) return "";
     const existingServerId = getServerIdForWorkspace(workspace);
@@ -245,6 +246,21 @@ export function createWorkspaceSessionRuntime(deps: WorkspaceSessionRuntimeDeps)
     }
   };
 
+  const ensureServerForWorkspace = async (workspacePathValue: string): Promise<string> => {
+    const workspace = normalizeWorkspacePath(workspacePathValue);
+    if (!workspace) return "";
+    if (getServerIdForWorkspace(workspace)) return startWorkspaceServer(workspace);
+    const existing = serverStartsByWorkspace.get(workspace);
+    if (existing) return existing;
+    const task = startWorkspaceServer(workspace);
+    serverStartsByWorkspace.set(workspace, task);
+    try {
+      return await task;
+    } finally {
+      if (serverStartsByWorkspace.get(workspace) === task) serverStartsByWorkspace.delete(workspace);
+    }
+  };
+
   const startServer = async () => {
     const workspace = normalizeWorkspacePath(runtimeStore.workspacePath);
     if (!workspace) {
@@ -262,14 +278,17 @@ export function createWorkspaceSessionRuntime(deps: WorkspaceSessionRuntimeDeps)
   const applyWorkspaceSelection = async (selectedValue: string) => {
     const selected = normalizeWorkspacePath(selectedValue);
     if (!selected) return false;
+    const revision = ++runtimeStore.navigationRevision;
     if (selected !== normalizeWorkspacePath(runtimeStore.workspacePath)) {
       const confirmed = await workspaceFilesStore.confirmResetDirtyTabsForWorkspaceChange(selected);
       if (!confirmed) return false;
     }
+    if (revision !== runtimeStore.navigationRevision) return false;
     runtimeStore.setWorkspace(selected);
     threadStore.setWorkspace(selected);
+    threadStore.clearLoadingThread();
     pushEvent("workspace", selected, { threadId: appTimelineId });
-    void workspaceFilesStore.ensureReady(true);
+    void workspaceFilesStore.ensureReady(false);
     const activeServerId = syncActiveServerByWorkspace(selected);
     if (activeServerId) {
       applyCachedRightPanels(selected);
@@ -296,18 +315,23 @@ export function createWorkspaceSessionRuntime(deps: WorkspaceSessionRuntimeDeps)
   const selectWorkspace = async () => {
     const selected = await codexDesktop.workspace.select();
     if (!selected) return;
-    const applied = await applyWorkspaceSelection(selected);
+    const selection = applyWorkspaceSelection(selected);
+    const revision = runtimeStore.navigationRevision;
+    const applied = await selection;
     if (!applied) return;
-    await startServer();
+    if (revision === runtimeStore.navigationRevision) await ensureServerForWorkspace(selected);
   };
 
   const switchWorkspace = async (workspacePathValue: string): Promise<boolean> => {
     const workspace = normalizeWorkspacePath(workspacePathValue);
     if (!workspace) return false;
-    const applied = await applyWorkspaceSelection(workspace);
+    const selection = applyWorkspaceSelection(workspace);
+    const revision = runtimeStore.navigationRevision;
+    const applied = await selection;
     if (!applied) return false;
-    await startServer();
-    return true;
+    if (revision !== runtimeStore.navigationRevision) return false;
+    await ensureServerForWorkspace(workspace);
+    return revision === runtimeStore.navigationRevision;
   };
 
   return {

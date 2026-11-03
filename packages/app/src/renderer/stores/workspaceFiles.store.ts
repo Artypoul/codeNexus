@@ -18,6 +18,7 @@ import { useRuntimeStore } from "./runtime.store";
 import { useTimelineStore } from "./timeline.store";
 import { showToast } from "../ui/toast";
 import { translate } from "../i18n/translate";
+import { createLruCache } from "../shared/lruCache";
 import type {
   AppTextEncoding,
   AppTextLineEnding,
@@ -36,7 +37,45 @@ type ConfirmDiscardOptions = {
 };
 
 const GIT_STATUS_PRIORITY: WorkspaceGitStatusCode[] = ["U", "A", "D", "R", "C", "M", "?"];
-let gitStatusRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+const DIRECTORY_FRESH_MS = 15_000;
+const WORKSPACE_SNAPSHOT_TTL_MS = 5 * 60_000;
+type WorkspaceTreeSnapshot = {
+  savedAt: number;
+  directoryPath: string;
+  treeEntriesByPath: Record<string, WorkspaceDirectoryEntryState[]>;
+  treeLoadedAtByPath: Record<string, number>;
+  expandedDirectoryPaths: string[];
+  gitStatusByPath: Record<string, WorkspaceGitStatusEntry>;
+  gitStatusLoadedAt: number;
+};
+function createWorkspaceCache() {
+  return {
+    snapshots: createLruCache<string, WorkspaceTreeSnapshot>(
+      3,
+      20_000,
+      (snapshot) =>
+        Object.values(snapshot.treeEntriesByPath).reduce((sum, entries) => sum + entries.length, 0) +
+        Object.keys(snapshot.gitStatusByPath).length +
+        snapshot.expandedDirectoryPaths.length
+    ),
+    directoryRequests: new Map<string, Promise<WorkspaceDirectoryEntryState[]>>(),
+    gitRequest: null as Promise<boolean> | null,
+    gitTimer: null as ReturnType<typeof setTimeout> | null,
+    generation: 0,
+  };
+}
+const cacheByStore = new WeakMap<object, ReturnType<typeof createWorkspaceCache>>();
+function workspaceCache(store: object) {
+  let cache = cacheByStore.get(store);
+  if (!cache) {
+    cache = createWorkspaceCache();
+    cacheByStore.set(store, cache);
+  }
+  return cache;
+}
+function isCurrentWorkspace(store: { workspacePath: string; workspaceRevision: number }, revision: number) {
+  return store.workspaceRevision === revision && isSamePath(store.workspacePath, useRuntimeStore().workspacePath);
+}
 
 async function confirmModalLazy(options: Parameters<(typeof import("../ui/modal"))["confirmModal"]>[0]) {
   const { confirmModal } = await import("../ui/modal");
@@ -189,16 +228,19 @@ function buildDirtyTabsDetail(tabs: WorkspaceEditorTabState[]): string {
 export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
   state: () => ({
     workspacePath: "" as string,
+    workspaceRevision: 0,
     directoryPath: "" as string,
     entries: [] as WorkspaceDirectoryEntryState[],
     directoryLoading: false,
     directoryErrorText: "" as string,
     treeEntriesByPath: {} as Record<string, WorkspaceDirectoryEntryState[]>,
+    treeLoadedAtByPath: {} as Record<string, number>,
     treeLoadingPaths: [] as string[],
     treeErrorTextByPath: {} as Record<string, string>,
     expandedDirectoryPaths: [] as string[],
     deletingFilePaths: [] as string[],
     gitStatusByPath: {} as Record<string, WorkspaceGitStatusEntry>,
+    gitStatusLoadedAt: 0,
     editorTabOrder: [] as string[],
     editorTabsByPath: {} as Record<string, WorkspaceEditorTabState>,
     activeEditorTabPath: "" as string,
@@ -334,17 +376,26 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
   },
   actions: {
     resetState(workspacePathValue = "") {
+      const cache = workspaceCache(this);
+      cache.generation += 1;
+      cache.directoryRequests.clear();
+      cache.gitRequest = null;
+      if (cache.gitTimer) clearTimeout(cache.gitTimer);
+      cache.gitTimer = null;
+      this.workspaceRevision += 1;
       this.workspacePath = normalizeWorkspacePath(workspacePathValue);
       this.directoryPath = this.workspacePath;
       this.entries = [];
       this.directoryLoading = false;
       this.directoryErrorText = "";
       this.treeEntriesByPath = {};
+      this.treeLoadedAtByPath = {};
       this.treeLoadingPaths = [];
       this.treeErrorTextByPath = {};
       this.expandedDirectoryPaths = this.workspacePath ? [this.workspacePath] : [];
       this.deletingFilePaths = [];
       this.gitStatusByPath = {};
+      this.gitStatusLoadedAt = 0;
       this.clearEditorState();
     },
     clearEditorState() {
@@ -353,10 +404,17 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       this.activeEditorTabPath = "";
     },
     getTreeCacheStats() {
-      const entriesGroups = Object.values(this.treeEntriesByPath ?? {});
+      const snapshots = workspaceCache(this).snapshots.values();
+      const entriesGroups = [
+        this.treeEntriesByPath,
+        ...snapshots.map((snapshot) => snapshot.treeEntriesByPath),
+      ].flatMap((tree) => Object.values(tree));
       const items = entriesGroups.reduce((acc, list) => acc + (Array.isArray(list) ? list.length : 0), 0);
       let bytes = 0;
-      for (const [path, list] of Object.entries(this.treeEntriesByPath ?? {})) {
+      for (const [path, list] of [
+        this.treeEntriesByPath,
+        ...snapshots.map((snapshot) => snapshot.treeEntriesByPath),
+      ].flatMap((tree) => Object.entries(tree))) {
         bytes += path.length;
         bytes += JSON.stringify(list).length;
       }
@@ -367,10 +425,20 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       };
     },
     clearTreeCache() {
+      const cache = workspaceCache(this);
+      cache.generation += 1;
+      cache.snapshots.clear();
+      cache.directoryRequests.clear();
+      cache.gitRequest = null;
+      if (cache.gitTimer) clearTimeout(cache.gitTimer);
+      cache.gitTimer = null;
       this.treeEntriesByPath = {};
+      this.treeLoadedAtByPath = {};
       this.treeLoadingPaths = [];
       this.treeErrorTextByPath = {};
       this.gitStatusByPath = {};
+      this.gitStatusLoadedAt = 0;
+      this.directoryLoading = false;
       if (this.directoryPath) {
         this.entries = [];
         this.directoryErrorText = "";
@@ -379,8 +447,31 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
     syncWorkspace(): boolean {
       const runtimeStore = useRuntimeStore();
       const workspace = normalizeWorkspacePath(runtimeStore.workspacePath);
-      if (workspace === this.workspacePath) return false;
+      if (isSamePath(workspace, this.workspacePath)) return false;
+      const cache = workspaceCache(this);
+      const restored = cache.snapshots.get(directoryKey(workspace));
+      cache.snapshots.delete(directoryKey(workspace));
+      if (this.workspacePath && Object.keys(this.treeEntriesByPath).length > 0) {
+        cache.snapshots.set(directoryKey(this.workspacePath), {
+          savedAt: Date.now(),
+          directoryPath: this.directoryPath,
+          treeEntriesByPath: { ...this.treeEntriesByPath },
+          treeLoadedAtByPath: { ...this.treeLoadedAtByPath },
+          expandedDirectoryPaths: [...this.expandedDirectoryPaths],
+          gitStatusByPath: { ...this.gitStatusByPath },
+          gitStatusLoadedAt: this.gitStatusLoadedAt,
+        });
+      }
       this.resetState(workspace);
+      if (restored && Date.now() - restored.savedAt < WORKSPACE_SNAPSHOT_TTL_MS) {
+        this.directoryPath = restored.directoryPath;
+        this.treeEntriesByPath = restored.treeEntriesByPath;
+        this.treeLoadedAtByPath = restored.treeLoadedAtByPath;
+        this.expandedDirectoryPaths = restored.expandedDirectoryPaths;
+        this.gitStatusByPath = restored.gitStatusByPath;
+        this.gitStatusLoadedAt = restored.gitStatusLoadedAt;
+        this.entries = [...this.directoryEntriesByPath(this.directoryPath)];
+      }
       return true;
     },
     resolveTabPath(path?: string): string {
@@ -601,8 +692,10 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       if (!targetPath || !this.workspacePath) return false;
       const parentDirectory = directoryPathForFile(targetPath);
       if (!parentDirectory) return false;
+      const revision = this.workspaceRevision;
       try {
         await this.ensureDirectoryVisible(parentDirectory);
+        if (!isCurrentWorkspace(this, revision)) return false;
         if (options?.setDirectory ?? true) {
           this.directoryPath = parentDirectory;
           this.entries = [...this.directoryEntriesByPath(parentDirectory)];
@@ -610,6 +703,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
         }
         return true;
       } catch (error) {
+        if (!isCurrentWorkspace(this, revision)) return false;
         this.directoryErrorText = error instanceof Error ? error.message : String(error ?? "unknown error");
         return false;
       }
@@ -640,6 +734,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       const normalized = normalizeAbsoluteFsPath(path);
       if (!normalized) return;
       const key = directoryKey(normalized);
+      this.treeLoadedAtByPath[key] = Date.now();
       this.treeEntriesByPath = {
         ...this.treeEntriesByPath,
         [key]: Array.isArray(entries) ? [...entries] : [],
@@ -650,36 +745,53 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
     },
     async refreshGitStatus(): Promise<boolean> {
       this.syncWorkspace();
+      const cache = workspaceCache(this);
+      if (cache.gitRequest) return cache.gitRequest;
+      const revision = this.workspaceRevision;
+      const generation = cache.generation;
+      const isCurrent = () => isCurrentWorkspace(this, revision) && cache.generation === generation;
       const workspace = normalizeAbsoluteFsPath(this.workspacePath);
       if (!workspace) {
         this.gitStatusByPath = {};
         return false;
       }
-      try {
-        const result = await codexDesktop.workspace.readGitStatus({ cwd: workspace });
-        if (!result.ok) {
-          this.gitStatusByPath = {};
+      const task = (async () => {
+        try {
+          const result = await codexDesktop.workspace.readGitStatus({ cwd: workspace });
+          if (!isCurrent()) return false;
+          if (!result.ok) {
+            this.gitStatusByPath = {};
+            return false;
+          }
+          const next: Record<string, WorkspaceGitStatusEntry> = {};
+          for (const entry of result.entries) {
+            const key = toComparablePath(entry.path);
+            if (!key) continue;
+            next[key] = entry;
+          }
+          this.gitStatusByPath = next;
+          this.gitStatusLoadedAt = Date.now();
+          return true;
+        } catch (error) {
+          if (isCurrent()) this.gitStatusByPath = {};
           return false;
         }
-        const next: Record<string, WorkspaceGitStatusEntry> = {};
-        for (const entry of result.entries) {
-          const key = toComparablePath(entry.path);
-          if (!key) continue;
-          next[key] = entry;
-        }
-        this.gitStatusByPath = next;
-        return true;
-      } catch (error) {
-        this.gitStatusByPath = {};
-        return false;
+      })();
+      cache.gitRequest = task;
+      try {
+        return await task;
+      } finally {
+        if (cache.gitRequest === task) cache.gitRequest = null;
       }
     },
     scheduleGitStatusRefresh(delayMs = 240) {
-      if (gitStatusRefreshTimer) clearTimeout(gitStatusRefreshTimer);
-      gitStatusRefreshTimer = setTimeout(
+      const cache = workspaceCache(this);
+      const revision = this.workspaceRevision;
+      if (cache.gitTimer) clearTimeout(cache.gitTimer);
+      cache.gitTimer = setTimeout(
         () => {
-          gitStatusRefreshTimer = null;
-          void this.refreshGitStatus();
+          cache.gitTimer = null;
+          if (isCurrentWorkspace(this, revision)) void this.refreshGitStatus();
         },
         Math.max(0, delayMs)
       );
@@ -688,7 +800,13 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       const normalized = normalizeAbsoluteFsPath(path);
       if (!normalized) return [];
       const key = directoryKey(normalized);
-      if (!options?.force && Array.isArray(this.treeEntriesByPath[key])) {
+      const workspaceKey = directoryKey(this.workspacePath);
+      if (!workspaceKey || (key !== workspaceKey && !key.startsWith(`${workspaceKey.replace(/\/$/, "")}/`))) return [];
+      if (
+        !options?.force &&
+        Array.isArray(this.treeEntriesByPath[key]) &&
+        Date.now() - (this.treeLoadedAtByPath[key] ?? 0) < DIRECTORY_FRESH_MS
+      ) {
         const cached = this.treeEntriesByPath[key] ?? [];
         if (isSamePath(normalized, this.directoryPath)) {
           this.entries = [...cached];
@@ -696,23 +814,41 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
         }
         return cached;
       }
+      const cache = workspaceCache(this);
+      const revision = this.workspaceRevision;
+      const generation = cache.generation;
+      const isCurrent = () => isCurrentWorkspace(this, revision) && cache.generation === generation;
+      if (!isCurrent()) return [];
+      const requestKey = `${generation}:${key}`;
+      const pending = cache.directoryRequests.get(requestKey);
+      if (pending) return pending;
       const runtime = getRuntimeOrchestrator();
       this.setDirectoryLoading(normalized, true);
       this.setDirectoryError(normalized, "");
-      try {
-        const result = await runtime.readWorkspaceDirectory(normalized);
-        this.setDirectoryEntries(normalized, result.entries);
-        this.setDirectoryError(normalized, "");
-        return result.entries;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error ?? "unknown error");
-        this.setDirectoryError(normalized, message);
-        if (isSamePath(normalized, this.directoryPath)) {
-          this.entries = [];
+      const task = (async () => {
+        try {
+          const result = await runtime.readWorkspaceDirectory(normalized);
+          if (!isCurrent()) return [];
+          this.setDirectoryEntries(normalized, result.entries);
+          this.setDirectoryError(normalized, "");
+          return result.entries;
+        } catch (error) {
+          if (!isCurrent()) return [];
+          const message = error instanceof Error ? error.message : String(error ?? "unknown error");
+          this.setDirectoryError(normalized, message);
+          if (isSamePath(normalized, this.directoryPath)) {
+            this.entries = [];
+          }
+          throw error;
+        } finally {
+          if (isCurrent()) this.setDirectoryLoading(normalized, false);
         }
-        throw error;
+      })();
+      cache.directoryRequests.set(requestKey, task);
+      try {
+        return await task;
       } finally {
-        this.setDirectoryLoading(normalized, false);
+        if (cache.directoryRequests.get(requestKey) === task) cache.directoryRequests.delete(requestKey);
       }
     },
     expandDirectory(path: string) {
@@ -725,26 +861,41 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       if (!normalized) return;
       this.expandedDirectoryPaths = withoutPath(this.expandedDirectoryPaths, normalized);
     },
-    async ensureDirectoryVisible(path: string): Promise<void> {
+    async ensureDirectoryVisible(path: string, options?: { force?: boolean }): Promise<void> {
       const normalized = normalizeAbsoluteFsPath(path);
       if (!normalized || !this.workspacePath) return;
       const ancestors = buildAncestorDirectories(this.workspacePath, normalized);
+      const revision = this.workspaceRevision;
       for (const dirPath of ancestors) {
+        if (!isCurrentWorkspace(this, revision)) return;
         this.expandDirectory(dirPath);
-        await this.ensureDirectoryLoaded(dirPath);
+        await this.ensureDirectoryLoaded(dirPath, options);
       }
     },
     async ensureReady(force = false): Promise<void> {
       const changed = this.syncWorkspace();
+      const revision = this.workspaceRevision;
       if (!this.workspacePath) return;
-      if (changed || !this.directoryPath) {
+      if (!this.directoryPath) {
         this.directoryPath = this.workspacePath;
         this.expandDirectory(this.workspacePath);
       }
-      if (changed || force || this.entries.length === 0) {
+      if (
+        changed ||
+        force ||
+        this.entries.length === 0 ||
+        Date.now() - (this.treeLoadedAtByPath[directoryKey(this.directoryPath)] ?? 0) >= DIRECTORY_FRESH_MS
+      ) {
         await this.openDirectory(this.directoryPath || this.workspacePath, { force, keepActiveFile: !changed });
       }
-      if (changed || force || Object.keys(this.gitStatusByPath).length === 0) {
+      if (!isCurrentWorkspace(this, revision)) return;
+      // A restored tree can include expanded siblings outside the selected
+      // directory's ancestor chain. Revalidate those too, keeping warm entries.
+      if (changed && this.expandedDirectoryPaths.length > 1) {
+        await this.reloadTreeForThreadSwitch({ mode: "full" });
+        if (!isCurrentWorkspace(this, revision)) return;
+      }
+      if (force || !this.gitStatusLoadedAt || Date.now() - this.gitStatusLoadedAt >= DIRECTORY_FRESH_MS) {
         this.scheduleGitStatusRefresh(80);
       }
     },
@@ -753,8 +904,10 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       if (!this.workspacePath) return false;
       const nextPath = normalizeAbsoluteFsPath(String(path ?? "").trim() || this.workspacePath);
       const sameDir = isSamePath(nextPath, this.directoryPath);
+      const revision = this.workspaceRevision;
       try {
-        await this.ensureDirectoryVisible(nextPath);
+        await this.ensureDirectoryVisible(nextPath, options);
+        if (!isCurrentWorkspace(this, revision)) return false;
         this.directoryPath = nextPath;
         this.entries = [...this.directoryEntriesByPath(nextPath)];
         this.directoryErrorText = this.directoryErrorByPath(nextPath);
@@ -763,6 +916,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
         }
         return true;
       } catch (error) {
+        if (!isCurrentWorkspace(this, revision)) return false;
         this.directoryErrorText = error instanceof Error ? error.message : String(error ?? "unknown error");
         return false;
       }
@@ -771,6 +925,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       this.syncWorkspace();
       if (!this.workspacePath) return false;
       const mode = opts?.mode === "light" ? "light" : "full";
+      const revision = this.workspaceRevision;
       const workspaceKey = toComparablePath(this.workspacePath);
       const currentDirectory = normalizeAbsoluteFsPath(this.directoryPath || this.workspacePath) || this.workspacePath;
       const baseTargets =
@@ -791,23 +946,27 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       this.expandDirectory(this.workspacePath);
       let succeeded = false;
       for (const path of reloadTargets) {
+        if (!isCurrentWorkspace(this, revision)) return false;
         try {
-          await this.ensureDirectoryLoaded(path, { force: true });
+          await this.ensureDirectoryLoaded(path);
           succeeded = true;
         } catch {}
       }
+      if (!isCurrentWorkspace(this, revision)) return false;
 
       const activeDirectory =
         normalizeAbsoluteFsPath(this.directoryPath || currentDirectory || this.workspacePath) || this.workspacePath;
       this.directoryPath = activeDirectory;
       this.entries = [...this.directoryEntriesByPath(activeDirectory)];
       this.directoryErrorText = this.directoryErrorByPath(activeDirectory);
-      this.scheduleGitStatusRefresh(120);
+      if (!this.gitStatusLoadedAt || Date.now() - this.gitStatusLoadedAt >= DIRECTORY_FRESH_MS)
+        this.scheduleGitStatusRefresh(120);
       return succeeded;
     },
     async toggleDirectoryExpanded(path: string): Promise<boolean> {
       const normalized = normalizeAbsoluteFsPath(path);
       if (!normalized) return false;
+      const revision = this.workspaceRevision;
       if (this.isDirectoryExpanded(normalized)) {
         this.collapseDirectory(normalized);
         if (isSamePath(this.directoryPath, normalized)) {
@@ -817,17 +976,20 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       }
       try {
         await this.ensureDirectoryVisible(normalized);
+        if (!isCurrentWorkspace(this, revision)) return false;
         this.directoryPath = normalized;
         this.entries = [...this.directoryEntriesByPath(normalized)];
         this.directoryErrorText = this.directoryErrorByPath(normalized);
         return true;
       } catch (error) {
+        if (!isCurrentWorkspace(this, revision)) return false;
         this.directoryErrorText = error instanceof Error ? error.message : String(error ?? "unknown error");
         return false;
       }
     },
     async openFile(path: string): Promise<boolean> {
       this.syncWorkspace();
+      const revision = this.workspaceRevision;
       if (!this.workspacePath) return false;
       const nextPath = normalizeAbsoluteFsPath(String(path ?? "").trim());
       if (!nextPath) return false;
@@ -836,17 +998,19 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
       if (existingTab) {
         this.activeEditorTabPath = existingTab;
         await this.revealFileInTree(existingTab, { setDirectory: true });
-        return true;
+        return isCurrentWorkspace(this, revision);
       }
 
       const parentDirectory = directoryPathForFile(nextPath);
       if (parentDirectory) {
         try {
           await this.ensureDirectoryVisible(parentDirectory);
+          if (!isCurrentWorkspace(this, revision)) return false;
           this.directoryPath = parentDirectory;
           this.entries = [...this.directoryEntriesByPath(parentDirectory)];
           this.directoryErrorText = this.directoryErrorByPath(parentDirectory);
         } catch (error) {
+          if (!isCurrentWorkspace(this, revision)) return false;
           this.directoryErrorText = error instanceof Error ? error.message : String(error ?? "unknown error");
         }
       }
@@ -867,6 +1031,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
 
       try {
         const metadata = await runtime.getWorkspaceMetadata(nextPath);
+        if (!isCurrentWorkspace(this, revision)) return false;
         let currentPath = resolveExistingTabPath(this.editorTabsByPath, tabPath);
         if (!currentPath) return false;
         const currentTab = this.editorTabsByPath[currentPath];
@@ -880,6 +1045,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
 
         if (isWorkspaceImagePath(nextPath)) {
           const imageDataUrl = await readLocalImageDataUrl(nextPath);
+          if (!isCurrentWorkspace(this, revision)) return false;
           currentPath = resolveExistingTabPath(this.editorTabsByPath, currentPath);
           if (!currentPath) return false;
           const finalPath = this.renameEditorTab(currentPath, nextPath);
@@ -904,6 +1070,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
         }
 
         const result = await runtime.readWorkspaceTextFile(nextPath);
+        if (!isCurrentWorkspace(this, revision)) return false;
         currentPath = resolveExistingTabPath(this.editorTabsByPath, currentPath);
         if (!currentPath) return false;
         const finalPath = this.renameEditorTab(currentPath, result.path);
@@ -927,6 +1094,7 @@ export const useWorkspaceFilesStore = defineStore("workspaceFiles", {
         this.activeEditorTabPath = finalPath;
         return true;
       } catch (error) {
+        if (!isCurrentWorkspace(this, revision)) return false;
         const currentPath = resolveExistingTabPath(this.editorTabsByPath, tabPath);
         if (currentPath) {
           const currentTab = this.editorTabsByPath[currentPath];

@@ -54,15 +54,17 @@ export type HistoryReplayWindowRuntimeDeps = {
 
 export type HistoryReplayWindowRuntime = {
   hydrateReplayFromCacheIfNeeded: (threadId: string) => boolean;
-  loadHistoryMessages: (threadId: string) => Promise<boolean>;
+  loadHistoryMessages: (threadId: string, options?: { isCurrent?: () => boolean }) => Promise<boolean>;
   loadOlderHistoryTurns: (threadId?: string) => Promise<boolean>;
 };
 
 async function parseSessionReplayEventsLazy(
   entries: Parameters<(typeof import("../../features/history/replayParsers"))["parseSessionReplayEvents"]>[0],
-  threadId: string
+  threadId: string,
+  isCurrent: () => boolean = () => true
 ): Promise<ReplayTimelineEvent[]> {
   const { parseSessionReplayEvents } = await import("../../features/history/replayParsers");
+  if (!isCurrent()) return [];
   return parseSessionReplayEvents(entries, threadId);
 }
 
@@ -348,14 +350,19 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
     });
   };
 
-  const loadReplayBatchFromSessions = async (threadIdValue: string, before = 0): Promise<ReplayBatchResult> => {
+  const loadReplayBatchFromSessions = async (
+    threadIdValue: string,
+    before = 0,
+    isCurrent: () => boolean = () => true
+  ): Promise<ReplayBatchResult | null> => {
     const page = await codexDesktop.history.getThreadEvents({
       threadId: threadIdValue,
       limit: historyReplayBatch,
       before,
     });
+    if (!isCurrent()) return null;
     const entries = Array.isArray(page?.entries) ? page.entries : [];
-    const events = entries.length > 0 ? await parseSessionReplayEventsLazy(entries, threadIdValue) : [];
+    const events = entries.length > 0 ? await parseSessionReplayEventsLazy(entries, threadIdValue, isCurrent) : [];
     return {
       loaded: Number.isFinite(page?.loaded) ? Math.max(0, Math.round(Number(page.loaded))) : 0,
       hasMore: Boolean(page?.hasMore),
@@ -371,6 +378,7 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
       before?: number;
       seedEvents?: ReplayTimelineEvent[];
       hasMorePages?: boolean;
+      isCurrent?: () => boolean;
     }
   ): Promise<{
     events: ThreadReplayCache;
@@ -383,10 +391,13 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
     let before = Number.isFinite(opts?.before) ? Math.max(0, Math.round(Number(opts?.before))) : 0;
     let hasMorePages = opts?.hasMorePages ?? true;
     let collected = dedupeReplayEvents(opts?.seedEvents ?? []);
+    const isCurrent = () => isReplayRequestSeqCurrent(threadIdValue, requestSeq) && (opts?.isCurrent?.() ?? true);
 
     while (countReplayTurns(collected) < turnLimit && hasMorePages) {
-      const { loaded, hasMore, events } = await loadReplayBatchFromSessions(threadIdValue, before);
-      if (!isReplayRequestSeqCurrent(threadIdValue, requestSeq)) return null;
+      if (!isCurrent()) return null;
+      const batch = await loadReplayBatchFromSessions(threadIdValue, before, isCurrent);
+      if (!batch || !isCurrent()) return null;
+      const { loaded, hasMore, events } = batch;
       collected = dedupeReplayEvents([...events, ...collected]);
 
       if (hasMore && loaded <= before) {
@@ -416,8 +427,11 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
     return turnIds.size;
   };
 
-  const loadHistoryMessages = async (threadIdValue: string): Promise<boolean> => {
-    if (!threadIdValue) return false;
+  const loadHistoryMessages = async (
+    threadIdValue: string,
+    options?: { isCurrent?: () => boolean }
+  ): Promise<boolean> => {
+    if (!threadIdValue || options?.isCurrent?.() === false) return false;
 
     const requestSeq = nextReplayRequestSeq(threadIdValue);
     replayCacheByThread.delete(threadIdValue);
@@ -426,9 +440,10 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
     try {
       const collected = await collectReplayEventsForTurnCount(threadIdValue, requestSeq, {
         turnLimit: historyReplayTurnSegments,
+        isCurrent: options?.isCurrent,
       });
       if (!collected) return false;
-      if (!isReplayRequestSeqCurrent(threadIdValue, requestSeq)) return false;
+      if (!isReplayRequestSeqCurrent(threadIdValue, requestSeq) || options?.isCurrent?.() === false) return false;
       const { olderEvents, visibleEvents } = splitReplayEventsByRecentTurns(
         collected.events,
         historyReplayTurnSegments
@@ -442,7 +457,7 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
       renderReplayEvents(threadIdValue, visibleEvents);
       return true;
     } catch (sessionsErr: unknown) {
-      if (!isReplayRequestSeqCurrent(threadIdValue, requestSeq)) return false;
+      if (!isReplayRequestSeqCurrent(threadIdValue, requestSeq) || options?.isCurrent?.() === false) return false;
       const sessionsMsg = readErrorMessage(sessionsErr);
       markReplayIncompatible(threadIdValue, translate("runtime.historyReplayFailed", { message: sessionsMsg }));
       return false;
@@ -457,6 +472,9 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
     if (pending) return pending;
 
     if (countTimelineTurnsForThread(threadId) >= timelineMaxVisibleTurns) return false;
+    const navigationRevision = runtimeStore.navigationRevision;
+    const isActive = () =>
+      runtimeStore.navigationRevision === navigationRevision && runtimeStore.timelineKey === threadId;
     const requestSeq = nextReplayRequestSeq(threadId);
 
     const task = (async () => {
@@ -468,9 +486,10 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
         before: currentState?.nextBefore ?? 0,
         seedEvents: currentState?.bufferedOlderEvents ?? [],
         hasMorePages: currentState?.hasMorePages ?? false,
+        isCurrent: isActive,
       });
       if (!collected) return false;
-      if (!isReplayRequestSeqCurrent(threadId, requestSeq)) return false;
+      if (!isReplayRequestSeqCurrent(threadId, requestSeq) || !isActive()) return false;
 
       const { olderEvents, visibleEvents } = splitReplayEventsByRecentTurns(
         collected.events,
@@ -492,13 +511,13 @@ export function createHistoryReplayWindowRuntime(deps: HistoryReplayWindowRuntim
       return true;
     })()
       .catch((sessionsErr: unknown) => {
-        if (!isReplayRequestSeqCurrent(threadId, requestSeq)) return false;
+        if (!isReplayRequestSeqCurrent(threadId, requestSeq) || !isActive()) return false;
         const sessionsMsg = readErrorMessage(sessionsErr);
         markReplayIncompatible(threadId, translate("runtime.historyReplayFailed", { message: sessionsMsg }));
         return false;
       })
       .finally(() => {
-        olderHistoryLoadPromiseByThread.delete(threadId);
+        if (olderHistoryLoadPromiseByThread.get(threadId) === task) olderHistoryLoadPromiseByThread.delete(threadId);
       });
 
     olderHistoryLoadPromiseByThread.set(threadId, task);
