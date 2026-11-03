@@ -71,6 +71,7 @@ import {
   renderMermaidDiagram,
   type MermaidTone,
 } from "../../features/timeline/mermaidRenderer";
+import { subscribeMermaidTone } from "../../features/timeline/mermaidToneSubscription";
 import {
   highlightCodeTokens,
   normalizeCodeLanguage,
@@ -116,13 +117,17 @@ const MERMAID_INLINE_ZOOM_MAX = 4;
 const MERMAID_INLINE_ZOOM_SENSITIVITY = 0.0015;
 const MERMAID_WHEEL_LINE_HEIGHT_PX = 16;
 const CODE_COPY_FEEDBACK_RESET_MS = 1600;
+// 语法高亮/路径高亮会遍历整棵 DOM，流式期间按稳定间隔节流执行。
+const ENHANCE_THROTTLE_MS = 220;
 type CopyButtonState = "idle" | "success" | "error";
 
-let toneObserver: MutationObserver | null = null;
+let unsubscribeTone: (() => void) | null = null;
 let viewportObserver: IntersectionObserver | null = null;
 let rootResizeObserver: ResizeObserver | null = null;
 let renderTimer: ReturnType<typeof setTimeout> | null = null;
 let layoutTimer: ReturnType<typeof setTimeout> | null = null;
+let enhanceTimer: ReturnType<typeof setTimeout> | null = null;
+let htmlSyncDeferred = false;
 let lightboxLayoutTimer: ReturnType<typeof setTimeout> | null = null;
 let lightboxCopyResetTimer: ReturnType<typeof setTimeout> | null = null;
 let renderTaskSeq = 0;
@@ -660,8 +665,32 @@ function syncRenderedHtml() {
   mermaidFailureByKey = nextMermaidFailures;
   mermaidSourceByKey = nextMermaidSources;
   enhanceCodeCopyButtons(host);
+  htmlSyncDeferred = false;
+  scheduleDeferredEnhancements();
+}
+
+// 只对可见内容做高亮增强：离屏消息在进入视口时再补一次。
+function runDeferredEnhancements() {
+  const host = rootRef.value;
+  if (!host || !isInViewport.value) return;
   scheduleEnhanceSyntaxHighlightedCodeBlocks(host);
   enhanceInlinePathHighlights(host);
+}
+
+function clearEnhanceTimer() {
+  if (enhanceTimer == null) return;
+  clearTimeout(enhanceTimer);
+  enhanceTimer = null;
+}
+
+function scheduleDeferredEnhancements() {
+  if (typeof window === "undefined") return;
+  // 已有待执行任务时不再重置计时器，否则持续流式输出会一直饿死高亮。
+  if (enhanceTimer != null) return;
+  enhanceTimer = window.setTimeout(() => {
+    enhanceTimer = null;
+    runDeferredEnhancements();
+  }, ENHANCE_THROTTLE_MS);
 }
 
 function createMermaidErrorElement(detail: string) {
@@ -1254,17 +1283,9 @@ onMounted(() => {
     rootResizeObserver.observe(rootRef.value);
   }
 
-  if (typeof MutationObserver === "undefined" || typeof document === "undefined") return;
-
-  toneObserver = new MutationObserver(() => {
-    const nextTone = readMermaidTone();
+  unsubscribeTone = subscribeMermaidTone((nextTone) => {
     if (nextTone === tone.value) return;
     tone.value = nextTone;
-  });
-
-  toneObserver.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-tone"],
   });
 
   if (typeof IntersectionObserver === "undefined" || !rootRef.value) return;
@@ -1275,10 +1296,14 @@ onMounted(() => {
       const next = Boolean(entry?.isIntersecting);
       if (next === isInViewport.value) return;
       isInViewport.value = next;
-      if (next) {
-        scheduleLayoutMermaidBlocks();
-        scheduleEnhanceMermaidBlocks();
+      if (!next) return;
+      if (htmlSyncDeferred) {
+        htmlSyncDeferred = false;
+        syncRenderedHtml();
       }
+      scheduleLayoutMermaidBlocks();
+      scheduleEnhanceMermaidBlocks();
+      scheduleDeferredEnhancements();
     },
     { root: null, rootMargin: `${MERMAID_VIEWPORT_MARGIN_PX}px 0px ${MERMAID_VIEWPORT_MARGIN_PX}px 0px` }
   );
@@ -1289,6 +1314,11 @@ watch(
   () => props.html,
   () => {
     closeMermaidLightbox();
+    // 离屏消息先跳过 DOM 重建，等进入视口时一次性同步，避免长对话里无谓的重排。
+    if (!isInViewport.value) {
+      htmlSyncDeferred = true;
+      return;
+    }
     syncRenderedHtml();
     scheduleLayoutMermaidBlocks();
     scheduleEnhanceMermaidBlocks();
@@ -1302,6 +1332,10 @@ watch(
     closeMermaidLightbox();
     clearFrozenMermaidBlocks();
     clearMermaidFailures();
+    if (!isInViewport.value) {
+      htmlSyncDeferred = true;
+      return;
+    }
     syncRenderedHtml();
     scheduleLayoutMermaidBlocks();
     scheduleEnhanceMermaidBlocks();
@@ -1329,13 +1363,14 @@ onBeforeUnmount(() => {
   mermaidSourceByKey.clear();
   clearRenderTimer();
   clearLayoutTimer();
+  clearEnhanceTimer();
   clearLightboxLayoutTimer();
   window.removeEventListener("resize", onWindowResize, true);
   window.removeEventListener("keydown", onMermaidLightboxWindowKeydown, true);
   rootResizeObserver?.disconnect();
   rootResizeObserver = null;
-  toneObserver?.disconnect();
-  toneObserver = null;
+  unsubscribeTone?.();
+  unsubscribeTone = null;
   viewportObserver?.disconnect();
   viewportObserver = null;
 });
