@@ -156,6 +156,7 @@ const SKIP_SELECTOR = [
   "[contenteditable='true']",
   "[data-i18n-skip]",
   ".agent-markdown-content",
+  ".agent-markdown-body",
   ".markdown-body",
   ".cm-editor",
 ].join(",");
@@ -168,6 +169,7 @@ const ATTRIBUTE_SKIP_SELECTOR = [
   "[contenteditable='true']",
   "[data-i18n-skip]",
   ".agent-markdown-content",
+  ".agent-markdown-body",
   ".markdown-body",
   ".cm-editor",
 ].join(",");
@@ -270,9 +272,20 @@ function translateAttributes(element: Element, language: UiLanguage): void {
   }
 }
 
-function walk(root: ParentNode, language: UiLanguage): void {
+function walk(root: Node, language: UiLanguage): void {
+  if (root.nodeType === Node.TEXT_NODE) {
+    translateTextNode(root as Text, language);
+    return;
+  }
+  if (root instanceof Element && root.closest(ATTRIBUTE_SKIP_SELECTOR)) return;
   if (root instanceof Element) translateAttributes(root, language);
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+    // FILTER_REJECT skips the whole subtree, including syntax-highlight spans.
+    acceptNode: (node) =>
+      node instanceof Element && node.matches(ATTRIBUTE_SKIP_SELECTOR)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT,
+  });
   let current = walker.nextNode();
   while (current) {
     if (current.nodeType === Node.TEXT_NODE) translateTextNode(current as Text, language);
@@ -282,18 +295,46 @@ function walk(root: ParentNode, language: UiLanguage): void {
 }
 
 export function installDomI18nFallback(getLanguage: () => UiLanguage): () => void {
-  let scheduled = false;
+  let scheduledFrame: number | null = null;
+  const pendingNodes = new Set<Node>();
+  const queueNode = (node: Node) => {
+    if (node instanceof Element && node.closest(ATTRIBUTE_SKIP_SELECTOR)) return;
+    if (node.nodeType === Node.TEXT_NODE && shouldSkipNode(node)) return;
+    pendingNodes.add(node);
+  };
+  const collect = (records: MutationRecord[]) => {
+    for (const record of records) {
+      if (record.type === "childList") {
+        for (const node of record.addedNodes) queueNode(node);
+      } else {
+        queueNode(record.target);
+      }
+    }
+  };
   const apply = () => {
-    scheduled = false;
-    walk(document.body, getLanguage());
+    scheduledFrame = null;
+    collect(observer.takeRecords());
+    const language = getLanguage();
+    for (const node of pendingNodes) {
+      if (!node.isConnected) continue;
+      let ancestor = node.parentNode;
+      while (ancestor && !pendingNodes.has(ancestor)) ancestor = ancestor.parentNode;
+      if (!ancestor) walk(node, language);
+    }
+    pendingNodes.clear();
+    // Translation writes are synchronous. Discard their records so they do not
+    // schedule another frame just to translate our own output.
+    observer.takeRecords();
   };
   const schedule = () => {
-    if (scheduled) return;
-    scheduled = true;
-    window.requestAnimationFrame(apply);
+    if (scheduledFrame != null || pendingNodes.size === 0) return;
+    scheduledFrame = window.requestAnimationFrame(apply);
   };
 
-  const observer = new MutationObserver(schedule);
+  const observer = new MutationObserver((records) => {
+    collect(records);
+    schedule();
+  });
   observer.observe(document.body, {
     childList: true,
     subtree: true,
@@ -301,9 +342,15 @@ export function installDomI18nFallback(getLanguage: () => UiLanguage): () => voi
     attributes: true,
     attributeFilter: TRANSLATABLE_ATTRIBUTES,
   });
+  queueNode(document.body);
   schedule();
 
-  return () => observer.disconnect();
+  return () => {
+    observer.disconnect();
+    if (scheduledFrame != null) window.cancelAnimationFrame(scheduledFrame);
+    scheduledFrame = null;
+    pendingNodes.clear();
+  };
 }
 
 export function refreshDomI18nFallback(language: UiLanguage): void {
