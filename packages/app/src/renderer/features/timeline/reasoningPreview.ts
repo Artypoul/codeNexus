@@ -97,16 +97,14 @@ export function toReasoningPreviewLine(value: string): string {
       continue;
     }
 
-    let line = trimmed
+    const line = trimmed
       .replace(/^(?:>\s?)+/, "")
       .replace(/^#{1,6}\s+/, "")
       .replace(/^(?:[-*+]|\d{1,9}[.)])\s+/, "");
-    line = normalizeTableRow(line);
-    line = stripInlineMarkdown(line);
-    line = line.replace(/\s+/g, " ").trim();
     if (line) lastLine = line;
   }
 
-  if (lastLine.length <= MAX_REASONING_PREVIEW_CHARS) return lastLine;
-  return `${lastLine.slice(0, MAX_REASONING_PREVIEW_CHARS - 1)}…`;
+  const normalized = stripInlineMarkdown(normalizeTableRow(lastLine)).replace(/\s+/g, " ").trim();
+  if (normalized.length <= MAX_REASONING_PREVIEW_CHARS) return normalized;
+  return `${normalized.slice(0, MAX_REASONING_PREVIEW_CHARS - 1)}…`;
 }
