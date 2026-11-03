@@ -1,12 +1,11 @@
 // 时间线 Store：管理对话/事件时间线数据、加载状态与 UI 定位等。
 import { defineStore } from "pinia";
 import type { TimelineEventItem, TimelineEventLevel } from "../domain/types";
+import { resolveStreamFlushPlan } from "./timelineFlushPolicy";
 
 const MAX_EVENT_PARAMS_CHARS = 60_000;
 const COMMAND_OUTPUT_MAX_CHARS = 20_000;
 const COMMAND_OUTPUT_MAX_LINES = 500;
-const STREAM_FLUSH_DELAY_MS = 33;
-const STREAM_FLUSH_FALLBACK_DELAY_MS = 120;
 
 type PendingAppend = {
   threadId: string;
@@ -28,6 +27,8 @@ const pendingAppendsByKey = new Map<string, PendingAppend>();
 let flushScheduled = false;
 let scheduledFlushRafId: number | null = null;
 let scheduledFlushTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let scheduledFlushRunner: (() => void) | null = null;
+let visibilityFlushBound = false;
 
 type ThreadTimelineState = {
   order: string[];
@@ -84,29 +85,55 @@ function ensureEventId(threadId: string, id: unknown): string {
   return `${threadId}:${Date.now()}:${Math.random().toString(16).slice(2)}`;
 }
 
+function canUseAnimationFrame(): boolean {
+  return typeof (globalThis as any).requestAnimationFrame === "function";
+}
+
+function isStreamFlushHidden(): boolean {
+  try {
+    return typeof document !== "undefined" && document.visibilityState === "hidden";
+  } catch {
+    return false;
+  }
+}
+
+function cancelScheduledFlush() {
+  if (scheduledFlushRafId != null && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(scheduledFlushRafId);
+  }
+  if (scheduledFlushTimeoutId != null) clearTimeout(scheduledFlushTimeoutId);
+  scheduledFlushRafId = null;
+  scheduledFlushTimeoutId = null;
+}
+
+// 窗口重新可见时立即补一次，避免后台降频漏掉最后一帧。
+function bindVisibilityFlush() {
+  if (visibilityFlushBound) return;
+  if (typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+  visibilityFlushBound = true;
+  document.addEventListener("visibilitychange", () => {
+    if (isStreamFlushHidden()) return;
+    scheduledFlushRunner?.();
+  });
+}
+
 function scheduleFlush(store: { flushPendingAppends: () => void }) {
   if (flushScheduled) return;
   flushScheduled = true;
   const runner = () => {
     if (!flushScheduled) return;
     flushScheduled = false;
-    if (scheduledFlushRafId != null && typeof cancelAnimationFrame === "function") {
-      cancelAnimationFrame(scheduledFlushRafId);
-    }
-    if (scheduledFlushTimeoutId != null) {
-      clearTimeout(scheduledFlushTimeoutId);
-    }
-    scheduledFlushRafId = null;
-    scheduledFlushTimeoutId = null;
+    scheduledFlushRunner = null;
+    cancelScheduledFlush();
     store.flushPendingAppends();
   };
-  if (typeof (globalThis as any).requestAnimationFrame === "function") {
+  scheduledFlushRunner = runner;
+  bindVisibilityFlush();
+  const plan = resolveStreamFlushPlan({ hidden: isStreamFlushHidden(), rafAvailable: canUseAnimationFrame() });
+  if (plan.useRaf) {
     scheduledFlushRafId = (globalThis as any).requestAnimationFrame(runner);
   }
-  scheduledFlushTimeoutId = setTimeout(
-    runner,
-    scheduledFlushRafId == null ? STREAM_FLUSH_DELAY_MS : STREAM_FLUSH_FALLBACK_DELAY_MS
-  );
+  scheduledFlushTimeoutId = setTimeout(runner, plan.delayMs);
 }
 
 function createEmptyThreadState(): ThreadTimelineState {
