@@ -274,7 +274,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     getApprovalsReviewer: () => configStore.draft.approvalsReviewer,
     normalizeWorkspacePath,
   });
-  const { resolveCurrentInstructionProfile, buildThreadStartParamsForModel } = threadStartParamsRuntime;
+  const { resolveCurrentDeveloperInstructions, buildThreadStartParamsForModel } = threadStartParamsRuntime;
 
   const rendererCacheManagementRuntime = createRendererCacheManagementRuntime({
     threadContentCacheByKey,
@@ -378,6 +378,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     ],
     normalizeWorkspacePath,
     buildThreadStartParamsForModel,
+    getDeveloperInstructions: resolveCurrentDeveloperInstructions,
     findThreadListItem,
     setThreadWorkspace,
     clearThreadWorkspace,
@@ -632,6 +633,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     resumePromisesByThread,
     getWorkspaceForThread,
     ensureServerForWorkspace,
+    getDeveloperInstructions: resolveCurrentDeveloperInstructions,
     pushEvent,
   });
   const { ensureThreadResumed, markThreadResumed, clearThreadResumeState } = threadResumeRuntime;
@@ -784,7 +786,6 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     resolveEffort: (modelValue, effort) => resolveEffortValue(modelValue, effort),
     getApprovalPolicy: () => configStore.draft.approvalPolicy,
     getApprovalsReviewer: () => configStore.draft.approvalsReviewer,
-    getInstructionProfile: resolveCurrentInstructionProfile,
     toCodexUserInputs,
   });
   const { startTurnWithInput } = turnStartRuntime;
@@ -836,7 +837,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
       return false;
     }
     await modelCatalogStore.ensureModels({ maxAgeMs: 60_000 });
-    const requestedModel = resolveModelValue(rawModel);
+    let requestedModel = resolveModelValue(rawModel);
     if (!requestedModel) {
       showToast({
         kind: "error",
@@ -845,7 +846,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
       });
       return false;
     }
-    const requestedReasoningEffort = resolveEffortValue(requestedModel, rawReasoningEffort);
+    let requestedReasoningEffort = resolveEffortValue(requestedModel, rawReasoningEffort);
     if (!runtimeStore.currentThreadId) {
       void createThread();
     }
@@ -930,6 +931,15 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
         return false;
       }
       setThreadWorkspace(threadId, threadWorkspace);
+    }
+    // 旧线程没有本地模型选择时，以恢复后的实际模型为准，避免再次用全局默认模型覆盖它。
+    if (!rawModel && compatibility.model !== requestedModel) {
+      requestedModel = compatibility.model;
+      requestedReasoningEffort = resolveEffortValue(requestedModel, rawReasoningEffort);
+      if (String(runtimeStore.currentThreadId ?? "").trim() === threadId) {
+        runtimeStore.model = requestedModel;
+        runtimeStore.saveThreadComposeState(threadId, { save: true });
+      }
     }
 
     seedThreadTitleFromDraft({

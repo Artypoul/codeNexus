@@ -9,6 +9,7 @@ export type ThreadResumeRuntimeDeps = {
   resumePromisesByThread: Map<string, Promise<boolean>>;
   getWorkspaceForThread: (threadId: string) => string;
   ensureServerForWorkspace: (workspacePath: string) => Promise<string>;
+  getDeveloperInstructions: () => string | null;
   pushEvent: PushEvent;
 };
 
@@ -27,7 +28,14 @@ function readErrorMessage(error: unknown): string {
 }
 
 export function createThreadResumeRuntime(deps: ThreadResumeRuntimeDeps): ThreadResumeRuntime {
-  const { resumedThreadIds, resumePromisesByThread, getWorkspaceForThread, ensureServerForWorkspace, pushEvent } = deps;
+  const {
+    resumedThreadIds,
+    resumePromisesByThread,
+    getWorkspaceForThread,
+    ensureServerForWorkspace,
+    getDeveloperInstructions,
+    pushEvent,
+  } = deps;
 
   const markThreadResumed = (threadIdValue: string) => {
     const threadId = String(threadIdValue ?? "").trim();
@@ -53,7 +61,11 @@ export function createThreadResumeRuntime(deps: ThreadResumeRuntimeDeps): Thread
         const workspace = getWorkspaceForThread(tid);
         const serverId = await ensureServerForWorkspace(workspace);
         if (!serverId) return false;
-        const resumeParams: ThreadResumeParams = { threadId: tid };
+        const developerInstructions = String(getDeveloperInstructions() ?? "").trim();
+        const resumeParams: ThreadResumeParams = {
+          threadId: tid,
+          ...(developerInstructions ? { developerInstructions } : {}),
+        };
         await codexDesktop.codexServer.rpc({ serverId, method: "thread/resume", params: resumeParams });
         resumedThreadIds.add(tid);
         return true;

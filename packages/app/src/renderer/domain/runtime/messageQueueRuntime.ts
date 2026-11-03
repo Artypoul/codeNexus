@@ -27,6 +27,7 @@ type TurnStart = (params: {
   threadWorkspace: string;
   threadServerId: string;
   input: UserTurnInput[];
+  model?: string;
 }) => Promise<{ ok: true } | { ok: false; error: string }>;
 
 type EnsureThreadModelToolCompatibility = (args: {
@@ -34,7 +35,7 @@ type EnsureThreadModelToolCompatibility = (args: {
   threadWorkspace: string;
   threadServerId: string;
   model: string;
-}) => Promise<{ ok: true; threadId: string } | { ok: false; error: string }>;
+}) => Promise<{ ok: true; threadId: string; model: string } | { ok: false; error: string }>;
 
 export type MessageQueueRuntimeDeps = {
   runtimeStore: RuntimeStore;
@@ -155,11 +156,15 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
       clearThreadPreparingEvent(threadId);
       return;
     }
+    // 只有当前线程还没有显式模型选择时，才回落到服务端线程的实际模型。
+    // 否则会把用户在输入框里刚选好的模型覆盖回旧值。
+    const localModel = String(runtimeStore.model ?? "").trim();
+    let requestedModel = resolveModel(localModel);
     const compatibility = await ensureThreadModelToolCompatibility({
       threadId,
       threadWorkspace,
       threadServerId,
-      model: resolveModel(runtimeStore.model),
+      model: requestedModel,
     });
     if (!compatibility.ok) {
       messageQueueStore.markStatus(threadId, next.id, "failed");
@@ -177,6 +182,13 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
         patchLocalEvent({ localState: "failed", level: "error" });
         clearThreadPreparingEvent(threadId);
         return;
+      }
+    }
+    if (!localModel && compatibility.model !== requestedModel) {
+      requestedModel = compatibility.model;
+      if (String(runtimeStore.currentThreadId ?? "").trim() === threadId) {
+        runtimeStore.model = requestedModel;
+        runtimeStore.saveThreadComposeState(threadId, { save: true });
       }
     }
     const resumed = await ensureThreadResumed(threadId);
@@ -201,7 +213,13 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
     if (threadStore.hasLocalThread(threadId)) {
       upsertThreadPreparingEvent(threadId);
     }
-    const started = await startTurnWithInput({ threadId, threadWorkspace, threadServerId, input: queueInput });
+    const started = await startTurnWithInput({
+      threadId,
+      threadWorkspace,
+      threadServerId,
+      input: queueInput,
+      model: requestedModel,
+    });
     if (started.ok) {
       messageQueueStore.remove(threadId, next.id);
       patchLocalEvent({ localState: "sent", level: "info" });

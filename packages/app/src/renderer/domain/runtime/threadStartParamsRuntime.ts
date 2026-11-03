@@ -28,6 +28,7 @@ export type ThreadStartParamsRuntimeDeps = {
 
 export type ThreadStartParamsRuntime = {
   resolveCurrentInstructionProfile: () => CodexInstructionProfile;
+  resolveCurrentDeveloperInstructions: () => string | null;
   buildThreadStartParamsForModel: (args: { model: string; workspace: string; sandboxMode: string }) => {
     params: ThreadStartParams;
     configOverrides: ThreadStartConfigOverrides | null;
@@ -37,6 +38,10 @@ export type ThreadStartParamsRuntime = {
 export function createThreadStartParamsRuntime(deps: ThreadStartParamsRuntimeDeps): ThreadStartParamsRuntime {
   const resolveCurrentInstructionProfile = (): CodexInstructionProfile => {
     return resolveCodexInstructionProfileForMainView(deps.getMainView());
+  };
+
+  const resolveCurrentDeveloperInstructions = (): string | null => {
+    return buildDeveloperInstructionsForProfile(resolveCurrentInstructionProfile());
   };
 
   const buildThreadStartParamsForModel: ThreadStartParamsRuntime["buildThreadStartParamsForModel"] = (args) => {
@@ -49,7 +54,7 @@ export function createThreadStartParamsRuntime(deps: ThreadStartParamsRuntimeDep
     const dynamicTools = dynamicToolRegistry.buildSpecsForNames(
       buildDynamicToolNamesForInstructionProfile(instructionProfile)
     ) as ThreadStartParams["dynamicTools"];
-    const developerInstructions = buildDeveloperInstructionsForProfile(instructionProfile);
+    const developerInstructions = resolveCurrentDeveloperInstructions();
 
     return {
       configOverrides,
@@ -67,5 +72,5 @@ export function createThreadStartParamsRuntime(deps: ThreadStartParamsRuntimeDep
     };
   };
 
-  return { resolveCurrentInstructionProfile, buildThreadStartParamsForModel };
+  return { resolveCurrentInstructionProfile, resolveCurrentDeveloperInstructions, buildThreadStartParamsForModel };
 }

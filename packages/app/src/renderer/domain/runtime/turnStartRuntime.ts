@@ -3,10 +3,6 @@ import { sandboxPolicyFromUi } from "../../shared/sandboxPolicy";
 import type { TurnStartParams } from "@codenexus/generated/codex-app-server/v2/TurnStartParams";
 import type { UserInput as CodexUserInput } from "@codenexus/generated/codex-app-server/v2/UserInput";
 import type { AskForApproval } from "@codenexus/generated/codex-app-server/v2/AskForApproval";
-import {
-  buildDeveloperInstructionsForProfile,
-  type CodexInstructionProfile,
-} from "@codenexus/shared/codexInstructionProfiles";
 import type { UserTurnInput } from "../types";
 import {
   normalizeApprovalPolicy,
@@ -27,7 +23,6 @@ export type TurnStartRuntimeDeps = {
   resolveEffort: (modelValue: string, effort: string) => string;
   getApprovalPolicy: () => AskForApproval;
   getApprovalsReviewer: () => unknown;
-  getInstructionProfile: () => CodexInstructionProfile | null;
   toCodexUserInputs: (values: UserTurnInput[]) => CodexUserInput[];
 };
 
@@ -44,14 +39,12 @@ export type TurnStartRuntime = {
     approvalsReviewer?: TurnStartParams["approvalsReviewer"];
     sandboxMode?: string;
     composeModeOverride?: ComposeMode;
-    instructionProfile?: CodexInstructionProfile | null;
   }) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 export function createTurnStartRuntime(deps: TurnStartRuntimeDeps): TurnStartRuntime {
   const startTurnWithInput: TurnStartRuntime["startTurnWithInput"] = async (params) => {
     const composeMode = params.composeModeOverride ?? deps.getComposeMode();
-    const wantsPlan = composeMode === "plan";
     const requestedModel = deps.resolveModel(String(params.model ?? deps.getModel()).trim());
     if (!requestedModel) {
       return { ok: false as const, error: "no model available" };
@@ -70,16 +63,15 @@ export function createTurnStartRuntime(deps: TurnStartRuntimeDeps): TurnStartRun
       ? normalizeApprovalsReviewer(params.approvalsReviewer)
       : normalizeApprovalsReviewer(deps.getApprovalsReviewer());
     const requestedSandboxMode = normalizeSandboxMode(params.sandboxMode ?? deps.getSandboxMode());
-    const requestedInstructionProfile = params.instructionProfile ?? deps.getInstructionProfile();
-    const developerInstructions = wantsPlan ? null : buildDeveloperInstructionsForProfile(requestedInstructionProfile);
 
     // collaborationMode 会影响“本回合及后续回合”的行为，因此即使切回 Agent 也要显式发送 default。
+    // 自定义工具说明由 thread 级 developerInstructions 注入；这里保持 null 以使用 App Server 内置模式指令。
     const collaborationMode = {
       mode: composeMode,
       settings: {
         model: requestedModel,
         reasoning_effort: requestedEffort || null,
-        developer_instructions: developerInstructions,
+        developer_instructions: null,
       },
     };
 

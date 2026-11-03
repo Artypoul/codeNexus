@@ -33,7 +33,9 @@ type ThreadStartBuildResult = {
   configOverrides: ThreadStartConfigOverrides | null;
 };
 
-type EnsureThreadModelToolCompatibilityResult = { ok: true; threadId: string } | { ok: false; error: string };
+type EnsureThreadModelToolCompatibilityResult =
+  | { ok: true; threadId: string; model: string }
+  | { ok: false; error: string };
 
 export type ThreadModelCompatibilityRuntimeDeps = {
   runtimeStore: RuntimeStore;
@@ -49,6 +51,7 @@ export type ThreadModelCompatibilityRuntimeDeps = {
     workspace: string;
     sandboxMode: string;
   }) => ThreadStartBuildResult;
+  getDeveloperInstructions: () => string | null;
   findThreadListItem: (threadId: string) => ThreadHistoryItem | LocalThreadItem | undefined;
   setThreadWorkspace: (threadId: string, workspacePath: string | undefined) => void;
   clearThreadWorkspace: (threadId: string) => void;
@@ -59,7 +62,8 @@ export type ThreadModelCompatibilityRuntimeDeps = {
 export type ThreadModelCompatibilityRuntime = {
   rememberThreadStartConfigOverrides: (
     threadId: string,
-    overrides: ThreadStartConfigOverrides | null | undefined
+    overrides: ThreadStartConfigOverrides | null | undefined,
+    model?: string
   ) => void;
   clearThreadStartConfigOverrides: (threadId: string) => void;
   ensureThreadModelToolCompatibility: (args: {
@@ -100,6 +104,7 @@ export function createThreadModelCompatibilityRuntime(
     threadScopedCaches,
     normalizeWorkspacePath,
     buildThreadStartParamsForModel,
+    getDeveloperInstructions,
     findThreadListItem,
     setThreadWorkspace,
     clearThreadWorkspace,
@@ -108,21 +113,30 @@ export function createThreadModelCompatibilityRuntime(
   } = deps;
 
   const threadStartConfigOverridesByThreadId = new Map<string, ThreadStartConfigOverrides>();
+  const threadEffectiveModelByThreadId = new Map<string, string>();
 
   const rememberThreadStartConfigOverrides = (
     threadIdValue: string,
-    overrides: ThreadStartConfigOverrides | null | undefined
+    overrides: ThreadStartConfigOverrides | null | undefined,
+    modelValue?: string
   ) => {
     const threadId = String(threadIdValue ?? "").trim();
     if (!threadId) return;
-    if (overrides) threadStartConfigOverridesByThreadId.set(threadId, { ...overrides });
-    else threadStartConfigOverridesByThreadId.delete(threadId);
+    if (overrides) {
+      threadStartConfigOverridesByThreadId.set(threadId, { ...overrides });
+      const model = normalizeModelName(modelValue);
+      if (model) threadEffectiveModelByThreadId.set(threadId, model);
+    } else {
+      threadStartConfigOverridesByThreadId.delete(threadId);
+      threadEffectiveModelByThreadId.delete(threadId);
+    }
   };
 
   const clearThreadStartConfigOverrides = (threadIdValue: string) => {
     const threadId = String(threadIdValue ?? "").trim();
     if (!threadId) return;
     threadStartConfigOverridesByThreadId.delete(threadId);
+    threadEffectiveModelByThreadId.delete(threadId);
   };
 
   const hasThreadModelToolConfigForModel = (threadIdValue: string, modelValue: string): boolean => {
@@ -216,7 +230,7 @@ export function createThreadModelCompatibilityRuntime(
     resumedThreadIds.add(newThreadId);
     resumePromisesByThread.delete(oldThreadId);
     clearThreadStartConfigOverrides(oldThreadId);
-    rememberThreadStartConfigOverrides(newThreadId, configOverrides);
+    rememberThreadStartConfigOverrides(newThreadId, configOverrides, model);
     for (const cache of threadScopedCaches) cache.delete(oldThreadId);
     setThreadWorkspace(newThreadId, workspace);
     clearThreadWorkspace(oldThreadId);
@@ -238,29 +252,29 @@ export function createThreadModelCompatibilityRuntime(
     threadServerId: string;
     model: string;
     configOverrides: ThreadStartConfigOverrides;
-  }): Promise<boolean> => {
+  }): Promise<{ ok: true; model: string } | { ok: false }> => {
     const threadId = String(args.threadId ?? "").trim();
     const workspace = normalizeWorkspacePath(args.threadWorkspace);
     const serverId = String(args.threadServerId ?? "").trim();
     const model = normalizeModelName(args.model);
-    if (!threadId || !workspace || !serverId) return false;
+    if (!threadId || !workspace || !serverId) return { ok: false };
     try {
       const resumeParams: ThreadResumeParams = {
         threadId,
-        model,
         cwd: workspace,
         config: { ...args.configOverrides },
       };
+      const developerInstructions = String(getDeveloperInstructions() ?? "").trim();
+      if (developerInstructions) resumeParams.developerInstructions = developerInstructions;
       const res = await codexDesktop.codexServer.rpc({ serverId, method: "thread/resume", params: resumeParams });
-      const result = (res.result ?? {}) as { model?: unknown };
-      const appliedModel = normalizeModelName(result.model ?? model);
-      if (appliedModel !== model) return false;
+      const result = (res.result ?? {}) as { model?: unknown; thread?: { model?: unknown } };
+      const appliedModel = normalizeModelName(result.model) || normalizeModelName(result.thread?.model) || model;
       resumedThreadIds.add(threadId);
-      rememberThreadStartConfigOverrides(threadId, args.configOverrides);
-      return true;
+      rememberThreadStartConfigOverrides(threadId, args.configOverrides, appliedModel);
+      return { ok: true, model: appliedModel };
     } catch (error: unknown) {
       pushEvent("thread:resume:error", readErrorMessage(error), { threadId, level: "error" });
-      return false;
+      return { ok: false };
     }
   };
 
@@ -273,8 +287,10 @@ export function createThreadModelCompatibilityRuntime(
     const threadId = String(args.threadId ?? "").trim();
     const model = normalizeModelName(args.model);
     const configOverrides = buildThreadStartConfigOverridesForModel(model);
-    if (!configOverrides) return { ok: true, threadId };
-    if (hasThreadModelToolConfigForModel(threadId, model)) return { ok: true, threadId };
+    if (!configOverrides) return { ok: true, threadId, model };
+    if (hasThreadModelToolConfigForModel(threadId, model)) {
+      return { ok: true, threadId, model: threadEffectiveModelByThreadId.get(threadId) || model };
+    }
 
     if (canRecreateEmptyUnpersistedThreadForModelConfig(threadId)) {
       try {
@@ -284,7 +300,7 @@ export function createThreadModelCompatibilityRuntime(
           threadServerId: args.threadServerId,
           model,
         });
-        return { ok: true, threadId: nextThreadId };
+        return { ok: true, threadId: nextThreadId, model };
       } catch (error: unknown) {
         return {
           ok: false,
@@ -300,7 +316,9 @@ export function createThreadModelCompatibilityRuntime(
       model,
       configOverrides,
     });
-    if (resumed && hasThreadModelToolConfigForModel(threadId, model)) return { ok: true, threadId };
+    if (resumed.ok && hasThreadModelToolConfigForModel(threadId, resumed.model)) {
+      return { ok: true, threadId, model: resumed.model };
+    }
 
     return {
       ok: false,
