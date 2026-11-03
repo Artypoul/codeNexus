@@ -1,5 +1,6 @@
 // Agent Markdown 渲染 Hook：把增量/流式 markdown 渲染为安全 HTML，并提供缓存清理。
 import { onBeforeUnmount, shallowRef, watch } from "vue";
+import { createLruCache } from "../../shared/lruCache";
 import type { TimelineEventItem } from "../../domain/types";
 import { stripInlineMemoryCitation } from "../../domain/taggedMessageBlocks";
 import { getMarkdownRendererVersion, renderMarkdownToSafeHtml, whenMarkdownRendererReady } from "./markdownRenderer";
@@ -169,7 +170,17 @@ function resolveRenderIntervalMs(textLength: number): number {
 // 维护事件级 markdown 渲染缓存，避免高频 delta 触发抖动重渲染。
 export function useAgentMarkdownRenderer(params: { key: () => string }) {
   const agentMarkdownRenderTick = shallowRef(0);
-  const agentMarkdownByEventId = new Map<string, AgentMarkdownRenderEntry>();
+  let agentMarkdownByEventId = new Map<string, AgentMarkdownRenderEntry>();
+  let activeKey = params.key();
+  // Keep three inactive threads plus the active thread. Weight counts retained
+  // text/HTML characters, so unusually large replies cannot fill every slot.
+  const inactiveThreads = createLruCache<string, Map<string, AgentMarkdownRenderEntry>>(3, 3_000_000, (entries) =>
+    [...entries.values()].reduce(
+      (sum, entry) =>
+        sum + entry.renderedText.length + entry.renderedHtml.length + entry.headText.length + entry.headHtml.length,
+      0
+    )
+  );
   let markdownReadyListenerRegistered = false;
 
   const scheduleMarkdownReadyRefresh = () => {
@@ -288,11 +299,14 @@ export function useAgentMarkdownRenderer(params: { key: () => string }) {
 
   // 清空事件缓存与全局 markdown 缓存。
   const clear = () => {
-    for (const entry of agentMarkdownByEventId.values()) {
-      clearEntryTimer(entry);
-      clearSettleTimer(entry);
+    for (const entries of [agentMarkdownByEventId, ...inactiveThreads.values()]) {
+      for (const entry of entries.values()) {
+        clearEntryTimer(entry);
+        clearSettleTimer(entry);
+      }
     }
     agentMarkdownByEventId.clear();
+    inactiveThreads.clear();
     // 不清空全局 markdown 文本缓存：它自带上限与淘汰策略，频繁清空会导致切线程回放时反复重渲染。
   };
 
@@ -323,6 +337,7 @@ export function useAgentMarkdownRenderer(params: { key: () => string }) {
     }
 
     if (text === entry.renderedText && entry.pendingText == null && entry.rendererVersion === currentRendererVersion) {
+      if (entry.partial && entry.settleTimer == null) scheduleSettleRender(entry);
       return entry.renderedHtml;
     }
 
@@ -361,9 +376,19 @@ export function useAgentMarkdownRenderer(params: { key: () => string }) {
 
   watch(
     () => params.key(),
-    () => {
-      clear();
-    }
+    (key) => {
+      for (const entry of agentMarkdownByEventId.values()) {
+        clearEntryTimer(entry);
+        clearSettleTimer(entry);
+        entry.pendingText = null;
+      }
+      const restored = inactiveThreads.get(key);
+      inactiveThreads.delete(key);
+      inactiveThreads.set(activeKey, agentMarkdownByEventId);
+      agentMarkdownByEventId = restored ?? new Map();
+      activeKey = key;
+    },
+    { flush: "sync" }
   );
 
   onBeforeUnmount(() => {

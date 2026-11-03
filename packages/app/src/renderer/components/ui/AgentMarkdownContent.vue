@@ -72,17 +72,13 @@ import {
   type MermaidTone,
 } from "../../features/timeline/mermaidRenderer";
 import { subscribeMermaidTone } from "../../features/timeline/mermaidToneSubscription";
+import { createMarkdownBlockPatcher } from "../../features/timeline/markdownBlockPatcher";
 import {
   highlightCodeTokens,
   normalizeCodeLanguage,
   type SyntaxHighlightToken,
 } from "../../features/timeline/renderModel/codeSyntaxHighlight";
-import {
-  isPathLikeStrict,
-  parsePathToken,
-  summarizeParsedPath,
-  tokenizePathLikeText,
-} from "../../domain/pathHighlight";
+import { isPathLikeStrict, parsePathToken, tokenizePathLikeText } from "../../domain/pathHighlight";
 import { showToast } from "../../ui/toast";
 
 defineOptions({
@@ -146,6 +142,7 @@ let mermaidFailureByKey = new Map<string, string>();
 let mermaidSourceByKey = new Map<string, string>();
 let codeCopyResetTimerByButton = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>();
 const isInViewport = ref(true);
+const markdownBlockPatcher = createMarkdownBlockPatcher();
 
 let lightboxDragPointerId: number | null = null;
 let lightboxDragStartClientX = 0;
@@ -421,23 +418,11 @@ function readHasSelection(): boolean {
 type PathCandidateFromTextNode = {
   node: Text;
   tokens: ReturnType<typeof tokenizePathLikeText>;
-  pathValues: string[];
 };
 
 function enhanceInlinePathHighlights(host: HTMLElement) {
   if (typeof document === "undefined") return;
   if (typeof NodeFilter === "undefined") return;
-
-  const parsedByFull = new Map<string, ReturnType<typeof parsePathToken>>();
-  const basenameCount = new Map<string, number>();
-
-  const noteBasename = (full: string) => {
-    const parsed = parsePathToken(full);
-    if (!parsed) return;
-    parsedByFull.set(full, parsed);
-    const key = parsed.basename.toLowerCase();
-    basenameCount.set(key, (basenameCount.get(key) ?? 0) + 1);
-  };
 
   const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
   const textCandidates: PathCandidateFromTextNode[] = [];
@@ -450,45 +435,17 @@ function enhanceInlinePathHighlights(host: HTMLElement) {
     if (!value.includes("/") && !value.includes("\\")) continue;
     if (hasInlinePathForbiddenAncestor(node)) continue;
     const tokens = tokenizePathLikeText(value);
-    const pathValues = tokens.filter((t) => t.kind === "path").map((t) => t.value);
-    if (pathValues.length === 0) continue;
-    for (const full of pathValues) noteBasename(full);
-    textCandidates.push({ node, tokens, pathValues });
+    if (!tokens.some((token) => token.kind === "path")) continue;
+    textCandidates.push({ node, tokens });
   }
 
   const inlineCodeCandidates = [
     ...host.querySelectorAll<HTMLElement>("code:not(pre code):not(.agent-inline-path)"),
-  ].filter((node) => !node.closest(".agent-mermaid-block"));
+  ].filter((node) => !node.closest("a") && !node.closest(".agent-mermaid-block"));
   for (const code of inlineCodeCandidates) {
     const raw = String(code.textContent ?? "").trim();
-    if (!raw) continue;
-    if (!isPathLikeStrict(raw)) continue;
-    noteBasename(raw);
-  }
-
-  const segmentCountFor = (full: string): number => {
-    const parsed = parsedByFull.get(full);
-    if (!parsed) return 1;
-    const key = parsed.basename.toLowerCase();
-    const collisions = basenameCount.get(key) ?? 0;
-    if (collisions <= 1) return 1;
-    if (parsed.segments.length >= 3) return 2;
-    return 1;
-  };
-
-  for (const code of inlineCodeCandidates) {
-    const raw = String(code.textContent ?? "").trim();
-    if (!raw) continue;
-    if (!isPathLikeStrict(raw)) continue;
-    const parsed = parsedByFull.get(raw);
-    if (!parsed) continue;
-    const segments = segmentCountFor(raw);
-    const display = summarizeParsedPath(parsed, segments);
-    code.classList.add("agent-inline-path");
-    code.dataset.agentPathFull = parsed.full;
-    code.setAttribute("role", "button");
-    code.setAttribute("tabindex", "0");
-    code.textContent = display;
+    if (!raw || !isPathLikeStrict(raw)) continue;
+    markPathElement(code, raw);
   }
 
   for (const candidate of textCandidates) {
@@ -496,19 +453,14 @@ function enhanceInlinePathHighlights(host: HTMLElement) {
     for (const token of candidate.tokens) {
       if (!token.value) continue;
       if (token.kind === "path") {
-        const parsed = parsedByFull.get(token.value);
+        const parsed = parsePathToken(token.value);
         if (!parsed) {
           fragment.append(document.createTextNode(token.value));
           continue;
         }
-        const segments = segmentCountFor(token.value);
-        const display = summarizeParsedPath(parsed, segments);
         const code = document.createElement("code");
-        code.className = "agent-inline-path";
-        code.dataset.agentPathFull = parsed.full;
-        code.setAttribute("role", "button");
-        code.setAttribute("tabindex", "0");
-        code.textContent = display;
+        markPathElement(code, parsed.full);
+        code.textContent = parsed.full;
         fragment.append(code);
         continue;
       }
@@ -518,6 +470,15 @@ function enhanceInlinePathHighlights(host: HTMLElement) {
     if (!parent) continue;
     parent.replaceChild(fragment, candidate.node);
   }
+}
+
+function markPathElement(element: HTMLElement, fullPath: string) {
+  element.classList.add("agent-inline-path");
+  element.dataset.agentPathFull = fullPath;
+  element.setAttribute("role", "button");
+  element.setAttribute("tabindex", "0");
+  element.setAttribute("title", fullPath);
+  element.setAttribute("aria-label", fullPath);
 }
 
 async function onCodeCopyAction(button: HTMLButtonElement) {
@@ -620,7 +581,6 @@ function syncRenderedHtml() {
   const host = rootRef.value;
   if (!host) return;
   clearMermaidDragState();
-  clearAllCodeCopyResetTimers();
 
   // Keep diagram SVG blocks stable while the parent HTML updates (streaming output).
   const template = document.createElement("div");
@@ -644,27 +604,31 @@ function syncRenderedHtml() {
 
     const blockKey = createMermaidBlockKey(source, occurrence);
     nextMermaidSources.set(blockKey, source);
-    const frozenBlock = frozenMermaidBlocks.get(blockKey);
-    if (frozenBlock) {
-      nextFrozenMermaidBlocks.set(blockKey, frozenBlock);
-      preElement.replaceWith(frozenBlock);
-      continue;
-    }
-
     preElement.dataset.agentMermaidKey = blockKey;
-
+    const frozenBlock = frozenMermaidBlocks.get(blockKey);
+    if (frozenBlock) nextFrozenMermaidBlocks.set(blockKey, frozenBlock);
     const failure = mermaidFailureByKey.get(blockKey);
-    if (failure) {
-      nextMermaidFailures.set(blockKey, failure);
-      preElement.insertAdjacentElement("beforebegin", createMermaidErrorElement(failure));
-    }
+    if (failure) nextMermaidFailures.set(blockKey, failure);
   }
 
-  host.replaceChildren(...Array.from(template.childNodes));
+  markdownBlockPatcher.patch(host, template, (stage) => {
+    for (const pre of stage.querySelectorAll<HTMLElement>("pre[data-agent-mermaid-key]")) {
+      const key = pre.dataset.agentMermaidKey ?? "";
+      const frozenBlock = nextFrozenMermaidBlocks.get(key);
+      if (frozenBlock) pre.replaceWith(frozenBlock);
+      else {
+        const failure = nextMermaidFailures.get(key);
+        if (failure) pre.insertAdjacentElement("beforebegin", createMermaidErrorElement(failure));
+      }
+    }
+    enhanceCodeCopyButtons(stage);
+  });
+  for (const button of codeCopyResetTimerByButton.keys()) {
+    if (!button.isConnected) clearCodeCopyResetTimer(button);
+  }
   frozenMermaidBlocks = nextFrozenMermaidBlocks;
   mermaidFailureByKey = nextMermaidFailures;
   mermaidSourceByKey = nextMermaidSources;
-  enhanceCodeCopyButtons(host);
   htmlSyncDeferred = false;
   scheduleDeferredEnhancements();
 }
@@ -1246,6 +1210,7 @@ async function enhanceMermaidBlocks(seq: number) {
         mermaidFailureByKey.delete(blockKey);
       }
       preElement.replaceWith(renderElement);
+      markdownBlockPatcher.trackReplacement(preElement, [renderElement]);
       layoutMermaidBlock(renderElement);
     } catch (error) {
       if (seq !== renderTaskSeq) return;
@@ -1253,6 +1218,7 @@ async function enhanceMermaidBlocks(seq: number) {
       if (blockKey) mermaidFailureByKey.set(blockKey, detail);
       const errorElement = createMermaidErrorElement(detail);
       preElement.insertAdjacentElement("beforebegin", errorElement);
+      markdownBlockPatcher.trackReplacement(preElement, [errorElement, preElement]);
     }
   }
 }
@@ -1329,6 +1295,7 @@ watch(
 watch(
   () => tone.value,
   () => {
+    markdownBlockPatcher.reset();
     closeMermaidLightbox();
     clearFrozenMermaidBlocks();
     clearMermaidFailures();
@@ -1352,6 +1319,7 @@ watch(lightboxSvgHtml, (value) => {
 });
 
 onBeforeUnmount(() => {
+  markdownBlockPatcher.reset();
   renderTaskSeq += 1;
   codeHighlightTaskSeq += 1;
   lightboxTaskSeq += 1;
