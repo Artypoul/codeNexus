@@ -49,16 +49,18 @@
         {{ item.errorText }}
       </div>
 
-      <details v-if="hasDetails" class="official-image-card__details">
+      <details v-if="hasDetails" class="official-image-card__details" :open="detailsOpen" @toggle="onDetailsToggle">
         <summary>
           <span>{{ t("chat.imageTool.details") }}</span>
           <span class="official-image-card__details-hint">{{ detailsHint }}</span>
         </summary>
-        <div v-if="revisedPromptBody" class="official-image-card__prompt">
-          <div class="official-image-card__detail-label">{{ t("chat.imageTool.revisedPrompt") }}</div>
-          <p>{{ revisedPromptBody }}</p>
-        </div>
-        <pre v-if="item.detailText" class="official-image-card__source mono">{{ item.detailText }}</pre>
+        <template v-if="detailsOpen">
+          <div v-if="revisedPromptBody" class="official-image-card__prompt">
+            <div class="official-image-card__detail-label">{{ t("chat.imageTool.revisedPrompt") }}</div>
+            <p>{{ revisedPromptBody }}</p>
+          </div>
+          <pre v-if="item.detailText" class="official-image-card__source mono">{{ item.detailText }}</pre>
+        </template>
       </details>
     </section>
   </div>
@@ -71,6 +73,7 @@ import { AlertTriangle, CheckCircle2, Eye, Image as ImageIcon, Loader2 } from "l
 import type { Component } from "vue";
 import type { ChatImageToolItem, ImageToolImageEntry } from "../layout/types/chat.types";
 import LazyImageThumb from "../ui/LazyImageThumb.vue";
+import { useActivityItemState } from "./activityItemState";
 
 const props = defineProps<{
   item: ChatImageToolItem;
@@ -80,6 +83,14 @@ const props = defineProps<{
   workspaceRoot: string;
 }>();
 const { t } = useI18n();
+const detailsOpen = useActivityItemState(
+  () => `image-details:${props.item.itemId}`,
+  () => false
+);
+
+function onDetailsToggle(event: Event) {
+  detailsOpen.value = (event.currentTarget as HTMLDetailsElement).open;
+}
 
 defineEmits<{
   (e: "load-error", payload: any): void;

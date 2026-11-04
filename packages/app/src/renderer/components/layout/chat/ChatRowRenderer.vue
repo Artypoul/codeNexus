@@ -146,6 +146,7 @@
 
   <ChatReasoningBlock
     v-else-if="renderedRow.kind === 'reasoningBlock'"
+    :stateKey="renderedRow.id"
     :isOpen="isReasoningOpen((renderedRow as any).item)"
     :summaryTitle="(renderedRow as any).item.title || t('chat.reasoning')"
     :durationText="reasoningDurationText((renderedRow as any).item.durationMs)"

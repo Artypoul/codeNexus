@@ -79,7 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
+import { useActivityItemState } from "../../chat/activityItemState";
 import { useI18n } from "vue-i18n";
 import { ChevronDown } from "lucide-vue-next";
 import UnifiedDiffViewer from "./UnifiedDiffViewer.vue";
@@ -113,7 +114,10 @@ const { t } = useI18n();
 type LineStats = { kind: "lines"; add: number; del: number } | { kind: "text"; text: string };
 type RenderableFile = FileChangeFile | null;
 
-const userExpandedByKey = ref<Record<string, boolean>>({});
+const userExpandedByKey = useActivityItemState<Record<string, boolean>>(
+  () => `diff:${props.item.id}`,
+  () => ({})
+);
 const diffTransitionTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
 const DIFF_COLLAPSE_MS = 220;
 const DIFF_COLLAPSE_EASING = "cubic-bezier(0.25, 1, 0.5, 1)";

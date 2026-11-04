@@ -5,6 +5,7 @@
     :aria-busy="isRunning"
     :open="open"
     motion="height"
+    lazy
     @update:open="emit('update:open', $event)"
   >
     <template #trigger="{ triggerProps, open: isOpen }">

@@ -18,9 +18,10 @@
       class="ui-collapsible-content"
       :class="{ 'is-open': isOpen }"
       :aria-hidden="isOpen ? 'false' : 'true'"
+      @transitionend="onHeightTransitionEnd"
     >
       <div class="ui-collapsible-inner">
-        <slot />
+        <slot v-if="shouldMountHeightContent" />
       </div>
     </div>
   </div>
@@ -28,7 +29,7 @@
 
 <script setup lang="ts">
 // 可折叠组件：通用折叠/展开逻辑与键盘/可访问性属性。
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 
 type TriggerProps = {
   role: "button";
@@ -49,12 +50,14 @@ const props = withDefaults(
     contentId?: string;
     motion?: "height" | "fade";
     keepMounted?: boolean;
+    lazy?: boolean;
   }>(),
   {
     defaultOpen: false,
     disabled: false,
     motion: "height",
     keepMounted: false,
+    lazy: false,
   }
 );
 
@@ -73,13 +76,43 @@ const motion = computed(() => (props.motion === "fade" ? "fade" : "height"));
 const keepMounted = computed(() => Boolean(props.keepMounted));
 
 const hasEverOpened = ref(isOpen.value);
+const heightContentMounted = ref(isOpen.value);
+let heightUnmountTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearHeightUnmountTimer() {
+  if (heightUnmountTimer == null) return;
+  clearTimeout(heightUnmountTimer);
+  heightUnmountTimer = null;
+}
+
+function unmountHeightContent() {
+  clearHeightUnmountTimer();
+  if (!isOpen.value) heightContentMounted.value = false;
+}
+
+function onHeightTransitionEnd(event: TransitionEvent) {
+  if (event.target !== event.currentTarget || event.propertyName !== "grid-template-rows") return;
+  unmountHeightContent();
+}
+
 watch(
   isOpen,
   (next) => {
+    clearHeightUnmountTimer();
     if (next) hasEverOpened.value = true;
+    if (next) heightContentMounted.value = true;
+    else if (props.lazy && heightContentMounted.value) {
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) unmountHeightContent();
+      else heightUnmountTimer = setTimeout(unmountHeightContent, 260);
+    }
   },
-  { immediate: true }
+  { immediate: true, flush: "sync" }
 );
+
+const shouldMountHeightContent = computed(
+  () => !props.lazy || heightContentMounted.value || (keepMounted.value && hasEverOpened.value)
+);
+onBeforeUnmount(clearHeightUnmountTimer);
 
 // fade 模式下可按需保留 DOM，避免频繁卸载导致内容重算。
 const shouldMountFadeContent = computed(() => {

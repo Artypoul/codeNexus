@@ -1,7 +1,7 @@
 <template>
   <div :class="CHAT_ROW_TOOL_CLASS">
     <div class="chat-tool-wrap w-full max-w-full min-w-0">
-      <Collapsible class="reasoning-summary-event w-full" :open="isOpen" @update:open="$emit('toggle', $event)">
+      <Collapsible class="reasoning-summary-event w-full" :open="isOpen" lazy @update:open="$emit('toggle', $event)">
         <template #trigger="{ triggerProps, open }">
           <div
             class="reasoning-summary-meta flex w-full min-w-0 items-center gap-2.5 overflow-hidden text-xs dim cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--border-warning-hover)] focus-visible:outline-offset-2"
@@ -35,6 +35,7 @@
           v-if="hasRawText"
           class="reasoning-raw mt-2 w-full"
           :open="rawOpen"
+          lazy
           @update:open="rawOpen = $event"
         >
           <template #trigger="{ triggerProps, open }">
@@ -69,6 +70,7 @@ import Collapsible from "../ui/Collapsible.vue";
 import AgentMarkdownContent from "../ui/AgentMarkdownContent.vue";
 import { CHAT_ROW_TOOL_CLASS } from "../layout/chat/chatPresentation";
 import { toReasoningPreviewLine } from "../../features/timeline/reasoningPreview";
+import { useActivityItemState } from "./activityItemState";
 
 const props = defineProps<{
   isOpen: boolean;
@@ -78,6 +80,7 @@ const props = defineProps<{
   text?: string;
   rawText?: string;
   rawContentCount?: number;
+  stateKey?: string;
 }>();
 
 defineEmits<{
@@ -85,7 +88,10 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
-const rawOpen = ref(false);
+const rawOpen = useActivityItemState(
+  () => `reasoning:${props.stateKey ?? "raw"}`,
+  () => false
+);
 const liveLineRef = ref<HTMLElement | null>(null);
 const hasRawText = computed(() => String(props.rawText ?? "").trim().length > 0);
 const rawContentCountText = computed(() => {

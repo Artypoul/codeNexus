@@ -69,9 +69,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { ChevronDown, ExternalLink, Square, TerminalSquare } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
+import { useActivityItemState } from "./activityItemState";
 import ExecutionWaveText from "../ui/ExecutionWaveText.vue";
 import type { CommandSessionNode } from "../../features/timeline/renderModel/buildTimelineNodes";
 
@@ -93,7 +94,10 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const open = ref(false);
+const open = useActivityItemState(
+  () => `command:${props.item.id}`,
+  () => false
+);
 const isRunning = computed(() => props.item.status === "running");
 const primaryUrl = computed(() => props.item.urls[0] ?? "");
 const urlLabel = computed(() => {

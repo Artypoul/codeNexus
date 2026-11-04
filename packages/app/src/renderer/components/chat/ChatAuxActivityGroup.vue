@@ -50,18 +50,15 @@
         @transitionend="onBodyTransitionEnd"
       >
         <div class="chat-aux-activity__body-frame">
-          <div
+          <ChatAuxActivityViewport
             v-if="bodyMounted"
-            ref="scrollerRef"
-            class="chat-aux-activity__body app-scrollbar"
-            @scroll="onBodyScroll"
+            :key="id"
+            :items="items"
+            :active="open"
+            @layout-change="emit('layout-change')"
           >
-            <div ref="contentRef" class="chat-aux-activity__items">
-              <div v-for="item in items" :key="item.id" class="chat-aux-activity__item" :data-aux-kind="item.kind">
-                <slot :item="item" />
-              </div>
-            </div>
-          </div>
+            <template #default="{ item }"><slot :item="item" /></template>
+          </ChatAuxActivityViewport>
         </div>
       </div>
     </section>
@@ -74,7 +71,8 @@ import { Activity, ChevronDown } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import type { ChatAuxActivityStatus, ChatAuxActivitySummaryItem, ChatAuxiliaryRow } from "../layout/types/chat.types";
 import { CHAT_ROW_BASE_CLASS } from "../layout/chat/chatPresentation";
-import { useFollowBottomScroller } from "./useFollowBottomScroller";
+import ChatAuxActivityViewport from "./ChatAuxActivityViewport.vue";
+import { provideActivityItemStates } from "./activityItemState";
 
 const props = defineProps<{
   id: string;
@@ -97,6 +95,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const resetItemStates = provideActivityItemStates();
 const activityRef = ref<HTMLElement | null>(null);
 const open = ref(!props.defaultCollapsed);
 const bodyMounted = ref(open.value);
@@ -113,17 +112,6 @@ type MeteorGeometry = {
 };
 
 const meteorSize = ref<MeteorGeometry>({ width: 1, height: 1, inset: 0.5, radius: 3.5 });
-const {
-  contentRef,
-  scrollerRef,
-  onScroll: onBodyScroll,
-  resetFollowBottom,
-  scheduleScrollToBottom,
-} = useFollowBottomScroller({
-  bottomThresholdPx: 24,
-  enabled: () => open.value,
-  onContentResize: () => emit("layout-change"),
-});
 
 const titleText = computed(() => t("chat.activity.auxTitle"));
 
@@ -197,9 +185,7 @@ function toggleOpen() {
   userTouched.value = true;
   open.value = !open.value;
   if (open.value) {
-    resetFollowBottom();
     void nextTick(() => {
-      scheduleScrollToBottom({ force: true });
       emit("layout-change");
     });
     return;
@@ -289,10 +275,9 @@ watch(
   () => props.id,
   () => {
     userTouched.value = false;
-    resetFollowBottom();
+    resetItemStates();
     open.value = !props.defaultCollapsed;
     void nextTick(() => {
-      scheduleScrollToBottom({ force: true });
       emit("layout-change");
     });
   }
@@ -308,24 +293,10 @@ watch(
     }
     if (!userTouched.value) {
       open.value = true;
-      resetFollowBottom();
       void nextTick(() => {
-        scheduleScrollToBottom({ force: true });
         emit("layout-change");
       });
     }
   }
-);
-
-watch(
-  () => props.items.map((item) => item.id).join("\n"),
-  () => {
-    if (!open.value) return;
-    void nextTick(() => {
-      scheduleScrollToBottom();
-      emit("layout-change");
-    });
-  },
-  { flush: "post" }
 );
 </script>

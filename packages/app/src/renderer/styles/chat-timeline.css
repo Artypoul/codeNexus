@@ -1023,6 +1023,7 @@
   max-height: 320px;
   overflow-x: hidden;
   overflow-y: auto;
+  overflow-anchor: none;
   border-top: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
   border-bottom-right-radius: calc(var(--chat-radius-lg) - 1px);
   border-bottom-left-radius: calc(var(--chat-radius-lg) - 1px);
@@ -1039,6 +1040,18 @@
 
 .timeline-pane--chat .chat-aux-activity__item {
   min-width: 0;
+}
+
+.timeline-pane--chat .chat-aux-activity__items--virtual {
+  display: block;
+  position: relative;
+}
+
+.timeline-pane--chat .chat-aux-activity__items--virtual > .chat-aux-activity__item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 
 .timeline-pane--chat .chat-aux-activity__item .chat-row {

@@ -5,7 +5,6 @@
     :statusText="''"
     :statusKind="''"
     :open="open"
-    :keepMounted="true"
     @update:open="emit('update:open', $event)"
   >
     <template #icon>

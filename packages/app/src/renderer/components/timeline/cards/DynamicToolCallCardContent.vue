@@ -41,6 +41,8 @@
         v-for="(image, index) in imageItems"
         :key="`${item.callId}:image:${index}`"
         :src="image.imageUrl"
+        loading="lazy"
+        decoding="async"
         class="max-h-[240px] rounded-[4px] border border-[var(--ui-code-border)] bg-[var(--ui-code-bg)] object-contain"
         alt="dynamic-tool-image"
       />
@@ -61,7 +63,7 @@
     </DetailDisclosure>
 
     <DetailDisclosure
-      v-if="resultRawText"
+      v-if="hasResultContent"
       :open="resultOpen"
       motion="fade"
       summaryClass="mono text-[11px] dim"
@@ -77,7 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
+import { useActivityItemState } from "../../chat/activityItemState";
 import { useI18n } from "vue-i18n";
 import DetailDisclosure from "../../ui/DetailDisclosure.vue";
 import ExecutionWaveText from "../../ui/ExecutionWaveText.vue";
@@ -88,10 +91,21 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const argsOpen = ref(false);
-const resultOpen = ref(false);
+const argsOpen = useActivityItemState(
+  () => `dynamic-args:${props.item.callId}`,
+  () => false
+);
+const resultOpen = useActivityItemState(
+  () => `dynamic-result:${props.item.callId}`,
+  () => false
+);
 
 const imageItems = computed(() => props.item.contentItems.filter((item) => item.type === "inputImage"));
+const hasResultContent = computed(() =>
+  props.item.contentItems.some(
+    (item) => item.type === "inputImage" || (item.type === "inputText" && Boolean(item.text))
+  )
+);
 const textItems = computed(() =>
   props.item.contentItems.filter((item) => item.type === "inputText").map((item) => item.text)
 );
