@@ -95,6 +95,8 @@ export async function createMainWindow(opts: MainWindowOptions): Promise<Browser
     isMaximized: win.isMaximized(),
     isMinimized: win.isMinimized(),
     isFullScreen: win.isFullScreen(),
+    isFocused: win.isFocused(),
+    isVisible: win.isVisible(),
   });
 
   const pushWindowState = () => {
@@ -111,6 +113,8 @@ export async function createMainWindow(opts: MainWindowOptions): Promise<Browser
   win.on("unmaximize", pushWindowState);
   win.on("minimize", pushWindowState);
   win.on("restore", pushWindowState);
+  win.on("focus", pushWindowState);
+  win.on("blur", pushWindowState);
   win.on("enter-full-screen", pushWindowState);
   win.on("leave-full-screen", pushWindowState);
 

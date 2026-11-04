@@ -57,6 +57,7 @@ function focusMainWindow(win: BrowserWindow | null): void {
 }
 
 const ALLOWED_NOTIFICATION_SOUND_EXTS = new Set<string>([".mp3", ".wav", ".ogg", ".m4a"]);
+const activeSystemNotifications = new Set<Notification>();
 
 function toAudioMime(ext: string): string {
   const e = String(ext ?? "")
@@ -320,7 +321,15 @@ export function registerAppHandlers(deps: {
           body: String(args?.body ?? "").trim(),
           silent: Boolean(args?.silent),
         });
-        notification.on("click", () => focusMainWindow(getWindowOrNull()));
+        // Electron 的通知对象如果过早被 GC，Windows 上可能出现点击无响应。
+        // 保留到 close/click 后再释放，保证用户能从通知回到主窗口。
+        activeSystemNotifications.add(notification);
+        const release = () => activeSystemNotifications.delete(notification);
+        notification.once("close", release);
+        notification.once("click", () => {
+          focusMainWindow(getWindowOrNull());
+          release();
+        });
         notification.show();
         return { ok: true as const };
       } catch (error: any) {

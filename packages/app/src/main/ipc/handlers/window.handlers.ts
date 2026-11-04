@@ -13,12 +13,16 @@ export function registerWindowHandlers(deps: { getMainWindow: () => BrowserWindo
     isMaximized: false,
     isMinimized: false,
     isFullScreen: false,
+    isFocused: false,
+    isVisible: false,
   };
 
   const toWindowState = (win: BrowserWindow): AppWindowState => ({
     isMaximized: win.isMaximized(),
     isMinimized: win.isMinimized(),
     isFullScreen: win.isFullScreen(),
+    isFocused: win.isFocused(),
+    isVisible: win.isVisible(),
   });
 
   ipcMain.handle(IPC_APP_CHANNELS.appWindowGetState, async () => {

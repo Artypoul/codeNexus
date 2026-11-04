@@ -45,6 +45,8 @@ const windowState = ref<AppWindowState>({
   isMaximized: false,
   isMinimized: false,
   isFullScreen: false,
+  isFocused: false,
+  isVisible: false,
 });
 
 const windowExpanded = computed(() => windowState.value.isMaximized || windowState.value.isFullScreen);

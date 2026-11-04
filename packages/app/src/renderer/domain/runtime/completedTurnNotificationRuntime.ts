@@ -20,10 +20,17 @@ export function createCompletedTurnNotificationRuntime(
     const threadTitle = getThreadTitle(threadId);
     try {
       const windowState = await codexDesktop.window.getState();
+      const focused =
+        typeof windowState?.isFocused === "boolean"
+          ? windowState.isFocused
+          : typeof document !== "undefined"
+            ? document.hasFocus()
+            : false;
+      const hidden = windowState?.isVisible === false || (typeof document !== "undefined" ? document.hidden : true);
       await notifyTurnCompleted({
         app: codexDesktop.app,
-        focused: typeof document !== "undefined" ? document.hasFocus() : false,
-        hidden: typeof document !== "undefined" ? document.hidden : true,
+        focused,
+        hidden,
         minimized: Boolean(windowState?.isMinimized),
         threadTitle,
       });

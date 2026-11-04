@@ -410,6 +410,10 @@ export type AppWindowState = {
   isMaximized: boolean;
   isMinimized: boolean;
   isFullScreen: boolean;
+  // 前台/可见性由主进程提供，避免 renderer 的 document.hasFocus() 在窗口遮挡、
+  // 失焦或 Windows 后台节流场景下出现误判。
+  isFocused: boolean;
+  isVisible: boolean;
 };
 
 /*
