@@ -24,6 +24,18 @@ type UseTimelineScrollControllerOptions = {
   loadOlderTriggerPx?: number;
 };
 
+type TimelineScrollContext = {
+  key: string;
+  element: HTMLElement | null;
+  revision: number;
+};
+
+type HistoryScrollRestore = {
+  context: TimelineScrollContext;
+  snapshot: TimelineViewportSnapshot;
+  anchor: TimelineVisibleRowAnchor | null;
+};
+
 const DEFAULT_EDGE_FADE_THRESHOLD_PX = 1;
 const DEFAULT_LOAD_OLDER_TRIGGER_PX = 24;
 const LAYOUT_SCROLL_HEIGHT_EPSILON_PX = 2;
@@ -42,8 +54,12 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   const loadOlderTriggerPx = Math.max(0, Math.round(options.loadOlderTriggerPx ?? DEFAULT_LOAD_OLDER_TRIGGER_PX));
 
   let activeInitialStabilizeToken = 0;
-  let lastObservedTimelineScrollHeight = 0;
+  let scrollIntentRevision = 0;
+  let olderHistoryRequestToken = 0;
+  let disposed = false;
   let lastTimelineScrollTop = 0;
+  let lastScrollSnapshot: TimelineViewportSnapshot | null = null;
+  let pendingHistoryRestore: HistoryScrollRestore | null = null;
   let lastActiveTurnId = "";
   let pendingAutoScrollRafId: number | null = null;
   let pendingTimelineViewportStateRafId: number | null = null;
@@ -56,19 +72,33 @@ export function useTimelineScrollController(options: UseTimelineScrollController
     return element ? snapshotTimelineViewport(element) : null;
   }
 
-  function readViewportFollowState(): TimelineFollowState | null {
-    const snapshot = captureViewport();
-    if (!snapshot) return null;
-    const followState = classifyViewportFollowState(snapshot);
-    if (followState === "following") autoFollowEnabled.value = true;
-    return followState;
+  function captureScrollContext(): TimelineScrollContext {
+    return {
+      key: options.timelineKey.value,
+      element: options.timelineRef.value,
+      revision: scrollIntentRevision,
+    };
+  }
+
+  function isScrollContextCurrent(context: TimelineScrollContext): boolean {
+    return (
+      !disposed &&
+      context.key === options.timelineKey.value &&
+      context.element === options.timelineRef.value &&
+      context.revision === scrollIntentRevision
+    );
+  }
+
+  function invalidateScrollRequests() {
+    scrollIntentRevision += 1;
+    activeInitialStabilizeToken += 1;
+    pendingInitialScrollToBottomKey.value = null;
+    timelineRevealPending.value = false;
+    cancelPendingAutoScroll();
   }
 
   function effectiveFollowState(): TimelineFollowState {
-    const liveFollowState = readViewportFollowState();
-    // Keep the pre-change follow intent when new content has already expanded the scroll height.
-    if (liveFollowState === "following" || autoFollowEnabled.value) return "following";
-    return "detached";
+    return autoFollowEnabled.value ? "following" : "detached";
   }
 
   function timelineRows(element: HTMLElement): HTMLElement[] {
@@ -106,7 +136,8 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   }
 
   function syncTimelineScrollTopCache(element: HTMLElement) {
-    lastTimelineScrollTop = Math.max(0, element.scrollTop);
+    lastScrollSnapshot = snapshotTimelineViewport(element);
+    lastTimelineScrollTop = lastScrollSnapshot.scrollTop;
   }
 
   function updateTimelineViewportState() {
@@ -117,10 +148,8 @@ export function useTimelineScrollController(options: UseTimelineScrollController
       return;
     }
     const snapshot = snapshotTimelineViewport(element);
-    const followState = classifyViewportFollowState(snapshot);
     const maxScrollTop = Math.max(0, snapshot.scrollHeight - snapshot.clientHeight);
     const distanceToBottom = Math.max(0, maxScrollTop - snapshot.scrollTop);
-    autoFollowEnabled.value = followState === "following";
     if (maxScrollTop <= edgeFadeThresholdPx) {
       hasTopEdgeFade.value = false;
       hasBottomEdgeFade.value = false;
@@ -131,6 +160,7 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   }
 
   function scheduleTimelineViewportStateUpdate() {
+    if (disposed) return;
     if (pendingTimelineViewportStateRafId != null) cancelAnimationFrame(pendingTimelineViewportStateRafId);
     pendingTimelineViewportStateRafId = requestAnimationFrame(() => {
       pendingTimelineViewportStateRafId = null;
@@ -148,12 +178,14 @@ export function useTimelineScrollController(options: UseTimelineScrollController
     const adapter = options.viewportAdapter?.value;
     if (adapter) {
       adapter.scrollToBottom(behavior);
+      if (options.timelineRef.value) syncTimelineScrollTopCache(options.timelineRef.value);
       scheduleTimelineViewportStateUpdate();
       return;
     }
     const element = options.timelineRef.value;
     if (!element) return;
     element.scrollTo({ top: element.scrollHeight, behavior });
+    syncTimelineScrollTopCache(element);
     scheduleTimelineViewportStateUpdate();
   }
 
@@ -168,17 +200,19 @@ export function useTimelineScrollController(options: UseTimelineScrollController
       top: Math.max(0, Math.min(maxScrollTop, element.scrollTop + delta)),
       behavior,
     });
-    lastTimelineScrollTop = Math.max(0, element.scrollTop);
+    syncTimelineScrollTopCache(element);
     scheduleTimelineViewportStateUpdate();
     return true;
   }
 
   function scrollRowToTop(rowId: string, offsetPx = 0, behavior: ScrollBehavior = "auto") {
-    cancelPendingAutoScroll();
     const id = String(rowId ?? "").trim();
     if (!id) return false;
+    invalidateScrollRequests();
+    pendingHistoryRestore = null;
     if (options.viewportAdapter?.value?.scrollRowToTop(id, offsetPx, behavior)) {
       autoFollowEnabled.value = false;
+      if (options.timelineRef.value) syncTimelineScrollTopCache(options.timelineRef.value);
       scheduleTimelineViewportStateUpdate();
       return true;
     }
@@ -190,13 +224,18 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   }
 
   async function scrollLastRowByKindToTop(kind: string, offsetPx = 0, behavior: ScrollBehavior = "auto") {
-    cancelPendingAutoScroll();
-    await nextTick();
-    await waitForAnimationFrame();
     const normalizedKind = String(kind ?? "").trim();
     if (!normalizedKind) return false;
+    invalidateScrollRequests();
+    pendingHistoryRestore = null;
+    autoFollowEnabled.value = false;
+    const context = captureScrollContext();
+    await nextTick();
+    await waitForAnimationFrame();
+    if (!isScrollContextCurrent(context)) return false;
     if (options.viewportAdapter?.value?.scrollLastRowByKindToTop(normalizedKind, offsetPx, behavior)) {
       autoFollowEnabled.value = false;
+      if (options.timelineRef.value) syncTimelineScrollTopCache(options.timelineRef.value);
       scheduleTimelineViewportStateUpdate();
       return true;
     }
@@ -210,9 +249,12 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   }
 
   function scheduleAutoScrollToBottom() {
+    if (disposed || !autoFollowEnabled.value) return;
     cancelPendingAutoScroll();
+    const context = captureScrollContext();
     pendingAutoScrollRafId = requestAnimationFrame(() => {
       pendingAutoScrollRafId = null;
+      if (!isScrollContextCurrent(context) || !autoFollowEnabled.value) return;
       scrollTimelineToBottom("auto");
     });
   }
@@ -223,6 +265,9 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   }
 
   function forceFollowBottom(_reason: string = "explicit-bottom") {
+    if (disposed) return;
+    invalidateScrollRequests();
+    pendingHistoryRestore = null;
     autoFollowEnabled.value = true;
     scheduleAutoScrollToBottom();
   }
@@ -265,37 +310,37 @@ export function useTimelineScrollController(options: UseTimelineScrollController
     if (options.isTimelineLoading.value) return;
 
     const token = (activeInitialStabilizeToken += 1);
+    const context = captureScrollContext();
     timelineRevealPending.value = true;
 
     try {
       await nextTick();
       await waitForTimelineLayoutToSettle();
       if (token !== activeInitialStabilizeToken) return;
-      if (key !== options.timelineKey.value) return;
+      if (!isScrollContextCurrent(context) || !autoFollowEnabled.value) return;
 
-      autoFollowEnabled.value = true;
       scrollTimelineToBottomImmediate("auto");
       await nextTick();
       await waitForTimelineLayoutToSettle();
       if (token !== activeInitialStabilizeToken) return;
-      if (key !== options.timelineKey.value) return;
+      if (!isScrollContextCurrent(context) || !autoFollowEnabled.value) return;
 
       scrollTimelineToBottomImmediate("auto");
       pendingInitialScrollToBottomKey.value = null;
       timelineRevealPending.value = false;
     } finally {
-      if (options.timelineKey.value !== key) return;
+      if (token !== activeInitialStabilizeToken || !isScrollContextCurrent(context)) return;
       timelineRevealPending.value = false;
       scheduleTimelineViewportStateUpdate();
     }
   }
 
   async function finalizeThreadViewport() {
-    const key = options.timelineKey.value;
+    const context = captureScrollContext();
     await nextTick();
-    if (key !== options.timelineKey.value) return;
+    if (!isScrollContextCurrent(context)) return;
     if (options.isTimelineLoading.value) return;
-    if (pendingInitialScrollToBottomKey.value === key) {
+    if (pendingInitialScrollToBottomKey.value === context.key) {
       await stabilizeInitialViewportAtBottom();
       return;
     }
@@ -319,11 +364,14 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   }
 
   function notifyTimelineLayoutChange() {
+    if (disposed) return;
+    const context = captureScrollContext();
     const before = captureViewport();
     const beforeElement = options.timelineRef.value;
-    const anchor = beforeElement ? captureVisibleRowAnchor(beforeElement) : null;
     const wasFollowing = effectiveFollowState() === "following";
+    const anchor = !wasFollowing && beforeElement ? captureVisibleRowAnchor(beforeElement) : null;
     void nextTick(() => {
+      if (!isScrollContextCurrent(context) || pendingHistoryRestore) return;
       const element = options.timelineRef.value;
       if (!element) {
         scheduleTimelineViewportStateUpdate();
@@ -363,65 +411,93 @@ export function useTimelineScrollController(options: UseTimelineScrollController
     if (pendingOlderHistoryThreadId.value === threadId) return;
 
     pendingOlderHistoryThreadId.value = threadId;
-    const before = snapshotTimelineViewport(element);
-    const beforeAnchor = options.viewportAdapter?.value?.captureVisibleAnchor() ?? null;
+    const requestToken = (olderHistoryRequestToken += 1);
+    const restore: HistoryScrollRestore = {
+      context: captureScrollContext(),
+      snapshot: snapshotTimelineViewport(element),
+      anchor: captureVisibleRowAnchor(element),
+    };
+    pendingHistoryRestore = restore;
 
     try {
       const loaded = await options.loadOlderHistoryTurns(threadId);
       if (!loaded) return;
       await nextTick();
       await waitForTimelineLayoutToSettle();
-      if (options.timelineKey.value !== threadId) return;
+      if (pendingHistoryRestore !== restore || !isScrollContextCurrent(restore.context)) return;
 
       const nextElement = options.timelineRef.value;
       if (!nextElement) return;
       const after = snapshotTimelineViewport(nextElement);
-      const restored = beforeAnchor ? options.viewportAdapter?.value?.restoreVisibleAnchor(beforeAnchor) : false;
-      if (!restored) nextElement.scrollTop = restorePrependScrollTop(before, after);
-      lastTimelineScrollTop = Math.max(0, nextElement.scrollTop);
+      const restored = restore.anchor ? restoreVisibleRowAnchor(nextElement, restore.anchor) : false;
+      if (!restored) nextElement.scrollTop = restorePrependScrollTop(restore.snapshot, after);
+      syncTimelineScrollTopCache(nextElement);
       updateTimelineViewportState();
     } finally {
-      if (pendingOlderHistoryThreadId.value === threadId) pendingOlderHistoryThreadId.value = "";
+      if (pendingHistoryRestore === restore) pendingHistoryRestore = null;
+      if (olderHistoryRequestToken === requestToken) pendingOlderHistoryThreadId.value = "";
     }
   }
 
   function onTimelineScroll() {
+    const element = options.timelineRef.value;
+    if (!element || disposed) return;
     const previousScrollTop = lastTimelineScrollTop;
+    const snapshot = snapshotTimelineViewport(element);
+    const delta = snapshot.scrollTop - previousScrollTop;
+    const maxScrollTop = Math.max(0, snapshot.scrollHeight - snapshot.clientHeight);
+    const heightDelta = snapshot.scrollHeight - (lastScrollSnapshot?.scrollHeight ?? snapshot.scrollHeight);
+    const layoutAdjusted =
+      (maxScrollTop < previousScrollTop && snapshot.scrollTop === maxScrollTop) ||
+      (heightDelta !== 0 && Math.abs(delta - heightDelta) <= LAYOUT_SCROLL_HEIGHT_EPSILON_PX);
+    if (delta !== 0 && !layoutAdjusted) {
+      invalidateScrollRequests();
+      autoFollowEnabled.value =
+        classifyViewportFollowState(snapshot) === "following" && (autoFollowEnabled.value || delta > 0);
+      if (pendingHistoryRestore && isHistoryRestoreForCurrentViewport(pendingHistoryRestore)) {
+        pendingHistoryRestore.context = captureScrollContext();
+        pendingHistoryRestore.snapshot = snapshot;
+        pendingHistoryRestore.anchor = captureVisibleRowAnchor(element);
+      }
+    }
     updateTimelineViewportState();
-    lastTimelineScrollTop = Math.max(0, options.timelineRef.value?.scrollTop ?? 0);
+    syncTimelineScrollTopCache(element);
     void maybeLoadOlderHistoryFromTop(previousScrollTop);
   }
 
+  function isHistoryRestoreForCurrentViewport(restore: HistoryScrollRestore) {
+    return restore.context.key === options.timelineKey.value && restore.context.element === options.timelineRef.value;
+  }
+
   function observeTimelineElement() {
+    timelineResizeObserver?.disconnect();
+    timelineResizeObserver = null;
     if (typeof ResizeObserver === "undefined") return;
-    if (!timelineResizeObserver) {
-      timelineResizeObserver = new ResizeObserver(() => {
-        const element = options.timelineRef.value;
-        const nextScrollHeight = Math.max(0, Math.round(element?.scrollHeight ?? 0));
-        const hadHeight = lastObservedTimelineScrollHeight > 0;
-        const heightChanged =
-          Math.abs(nextScrollHeight - lastObservedTimelineScrollHeight) > LAYOUT_SCROLL_HEIGHT_EPSILON_PX;
-        lastObservedTimelineScrollHeight = nextScrollHeight;
-        if (
-          hadHeight &&
-          heightChanged &&
-          pendingInitialScrollToBottomKey.value !== options.timelineKey.value &&
-          !timelineRevealPending.value
-        ) {
-          applyContentChangeIntent("layout-change");
-        } else {
-          scheduleTimelineViewportStateUpdate();
-        }
-      });
-    }
-    timelineResizeObserver.disconnect();
-    if (options.timelineRef.value) timelineResizeObserver.observe(options.timelineRef.value);
+    const element = options.timelineRef.value;
+    if (!element || disposed) return;
+    timelineResizeObserver = new ResizeObserver(() => {
+      if (disposed || element !== options.timelineRef.value) return;
+      if (
+        pendingInitialScrollToBottomKey.value !== options.timelineKey.value &&
+        !timelineRevealPending.value &&
+        !options.isTimelineLoading.value &&
+        !pendingHistoryRestore
+      ) {
+        applyContentChangeIntent("layout-change");
+      } else {
+        scheduleTimelineViewportStateUpdate();
+      }
+    });
+    timelineResizeObserver.observe(element);
   }
 
   watch(
     () => options.timelineKey.value,
     () => {
-      cancelPendingAutoScroll();
+      invalidateScrollRequests();
+      pendingHistoryRestore = null;
+      pendingOlderHistoryThreadId.value = "";
+      olderHistoryRequestToken += 1;
       if (pendingTimelineViewportStateRafId != null) {
         cancelAnimationFrame(pendingTimelineViewportStateRafId);
         pendingTimelineViewportStateRafId = null;
@@ -430,8 +506,7 @@ export function useTimelineScrollController(options: UseTimelineScrollController
       pendingInitialScrollToBottomKey.value = options.timelineKey.value;
       timelineRevealPending.value = true;
       autoFollowEnabled.value = true;
-      lastObservedTimelineScrollHeight = 0;
-      lastTimelineScrollTop = 0;
+      if (options.timelineRef.value) syncTimelineScrollTopCache(options.timelineRef.value);
       lastActiveTurnId = options.activeTurnId.value;
       if (!options.isTimelineLoading.value) void finalizeThreadViewport();
       else scheduleTimelineViewportStateUpdate();
@@ -465,6 +540,7 @@ export function useTimelineScrollController(options: UseTimelineScrollController
       if (options.isTimelineLoading.value) return;
       if (nextKey === prevKey && nextRevision === prevRevision && nextContentRevision === prevContentRevision) return;
       void nextTick(async () => {
+        if (disposed || nextKey !== options.timelineKey.value) return;
         if (pendingInitialScrollToBottomKey.value === options.timelineKey.value) {
           await stabilizeInitialViewportAtBottom();
           return;
@@ -498,11 +574,26 @@ export function useTimelineScrollController(options: UseTimelineScrollController
     { flush: "post" }
   );
 
+  watch(
+    options.timelineRef,
+    (element) => {
+      invalidateScrollRequests();
+      pendingHistoryRestore = null;
+      observeTimelineElement();
+      if (element) {
+        syncTimelineScrollTopCache(element);
+        if (autoFollowEnabled.value) scheduleAutoScrollToBottom();
+      }
+      scheduleTimelineViewportStateUpdate();
+    },
+    { flush: "post" }
+  );
+
   onMounted(() => {
     void nextTick(() => {
+      if (disposed) return;
       observeTimelineElement();
-      lastObservedTimelineScrollHeight = Math.max(0, Math.round(options.timelineRef.value?.scrollHeight ?? 0));
-      lastTimelineScrollTop = Math.max(0, options.timelineRef.value?.scrollTop ?? 0);
+      if (options.timelineRef.value) syncTimelineScrollTopCache(options.timelineRef.value);
       lastActiveTurnId = options.activeTurnId.value;
       scheduleAutoScrollToBottom();
       scheduleTimelineViewportStateUpdate();
@@ -510,7 +601,9 @@ export function useTimelineScrollController(options: UseTimelineScrollController
   });
 
   onBeforeUnmount(() => {
-    cancelPendingAutoScroll();
+    disposed = true;
+    invalidateScrollRequests();
+    pendingHistoryRestore = null;
     if (pendingTimelineViewportStateRafId != null) cancelAnimationFrame(pendingTimelineViewportStateRafId);
     pendingTimelineViewportStateRafId = null;
     timelineResizeObserver?.disconnect();

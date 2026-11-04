@@ -859,7 +859,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
         localMessageId: localUserMessageId,
       });
       upsertThreadPreparingEvent(threadId);
-      runtimeStore.requestScrollTimelineToBottom();
+      runtimeStore.requestScrollTimelineToBottom(threadId);
       messageQueueStore.enqueue({
         threadId,
         text: queueText,
@@ -962,6 +962,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
         inputs: input,
         displayText: localUserMessage.displayText,
       });
+      runtimeStore.requestScrollTimelineToBottom(threadId);
       return true;
     }
 
@@ -979,7 +980,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
       localState: "pending",
       localMessageId: localUserMessageId,
     });
-    runtimeStore.requestScrollTimelineToBottom();
+    runtimeStore.requestScrollTimelineToBottom(threadId);
 
     const setLocalUserEventState = (
       state: "pending" | "queued" | "sending" | "sent" | "failed",

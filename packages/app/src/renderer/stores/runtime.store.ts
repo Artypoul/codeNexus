@@ -720,7 +720,9 @@ export const useRuntimeStore = defineStore("runtime", {
       this.pendingThreadInitSendCountByThread.set(toKey, count);
     },
     // Request the chat timeline to scroll back to the latest content.
-    requestScrollTimelineToBottom() {
+    requestScrollTimelineToBottom(threadIdValue?: string) {
+      const targetKey = threadKey(String(threadIdValue ?? "").trim() || this.timelineKey);
+      if (targetKey !== this.timelineKey) return;
       this.timelineScrollToBottomSeq += 1;
     },
   },

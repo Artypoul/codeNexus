@@ -94,6 +94,7 @@ const props = withDefaults(
     timelineKey: string;
     scrollElement?: HTMLElement | null;
     virtualThreshold?: number;
+    followBottom?: boolean;
     onLayoutChange?: () => void;
     onViewportAdapterChange?: (adapter: TimelineViewportAdapter | null) => void;
     onPinnedUserRowChange?: (rowId: string) => void;
@@ -101,6 +102,7 @@ const props = withDefaults(
   {
     scrollElement: null,
     virtualThreshold: DEFAULT_VIRTUAL_THRESHOLD,
+    followBottom: undefined,
   }
 );
 
@@ -109,6 +111,7 @@ defineSlots<{
 }>();
 
 let layoutChangePending = false;
+let disposed = false;
 let pendingHeightRestoreRafId: number | null = null;
 let pendingScrollMetricsRafId: number | null = null;
 let userRowElements: HTMLElement[] | null = null;
@@ -119,6 +122,8 @@ type PendingHeightRestore = {
   anchor: ReturnType<typeof captureVisibleAnchor>;
   wasFollowing: boolean;
   scrollTopAtCapture: number;
+  timelineKey: string;
+  element: HTMLElement;
 };
 
 let pendingHeightRestore: PendingHeightRestore | null = null;
@@ -316,6 +321,7 @@ function scheduleLayoutChangeNotify() {
 }
 
 function scheduleScrollMetricsUpdate() {
+  if (disposed) return;
   if (pendingScrollMetricsRafId != null) return;
   pendingScrollMetricsRafId = requestAnimationFrame(() => {
     pendingScrollMetricsRafId = null;
@@ -327,6 +333,7 @@ function scheduleScrollMetricsUpdate() {
 }
 
 function updateMeasuredHeight(rowId: string, element: HTMLElement) {
+  if (disposed) return;
   const nextHeight = Math.max(1, Math.round(element.getBoundingClientRect().height));
   const key = heightCacheKey(rowId);
   const previousHeight = rowHeightsByKey.value.get(key) ?? 0;
@@ -344,20 +351,22 @@ function scheduleHeightChangeRestore() {
   if (!pendingHeightRestore) {
     pendingHeightRestore = {
       anchor: captureVisibleAnchor(),
-      wasFollowing: isFollowingBottom(element),
+      wasFollowing: props.followBottom ?? isFollowingBottom(element),
       scrollTopAtCapture: Math.max(0, Math.round(element.scrollTop)),
+      timelineKey: props.timelineKey,
+      element,
     };
   }
   if (pendingHeightRestoreRafId != null) return;
   void nextTick(() => {
-    if (pendingHeightRestoreRafId != null) return;
+    if (disposed || !pendingHeightRestore || pendingHeightRestoreRafId != null) return;
     pendingHeightRestoreRafId = requestAnimationFrame(() => {
       pendingHeightRestoreRafId = null;
       const restore = pendingHeightRestore;
       pendingHeightRestore = null;
       if (!restore) return;
       const element = props.scrollElement;
-      if (!element) {
+      if (!element || element !== restore.element || restore.timelineKey !== props.timelineKey) {
         updateScrollMetrics();
         return;
       }
@@ -366,9 +375,7 @@ function scheduleHeightChangeRestore() {
         updateScrollMetrics();
         return;
       }
-      if (restore.wasFollowing) {
-        scrollToBottom("auto");
-      } else if (restore.anchor) {
+      if (!restore.wasFollowing && restore.anchor) {
         restoreVisibleAnchor(restore.anchor);
       } else {
         updateScrollMetrics();
@@ -453,6 +460,7 @@ function scrollRowToTop(rowId: string, offsetPx = 0, behavior: ScrollBehavior = 
   if (!id) return false;
   const item = renderedRows.value.find((row) => row.row.id === id);
   if (!item) return false;
+  cancelHeightChangeRestore();
   const targetTop = clampScrollTop(viewportContentTop() + item.top - Math.max(0, Math.round(offsetPx)));
   element.scrollTo({ top: targetTop, behavior });
   updateScrollMetrics();
@@ -536,6 +544,7 @@ function syncViewportAdapter() {
 }
 
 function attachScrollElement(element: HTMLElement | null | undefined) {
+  cancelHeightChangeRestore();
   scrollElementCleanup?.();
   scrollElementCleanup = null;
   scrollElementResizeObserver?.disconnect();
@@ -550,14 +559,21 @@ function attachScrollElement(element: HTMLElement | null | undefined) {
   scrollElementCleanup = () => element.removeEventListener("scroll", onScroll);
   if (typeof ResizeObserver !== "undefined") {
     scrollElementResizeObserver = new ResizeObserver(() => {
-      const gapChanged = syncTimelineGapMetrics();
-      updateScrollMetrics();
-      if (gapChanged) scheduleLayoutChangeNotify();
+      if (element !== props.scrollElement) return;
+      syncTimelineGapMetrics();
+      scheduleLayoutChangeNotify();
     });
     scrollElementResizeObserver.observe(element);
+    if (viewportRef.value) scrollElementResizeObserver.observe(viewportRef.value);
   }
   syncTimelineGapMetrics();
   updateScrollMetrics();
+}
+
+function cancelHeightChangeRestore() {
+  if (pendingHeightRestoreRafId != null) cancelAnimationFrame(pendingHeightRestoreRafId);
+  pendingHeightRestoreRafId = null;
+  pendingHeightRestore = null;
 }
 
 watch(
@@ -572,6 +588,7 @@ watch(
 watch(
   () => props.timelineKey,
   () => {
+    cancelHeightChangeRestore();
     userRowElements = null;
     rowHeightsByKey.value = new Map();
     disconnectVirtualRowObservers();
@@ -622,14 +639,13 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
   if (pendingScrollMetricsRafId != null) cancelAnimationFrame(pendingScrollMetricsRafId);
   pendingScrollMetricsRafId = null;
   userRowElements = null;
   props.onPinnedUserRowChange?.("");
   props.onViewportAdapterChange?.(null);
-  if (pendingHeightRestoreRafId != null) cancelAnimationFrame(pendingHeightRestoreRafId);
-  pendingHeightRestoreRafId = null;
-  pendingHeightRestore = null;
+  cancelHeightChangeRestore();
   scrollElementCleanup?.();
   scrollElementCleanup = null;
   scrollElementResizeObserver?.disconnect();

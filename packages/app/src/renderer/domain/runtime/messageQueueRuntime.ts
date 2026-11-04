@@ -140,7 +140,7 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
         localState: "pending",
         localMessageId,
       });
-      runtimeStore.requestScrollTimelineToBottom();
+      runtimeStore.requestScrollTimelineToBottom(threadId);
     };
     const patchLocalEvent = (patch: Partial<TimelineEventItem>) => {
       timelineStore.patchEvent({ threadId, id: localEventId, patch });
@@ -330,7 +330,7 @@ export function createMessageQueueRuntime(deps: MessageQueueRuntimeDeps): Messag
         localState: "pending",
         localMessageId,
       });
-      runtimeStore.requestScrollTimelineToBottom();
+      runtimeStore.requestScrollTimelineToBottom(threadId);
     };
     const patchLocalEvent = (patch: Partial<TimelineEventItem>) => {
       timelineStore.patchEvent({ threadId, id: localEventId, patch });

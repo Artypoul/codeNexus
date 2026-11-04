@@ -37,6 +37,7 @@
       :rows="chatRenderedRows"
       :timelineKey="timelineKey"
       :scrollElement="scrollElement"
+      :followBottom="followBottom"
       :onLayoutChange="onLayoutChange"
       :onViewportAdapterChange="setLocalViewportAdapter"
       :onPinnedUserRowChange="setPinnedUserRowId"
@@ -221,6 +222,8 @@ const props = defineProps<{
   trailingContextCompactionEvent: TimelineEventItem | null;
   timelineKey: string;
   scrollElement: HTMLElement | null;
+  followBottom?: boolean;
+  onLocateRow?: (rowId: string, offsetPx: number, behavior: ScrollBehavior) => boolean;
   onLayoutChange?: () => void;
   onViewportAdapterChange?: (adapter: TimelineViewportAdapter | null) => void;
   inlineRewriteCloseSeq?: number;
@@ -478,6 +481,7 @@ function onPinnedUserClick() {
   const rowId = pinnedUserMessage.value?.rowId ?? "";
   if (!rowId) return;
   const offsetPx = pinnedPromptLocateOffsetPx();
+  if (props.onLocateRow?.(rowId, offsetPx, "smooth")) return;
   if (localViewportAdapter.value?.scrollRowToTop(rowId, offsetPx, "smooth")) return;
   scrollDomRowToTop(rowId, offsetPx);
 }

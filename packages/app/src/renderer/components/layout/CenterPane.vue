@@ -35,6 +35,8 @@
               :trailingContextCompactionEvent="trailingContextCompactionEvent"
               :timelineKey="timelineKey"
               :scrollElement="timelineRef"
+              :followBottom="autoFollowEnabled"
+              :onLocateRow="scrollRowToTop"
               :onLayoutChange="onPaneLayoutChange"
               :onViewportAdapterChange="setTimelineViewportAdapter"
               :inlineRewriteCloseSeq="inlineRewriteCloseSeq"
@@ -364,11 +366,12 @@ const timelineScrollController = useTimelineScrollController({
 const {
   hasTopEdgeFade,
   hasBottomEdgeFade,
+  autoFollowEnabled,
+  scrollRowToTop,
   forceFollowBottom,
   notifyTimelineLayoutChange,
   onTimelineScroll,
   scheduleTimelineViewportStateUpdate,
-  observeTimelineElement,
 } = timelineScrollController;
 const emptyStateHistoryItems = computed<ThreadHistoryItem[]>(() => threadStore.threadHistory.slice(0, 8));
 
@@ -1189,7 +1192,6 @@ async function onSendClick() {
   await runtime.send();
   await nextTick();
   resizeComposerInput();
-  forceFollowBottom("send");
 }
 
 async function onInterruptTurnClick() {
@@ -1206,7 +1208,6 @@ async function onEditQueuedMessage(messageId: string) {
 
 async function onSendQueuedMessageNow(messageId: string) {
   await runtime.sendQueuedMessageNow(messageId);
-  forceFollowBottom("send-queued");
 }
 
 async function onRemoveQueuedMessage(messageId: string) {
@@ -1279,7 +1280,7 @@ watch(
   () => {
     forceFollowBottom("runtime-request");
   },
-  { flush: "post" }
+  { flush: "sync" }
 );
 
 watch(
@@ -1372,7 +1373,6 @@ onMounted(() => {
     measureCenterContentWidth();
   });
   if (centerContentRef.value) centerContentResizeObserver.observe(centerContentRef.value);
-  observeTimelineElement();
   if (typeof MutationObserver !== "undefined") {
     documentAppearanceObserver = new MutationObserver(() => {
       refreshTimelineLayout({ resizeComposer: true });

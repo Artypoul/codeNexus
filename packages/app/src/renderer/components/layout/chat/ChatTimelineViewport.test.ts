@@ -19,6 +19,47 @@ afterEach(() => {
 });
 
 describe("timeline scroll updates", () => {
+  it("notifies layout changes when nonvirtual content resizes without a row revision", async () => {
+    const observed = new Map<Element, () => void>();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(readonly callback: () => void) {}
+        observe(element: Element) {
+          observed.set(element, this.callback);
+        }
+        disconnect() {}
+      }
+    );
+    const scroller = document.createElement("div");
+    document.body.append(scroller);
+    const layoutChange = vi.fn();
+    app = createApp(() =>
+      h(ChatTimelineViewport, {
+        rows: [],
+        timelineKey: "thread",
+        scrollElement: scroller,
+        onLayoutChange: layoutChange,
+      })
+    );
+    app.mount(scroller);
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(50);
+    layoutChange.mockClear();
+    const viewport = scroller.querySelector<HTMLElement>(".chat-timeline-viewport")!;
+    expect(observed.has(viewport)).toBe(true);
+    observed.get(viewport)!();
+    observed.get(viewport)!();
+    await vi.advanceTimersByTimeAsync(17);
+    expect(layoutChange).toHaveBeenCalledExactlyOnceWith();
+    app.unmount();
+    app = undefined;
+    layoutChange.mockClear();
+    observed.get(viewport)!();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(layoutChange).not.toHaveBeenCalled();
+  });
+
   it("coalesces a burst of scroll events and finds the pinned user with logarithmic layout reads", async () => {
     const scroller = document.createElement("div");
     document.body.append(scroller);
