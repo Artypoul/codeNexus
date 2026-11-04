@@ -440,62 +440,24 @@
   white-space: nowrap;
 }
 
-.topbar-mainview-switch {
-  --topbar-mainview-gap: 4px;
-  --topbar-mainview-pad: 2px;
-  --topbar-mainview-indicator-w: calc((100% - (var(--topbar-mainview-pad) * 2) - (var(--topbar-mainview-gap) * 3)) / 4);
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(66px, 1fr));
-  align-items: center;
-  gap: var(--topbar-mainview-gap);
-  padding: var(--topbar-mainview-pad);
-  overflow: hidden;
-  border: 1px solid var(--tb-control-border);
-  border-radius: var(--tb-radius);
-  background: var(--tb-control-bg);
-  -webkit-app-region: no-drag;
-}
-
-.topbar-mainview-switch::after {
-  content: "";
-  position: absolute;
-  left: var(--topbar-mainview-pad);
-  bottom: 2px;
-  width: var(--topbar-mainview-indicator-w);
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--topbar-btn-active-text);
-  pointer-events: none;
-  transform: translateX(0);
-  transition:
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 160ms ease;
-}
-
-.topbar-mainview-switch.is-image::after {
-  transform: translateX(calc(100% + var(--topbar-mainview-gap)));
-}
-
 .topbar-mainview-btn {
   position: relative;
-  z-index: 1;
   min-width: 66px;
-  height: 22px;
+  height: 24px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--tb-radius-sm);
+  background: transparent;
   color: color-mix(in srgb, var(--topbar-text) 72%, transparent);
   font-size: 12px;
   line-height: 1;
   transition:
     color 160ms ease,
-    opacity 160ms ease,
-    background 160ms ease;
+    opacity 160ms ease;
 }
 
 .topbar-mainview-btn:hover:not(:disabled) {
@@ -503,9 +465,19 @@
 }
 
 .topbar-mainview-btn.is-active {
-  border-color: transparent;
-  background: transparent;
   color: var(--topbar-btn-active-text);
+}
+
+.topbar-mainview-btn.is-active::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 1px;
+  left: 10px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  pointer-events: none;
 }
 
 .topbar-mainview-icon {
@@ -1371,7 +1343,6 @@
   .topbar-fly-enter-active,
   .topbar-fly-leave-active,
   .topbar button.topbar-theme-switch,
-  .topbar-mainview-switch::after,
   .topbar-mainview-btn,
   .topbar-theme-icon-enter-active,
   .topbar-theme-icon-leave-active,

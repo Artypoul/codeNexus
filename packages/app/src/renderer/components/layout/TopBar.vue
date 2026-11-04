@@ -3,35 +3,26 @@
     <header class="topbar">
       <div class="topbar-left row">
         <TopBarWorkspaceButton />
-        <div
-          class="topbar-mainview-switch"
-          :class="{
-            'is-chat': appShellStore.mainView === 'chat',
-            'is-image': appShellStore.mainView === 'image',
-          }"
-          :aria-label="t('topbar.mainView')"
+        <button
+          class="topbar-mainview-btn"
+          :class="{ 'is-active': appShellStore.mainView === 'chat' }"
+          type="button"
+          :aria-label="t('topbar.chat')"
+          @click="onSetMainView('chat')"
         >
-          <button
-            class="topbar-mainview-btn"
-            :class="{ 'is-active': appShellStore.mainView === 'chat' }"
-            type="button"
-            :aria-label="t('topbar.chat')"
-            @click="onSetMainView('chat')"
-          >
-            <MessageSquare class="topbar-mainview-icon" aria-hidden="true" />
-            <span>{{ t("topbar.chat") }}</span>
-          </button>
-          <button
-            class="topbar-mainview-btn"
-            :class="{ 'is-active': appShellStore.mainView === 'image' }"
-            type="button"
-            :aria-label="t('topbar.image')"
-            @click="onSetMainView('image')"
-          >
-            <ImageIcon class="topbar-mainview-icon" aria-hidden="true" />
-            <span>{{ t("topbar.image") }}</span>
-          </button>
-        </div>
+          <MessageSquare class="topbar-mainview-icon" aria-hidden="true" />
+          <span>{{ t("topbar.chat") }}</span>
+        </button>
+        <button
+          class="topbar-mainview-btn"
+          :class="{ 'is-active': appShellStore.mainView === 'image' }"
+          type="button"
+          :aria-label="t('topbar.image')"
+          @click="onSetMainView('image')"
+        >
+          <ImageIcon class="topbar-mainview-icon" aria-hidden="true" />
+          <span>{{ t("topbar.image") }}</span>
+        </button>
       </div>
 
       <div class="topbar-center-stack">
