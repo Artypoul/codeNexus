@@ -813,7 +813,7 @@ export default {
     },
   },
   userInput: {
-    title: "Plan Q&A",
+    title: "Q&A",
     empty: "No pending questions",
     externalConfirm: "Complete the external confirmation in your browser, then return here.",
     openLink: "Open link",
@@ -1216,9 +1216,9 @@ export default {
     selectWorkspaceBeforeStartingServer: "Select a workspace before starting the service.",
     sendCanceledTitle: "Send canceled",
     workspaceSelectionCanceledMessage: "Workspace selection was canceled. Message was not sent.",
-    createImageGenerationDisabledThreadFailed: "Could not create a thread with official image generation disabled",
-    cannotDisableOfficialImageGenerationForThread:
-      "Official image_generation cannot be disabled for the current thread. Create a new thread and send again.",
+    createModelToolConfigThreadFailed: "Could not create a thread with the required tool configuration",
+    cannotApplyModelToolConfigForThread:
+      "The current thread cannot apply the required tool configuration. Create a new thread and send again.",
     checkEnvironmentTitle: "Check environment",
     checkingCodexNodeNpm: "Checking codex/node/npm...",
     diagnosticLine: "{name}: {status}",

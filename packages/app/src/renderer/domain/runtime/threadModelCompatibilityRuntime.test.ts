@@ -82,7 +82,10 @@ describe("thread model tool compatibility", () => {
       params: {
         threadId: THREAD_ID,
         cwd: "D:\\projects\\jingcai-web",
-        config: { "features.image_generation": false },
+        config: {
+          "features.image_generation": false,
+          "features.default_mode_request_user_input": true,
+        },
         developerInstructions: DEVELOPER_INSTRUCTIONS,
       },
     });

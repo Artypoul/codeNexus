@@ -1,7 +1,8 @@
 /**
  * 会话启动时按模型补充的 Codex 配置覆盖项。
  *
- * 这里目前统一关闭 Codex 原生 image_generation feature，让图片能力走应用内动态工具链。
+ * 关闭 Codex 原生 image_generation feature，让图片能力走应用内动态工具链；
+ * 同时让 request_user_input 在 Agent 模式可用，不再局限于 Plan 模式。
  */
 export type ThreadStartConfigOverrides = Record<string, boolean>;
 
@@ -11,6 +12,7 @@ export function buildThreadStartConfigOverridesForModel(
 ): ThreadStartConfigOverrides | null {
   return {
     "features.image_generation": false,
+    "features.default_mode_request_user_input": true,
   };
 }
 

@@ -304,7 +304,7 @@ export function createThreadModelCompatibilityRuntime(
       } catch (error: unknown) {
         return {
           ok: false,
-          error: readErrorMessage(error) || translate("runtime.createImageGenerationDisabledThreadFailed"),
+          error: readErrorMessage(error) || translate("runtime.createModelToolConfigThreadFailed"),
         };
       }
     }
@@ -322,7 +322,7 @@ export function createThreadModelCompatibilityRuntime(
 
     return {
       ok: false,
-      error: translate("runtime.cannotDisableOfficialImageGenerationForThread"),
+      error: translate("runtime.cannotApplyModelToolConfigForThread"),
     };
   };
 

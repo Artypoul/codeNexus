@@ -89,7 +89,7 @@ const TRANSLATIONS: Record<string, string> = {
   手动安装指引: "Manual installation guide",
   提示: "Tip",
   "调试日志请打开开发者工具（DevTools）控制台查看。": "Open DevTools to view debug logs.",
-  计划问答: "Plan Q&A",
+  问答: "Q&A",
   当前无待回答问题: "No pending questions",
   "请在浏览器中完成外部确认，然后回到这里继续。":
     "Complete the external confirmation in your browser, then return here.",
