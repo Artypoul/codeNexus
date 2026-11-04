@@ -1,5 +1,5 @@
 import type { TextElement } from "@codenexus/generated/codex-app-server/v2/TextElement";
-import type { ComposeWorkspaceFileMention, TextUserInput, UserTurnInput } from "./types";
+import type { ComposeWorkspaceFileMention, SkillState, UserTurnInput } from "./types";
 import { basenameFromPath } from "./workspaceFiles";
 import { normalizeAbsoluteFsPath } from "./workspacePath";
 
@@ -261,16 +261,53 @@ export function hasMeaningfulComposeText(value: string): boolean {
 
 export function createComposeFileMention(
   pathValue: string,
-  options?: { id?: string; idPrefix?: string; kind?: ComposeWorkspaceFileMention["kind"] }
+  options?: {
+    id?: string;
+    idPrefix?: string;
+    kind?: ComposeWorkspaceFileMention["kind"];
+    name?: string;
+    displayName?: string;
+    iconUrl?: string;
+  }
 ): ComposeWorkspaceFileMention | null {
-  const path = normalizeAbsoluteFsPath(pathValue);
+  const normalizedPath = normalizeAbsoluteFsPath(pathValue);
+  const path =
+    normalizedPath || (options?.kind === "skill" || options?.kind === "mention" ? String(pathValue ?? "").trim() : "");
   if (!path) return null;
   const id = String(options?.id ?? "").trim() || createMentionId(String(options?.idPrefix ?? "compose-file"));
+  const name = String(options?.name ?? "").trim();
+  const displayName = String(options?.displayName ?? "").trim();
+  const iconUrl = String(options?.iconUrl ?? "").trim();
   return {
     id,
     path,
-    ...(options?.kind === "directory" || options?.kind === "file" ? { kind: options.kind } : {}),
+    ...(options?.kind === "directory" ||
+    options?.kind === "file" ||
+    options?.kind === "skill" ||
+    options?.kind === "mention"
+      ? { kind: options.kind }
+      : {}),
+    ...(name ? { name } : {}),
+    ...(displayName ? { displayName } : {}),
+    ...(iconUrl ? { iconUrl } : {}),
   };
+}
+
+export function createComposeSkillMention(
+  skill: SkillState,
+  options?: { id?: string; idPrefix?: string }
+): ComposeWorkspaceFileMention | null {
+  const path = String(skill.path ?? "").trim();
+  const name = String(skill.name ?? "").trim() || basenameFromPath(path) || path;
+  if (!path || !name) return null;
+  return createComposeFileMention(path, {
+    id: options?.id,
+    idPrefix: options?.idPrefix ?? "compose-skill",
+    kind: "skill",
+    name,
+    displayName: String(skill.displayName ?? "").trim(),
+    iconUrl: String(skill.iconSmallUrl || skill.iconSmall || skill.iconLargeUrl || skill.iconLarge || "").trim(),
+  });
 }
 
 export function buildComposeSegments(
@@ -312,19 +349,45 @@ export function buildComposeSegments(
   return segments;
 }
 
-export function buildTextUserInputFromComposeDraft(
+export function buildUserTurnInputsFromComposeDraft(
   composeInputValue: string,
   mentionsValue: ComposeWorkspaceFileMention[]
-): TextUserInput | null {
-  const textParts: string[] = [];
-  const textElements: ComposeTextElement[] = [];
+): UserTurnInput[] {
+  const inputs: UserTurnInput[] = [];
+  let textParts: string[] = [];
+  let textElements: ComposeTextElement[] = [];
   let currentByte = 0;
+
+  const flushText = () => {
+    if (textParts.length === 0 && textElements.length === 0) return;
+    const text = textParts.join("");
+    inputs.push({
+      type: "text",
+      text,
+      ...(textElements.length > 0 ? { text_elements: textElements } : {}),
+    });
+    textParts = [];
+    textElements = [];
+    currentByte = 0;
+  };
 
   for (const segment of buildComposeSegments(composeInputValue, mentionsValue)) {
     if (segment.type === "text") {
       const text = normalizeComposeText(segment.text);
       textParts.push(text);
       currentByte += utf8ByteLength(text);
+      continue;
+    }
+
+    if (segment.mention.kind === "skill" || segment.mention.kind === "mention") {
+      const path = String(segment.mention.path ?? "").trim();
+      const name =
+        String(segment.mention.name ?? "").trim() ||
+        basenameFromPath(path) ||
+        String(segment.mention.displayName ?? "").trim();
+      if (!path || !name) continue;
+      flushText();
+      inputs.push({ type: segment.mention.kind, name, path });
       continue;
     }
 
@@ -343,13 +406,8 @@ export function buildTextUserInputFromComposeDraft(
     });
   }
 
-  const text = textParts.join("");
-  if (!text && textElements.length === 0) return null;
-  return {
-    type: "text",
-    text,
-    ...(textElements.length > 0 ? { text_elements: textElements } : {}),
-  };
+  flushText();
+  return inputs;
 }
 
 export function buildStructuredTextSegments(
@@ -459,8 +517,24 @@ export function buildComposeDraftFromUserTurnInputs(values: UserTurnInput[]): {
       continue;
     }
 
-    if ((value as any)?.type !== "mention") continue;
-    const mention = createComposeFileMention(String((value as any)?.path ?? ""), { idPrefix: "queue-file" });
+    if (value.type === "skill") {
+      const mention = createComposeFileMention(String(value.path ?? ""), {
+        idPrefix: "queue-skill",
+        kind: "skill",
+        name: String(value.name ?? ""),
+      });
+      if (!mention) continue;
+      composeParts.push(COMPOSE_FILE_TOKEN_CHAR);
+      composeFileMentions.push(mention);
+      continue;
+    }
+
+    if (value.type !== "mention") continue;
+    const mention = createComposeFileMention(String(value.path ?? ""), {
+      idPrefix: "queue-file",
+      kind: "mention",
+      name: String(value.name ?? ""),
+    });
     if (!mention) continue;
     composeParts.push(COMPOSE_FILE_TOKEN_CHAR);
     composeFileMentions.push(mention);
@@ -472,10 +546,33 @@ export function buildComposeDraftFromUserTurnInputs(values: UserTurnInput[]): {
   };
 }
 
-export function buildUserTurnInputsFromComposeDraft(
-  composeInputValue: string,
-  mentionsValue: ComposeWorkspaceFileMention[]
-): UserTurnInput[] {
-  const textInput = buildTextUserInputFromComposeDraft(composeInputValue, mentionsValue);
-  return textInput ? [textInput] : [];
+export function userTurnInputsFromMessageContent(contentValue: unknown): UserTurnInput[] {
+  if (!Array.isArray(contentValue)) return [];
+  const inputs: UserTurnInput[] = [];
+  for (const rawItem of contentValue) {
+    const item = toRecord(rawItem);
+    const type = String(item?.type ?? "").trim();
+    if (type === "text" || type === "input_text") {
+      inputs.push({
+        type: "text",
+        text: String(item?.text ?? ""),
+        ...(Array.isArray(item?.text_elements)
+          ? { text_elements: normalizeComposeTextElements(item.text_elements) }
+          : {}),
+      });
+      continue;
+    }
+    if (type === "skill" || type === "input_skill") {
+      const name = String(item?.name ?? "").trim();
+      const path = String(item?.path ?? "").trim();
+      if (name && path) inputs.push({ type: "skill", name, path });
+      continue;
+    }
+    if (type === "mention") {
+      const name = String(item?.name ?? "").trim();
+      const path = String(item?.path ?? "").trim();
+      if (name && path) inputs.push({ type: "mention", name, path });
+    }
+  }
+  return inputs;
 }

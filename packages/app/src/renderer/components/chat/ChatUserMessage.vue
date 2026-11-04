@@ -14,6 +14,10 @@
             <Icon class="chat-inline-file-token__icon" :icon="part.icon" aria-hidden="true" />
             <span class="chat-inline-file-token__label">{{ part.label }}</span>
           </button>
+          <span v-else-if="part.type === 'skill'" class="chat-inline-skill-token" v-tooltip="part.path || part.label">
+            <SkillIcon :skill="skillForPath(part.path)" :size="16" class="chat-inline-skill-token__icon" />
+            <span class="chat-inline-skill-token__label">${{ part.label }}</span>
+          </span>
           <div v-else class="chat-environment-context">
             <div class="chat-environment-context__title mono">{{ t("chat.environmentContext.title") }}</div>
             <dl class="chat-environment-context__grid">
@@ -70,11 +74,13 @@ import { Icon } from "@iconify/vue";
 import LazyImageThumb from "../ui/LazyImageThumb.vue";
 import ChatUserBubbleFrame from "./ChatUserBubbleFrame.vue";
 import ChatInlineRewriteOverlay from "./ChatInlineRewriteOverlay.vue";
+import SkillIcon from "../ui/SkillIcon.vue";
 import type { TimelineEventItem } from "../../domain/types";
 import type { EnvironmentContextBlock } from "../../domain/taggedMessageBlocks";
 import { CHAT_ROW_BASE_CLASS } from "../layout/chat/chatPresentation";
 import type { ChatInlineRewriteDraft, ChatUserMessagePart } from "../layout/types/chat.types";
 import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
+import { useSkillsStore } from "../../stores/skills.store";
 
 type SelectOption = {
   value: string;
@@ -96,6 +102,13 @@ defineProps<{
 }>();
 
 const { t } = useI18n();
+const skillsStore = useSkillsStore();
+
+function skillForPath(pathValue: string) {
+  const path = String(pathValue ?? "").trim();
+  if (!path) return null;
+  return skillsStore.items.find((skill) => String(skill.path ?? "").trim() === path) ?? null;
+}
 
 const environmentContextRows = (context: EnvironmentContextBlock) => {
   const rows = [

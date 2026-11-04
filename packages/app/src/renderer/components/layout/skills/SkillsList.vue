@@ -29,14 +29,17 @@
         <div class="skill-summary-main">
           <div class="skill-summary-topline">
             <div class="skill-title-wrap">
-              <div class="name">{{ skill.name }}</div>
-              <div v-if="mode === 'manager'" class="skill-badge-row">
-                <span class="skill-status-pill" :class="skill.enabled ? 'is-enabled' : 'is-disabled'">
-                  {{ skill.enabled ? t("skills.enabled") : t("skills.disabled") }}
-                </span>
-                <span class="skill-meta-pill">{{
-                  skill.configurable ? t("skills.configurable") : t("skills.fixed")
-                }}</span>
+              <SkillIcon :skill="skill" :size="28" class="skill-title-icon" />
+              <div class="skill-title-copy">
+                <div class="name">{{ skill.name }}</div>
+                <div v-if="mode === 'manager'" class="skill-badge-row">
+                  <span class="skill-status-pill" :class="skill.enabled ? 'is-enabled' : 'is-disabled'">
+                    {{ skill.enabled ? t("skills.enabled") : t("skills.disabled") }}
+                  </span>
+                  <span class="skill-meta-pill">{{
+                    skill.configurable ? t("skills.configurable") : t("skills.fixed")
+                  }}</span>
+                </div>
               </div>
             </div>
 
@@ -80,6 +83,7 @@ import { useI18n } from "vue-i18n";
 import { ChevronDown } from "lucide-vue-next";
 import type { SkillState } from "../../../domain/types";
 import { useSkillsUiStore } from "../../../stores/skillsUi.store";
+import SkillIcon from "../../ui/SkillIcon.vue";
 
 const props = withDefaults(
   defineProps<{

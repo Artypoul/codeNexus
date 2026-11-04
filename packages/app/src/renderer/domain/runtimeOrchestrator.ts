@@ -794,7 +794,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     if (input.length === 0) return false;
     const localUserMessage = summarizeLocalUserMessage(input);
     const visibleText = String(localUserMessage.payload.text ?? "").trim();
-    const queueText = String(localUserMessage.payload.text ?? "");
+    const queueText = String(localUserMessage.displayText ?? "");
 
     const workspaceReady = await ensureWorkspaceForSend();
     if (!workspaceReady) {

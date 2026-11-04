@@ -34,6 +34,9 @@ function cloneUserTurnInput(value: UserTurnInput): UserTurnInput {
   if (value.type === "image") {
     return { type: "image", url: String(value.url ?? "") };
   }
+  if (value.type === "skill" || value.type === "mention") {
+    return { type: value.type, name: String(value.name ?? ""), path: String(value.path ?? "") };
+  }
   return { type: "localImage", path: String(value.path ?? "") };
 }
 

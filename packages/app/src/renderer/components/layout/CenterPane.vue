@@ -54,6 +54,8 @@
             :composeInput="runtimeStore.composeInput"
             :composeAttachments="runtimeStore.composeAttachments"
             :composeFileMentions="runtimeStore.composeFileMentions"
+            :skills="skillsStore.items"
+            :skillsLoadState="skillsStore.loadState"
             :historyRewriteActive="runtimeStore.historyRewriteActive"
             :historyRewriteSource="runtimeStore.historyRewriteSource"
             :statusText="composerStatusText"
@@ -80,6 +82,7 @@
             :composerImageInputRef="bindComposerImageInputRef"
             @update:composeInput="onComposeInputUpdate"
             @update:composeFileMentions="onComposeFileMentionsUpdate"
+            @request-skills="onRequestSkills"
             @update:model="onModelUpdate"
             @update:reasoningEffort="onReasoningEffortUpdate"
             @update:sandboxMode="onSandboxModeUpdate"
@@ -173,6 +176,7 @@ import { useConfigStore } from "../../stores/config.store";
 import { useMessageQueueStore } from "../../stores/messageQueue.store";
 import { useModelCatalogStore } from "../../stores/modelCatalog.store";
 import { useRuntimeStore, type SandboxMode } from "../../stores/runtime.store";
+import { useSkillsStore } from "../../stores/skills.store";
 import { useSkillsUiStore } from "../../stores/skillsUi.store";
 import { useThreadStore } from "../../stores/thread.store";
 import { useTimelineStore } from "../../stores/timeline.store";
@@ -222,6 +226,7 @@ const appShellStore = useAppShellStore();
 const configStore = useConfigStore();
 const messageQueueStore = useMessageQueueStore();
 const modelCatalogStore = useModelCatalogStore();
+const skillsStore = useSkillsStore();
 const skillsUiStore = useSkillsUiStore();
 
 const centerContentRef = ref<HTMLElement | null>(null);
@@ -1095,6 +1100,10 @@ async function onComposerPaste(event: ClipboardEvent) {
 function onComposeFileMentionsUpdate(value: typeof runtimeStore.composeFileMentions) {
   runtimeStore.composeFileMentions = Array.isArray(value) ? value.map((item) => ({ ...item })) : [];
   runtimeStore.saveThreadComposeFileMentions(runtimeStore.currentThreadId);
+}
+
+function onRequestSkills() {
+  void runtime.refreshSkills(false);
 }
 
 function onRemoveComposeAttachment(attachmentId: string) {

@@ -136,6 +136,18 @@
           <div class="composer-toolbar-actions">
             <button
               v-if="variant !== 'inline'"
+              id="btn-insert-skill"
+              class="btn-mini composer-icon-button"
+              type="button"
+              :aria-label="t('composer.insertSkill')"
+              :aria-expanded="isSkillPickerOpen ? 'true' : 'false'"
+              @click.stop="toggleSkillPicker"
+            >
+              <Blocks class="composer-icon-button-icon" />
+            </button>
+
+            <button
+              v-if="variant !== 'inline'"
               id="btn-add-image"
               class="btn-mini composer-icon-button"
               type="button"
@@ -187,6 +199,36 @@
           </div>
         </div>
 
+        <div
+          v-if="isSkillPickerOpen"
+          ref="skillPickerRef"
+          class="composer-skill-picker app-scrollbar"
+          @pointerdown.stop
+          @keydown.esc.stop.prevent="closeSkillPicker"
+        >
+          <div class="composer-skill-picker-title mono">{{ t("composer.skillPickerTitle") }}</div>
+          <button
+            v-for="skill in selectableSkills"
+            :key="getSkillKey(skill)"
+            class="composer-skill-option"
+            type="button"
+            :disabled="!skill.path"
+            :title="skill.path || skill.name"
+            @click.stop="insertSkillMention(skill)"
+          >
+            <SkillIcon :skill="skill" :size="22" />
+            <span class="composer-skill-option-main">
+              <span class="composer-skill-option-name">{{ skill.displayName || skill.name }}</span>
+              <span v-if="skill.shortDescription || skill.description" class="composer-skill-option-desc">
+                {{ skill.shortDescription || skill.description }}
+              </span>
+            </span>
+          </button>
+          <div v-if="selectableSkills.length === 0" class="composer-skill-empty mono dim">
+            {{ skillsLoadState === "loading" ? t("composer.skillPickerLoading") : t("composer.skillPickerEmpty") }}
+          </div>
+        </div>
+
         <div v-if="statusText" class="composer-status-line">
           <WaveText class="composer-status-text mono dim" :text="statusText" />
         </div>
@@ -196,23 +238,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
-import { Bot, ImagePlus, ListTodo, SendHorizontal, Square } from "lucide-vue-next";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { Blocks, Bot, ImagePlus, ListTodo, SendHorizontal, Square } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import type { ModelPickerOption } from "@codenexus/shared/modelCatalog";
-import type { CollaborationModeKind, ComposeImageAttachment, ComposeWorkspaceFileMention } from "../../../domain/types";
+import type {
+  CollaborationModeKind,
+  ComposeImageAttachment,
+  ComposeWorkspaceFileMention,
+  SkillState,
+} from "../../../domain/types";
 import {
   COMPOSE_FILE_TOKEN_CHAR,
   countComposeFileTokensBeforeOffset,
   createComposeFileMention,
+  createComposeSkillMention,
   findComposeFileTokenOffsetByMentionIndex,
 } from "../../../domain/composeFileMentions";
 import { basenameFromPath } from "../../../domain/workspaceFiles";
+import { isAbsoluteFsPath, normalizeAbsoluteFsPath } from "../../../domain/workspacePath";
+import { readLocalImageDataUrl } from "../../../features/media/localImageCache";
 import { hasWorkspaceFileDragData, readWorkspaceFileDragData } from "../../../domain/workspaceFileDrag";
 import { useRuntimeStore, type SandboxMode } from "../../../stores/runtime.store";
 import { useUserInputStore } from "../../../stores/userInput.store";
 import WaterBallProgress from "../../ui/WaterBallProgress.vue";
 import WaveText from "../../ui/WaveText.vue";
+import SkillIcon from "../../ui/SkillIcon.vue";
 import { resolveVscodeEntryIcon } from "../workspace/vscodeFileIcons";
 import ComposerModelReasoningPicker from "./ComposerModelReasoningPicker.vue";
 import ComposerSandboxPicker from "./ComposerSandboxPicker.vue";
@@ -241,6 +292,8 @@ const props = defineProps<{
   composeInput: string;
   composeAttachments: ComposeImageAttachment[];
   composeFileMentions: ComposeWorkspaceFileMention[];
+  skills?: readonly SkillState[];
+  skillsLoadState?: "idle" | "loading" | "ready" | "error";
   historyRewriteActive: boolean;
   historyRewriteSource: "history" | "queue";
   statusText?: string;
@@ -274,6 +327,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "update:composeInput", value: string): void;
   (event: "update:composeFileMentions", value: ComposeWorkspaceFileMention[]): void;
+  (event: "request-skills"): void;
   (event: "update:model", value: string): void;
   (event: "update:reasoningEffort", value: string): void;
   (event: "update:sandboxMode", value: SandboxMode): void;
@@ -297,6 +351,9 @@ const userInputStore = useUserInputStore();
 const isInputFocused = ref(false);
 const workspaceFileDragDepth = ref(0);
 const isWorkspaceFileDragOver = ref(false);
+const isSkillPickerOpen = ref(false);
+const skillPickerRef = ref<HTMLElement | null>(null);
+const skillInsertOffset = ref<number | null>(null);
 const selectedMentionId = ref("");
 const pendingSelectionOffset = ref<number | null>(null);
 const pendingFocusAfterSync = ref(false);
@@ -327,8 +384,17 @@ const historyRewriteLabel = computed(() =>
 );
 
 const mentionSignature = computed(() => {
-  return props.composeFileMentions.map((mention) => `${mention.id}\u0001${mention.path}`).join("\u0002");
+  return props.composeFileMentions
+    .map(
+      (mention) =>
+        `${mention.id}\u0001${mention.kind ?? ""}\u0001${mention.path}\u0001${mention.name ?? ""}\u0001${mention.displayName ?? ""}\u0001${mention.iconUrl ?? ""}`
+    )
+    .join("\u0002");
 });
+
+const selectableSkills = computed(() =>
+  (props.skills ?? []).filter((skill) => skill.enabled && Boolean(String(skill.path ?? "").trim()))
+);
 
 function getComposeDraftFromProps(): ComposeDraftState {
   return {
@@ -346,7 +412,14 @@ function isMentionTokenSpacerElement(node: Node | null): node is HTMLElement {
 }
 
 function isSameMention(left: ComposeWorkspaceFileMention, right: ComposeWorkspaceFileMention): boolean {
-  return left.id === right.id && left.path === right.path && left.kind === right.kind;
+  return (
+    left.id === right.id &&
+    left.path === right.path &&
+    left.kind === right.kind &&
+    left.name === right.name &&
+    left.displayName === right.displayName &&
+    left.iconUrl === right.iconUrl
+  );
 }
 
 function isSameComposeDraft(left: ComposeDraftState, right: ComposeDraftState): boolean {
@@ -360,20 +433,69 @@ function isSameComposeDraft(left: ComposeDraftState, right: ComposeDraftState): 
 
 function buildMentionTokenElement(mention: ComposeWorkspaceFileMention): HTMLSpanElement {
   const root = document.createElement("span");
-  const kind = mention.kind === "directory" ? "directory" : "file";
+  const kind =
+    mention.kind === "skill" || mention.kind === "mention"
+      ? mention.kind
+      : mention.kind === "directory"
+        ? "directory"
+        : "file";
   root.className = ["composer-inline-file-token", `composer-inline-file-token--${kind}`].filter(Boolean).join(" ");
   root.contentEditable = "false";
   root.dataset.composeMentionId = mention.id;
   root.dataset.composeMentionPath = mention.path;
   root.dataset.composeMentionKind = kind;
+  if (mention.name) root.dataset.composeMentionName = mention.name;
+  if (mention.displayName) root.dataset.composeMentionDisplayName = mention.displayName;
+  if (mention.iconUrl) root.dataset.composeMentionIconUrl = mention.iconUrl;
 
-  const icon = buildMentionTokenIcon(mention.path, kind);
+  const icon =
+    kind === "skill"
+      ? buildSkillTokenIcon(mention.iconUrl)
+      : buildMentionTokenIcon(mention.path, kind === "directory" ? "directory" : "file");
   const label = document.createElement("span");
   label.className = "composer-inline-file-token__label";
-  label.textContent = basenameFromPath(mention.path) || mention.path;
+  label.textContent =
+    kind === "skill"
+      ? mention.displayName || mention.name || basenameFromPath(mention.path) || mention.path
+      : (kind === "mention" ? mention.name : "") || basenameFromPath(mention.path) || mention.path;
 
   root.append(icon, label);
   return root;
+}
+
+function buildSkillTokenIcon(iconUrlValue: string | undefined): HTMLSpanElement {
+  const icon = document.createElement("span");
+  icon.className = "composer-inline-file-token__icon";
+  icon.setAttribute("aria-hidden", "true");
+  const iconUrl = String(iconUrlValue ?? "").trim();
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2.2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML =
+    '<rect width="7" height="7" x="14" y="3" rx="1"></rect><path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"></path>';
+  icon.append(svg);
+  if (iconUrl) {
+    const image = document.createElement("img");
+    image.className = "composer-inline-file-token__icon-img";
+    image.alt = "";
+    image.onload = () => icon.replaceChildren(image);
+    image.onerror = () => icon.replaceChildren(svg);
+    if (isAbsoluteFsPath(iconUrl)) {
+      void readLocalImageDataUrl(normalizeAbsoluteFsPath(iconUrl))
+        .then((dataUrl) => {
+          image.src = dataUrl;
+        })
+        .catch(() => {});
+    } else {
+      image.src = iconUrl;
+    }
+  }
+  return icon;
 }
 
 function buildMentionTokenSpacerElement(): HTMLSpanElement {
@@ -460,6 +582,17 @@ function readComposeDraftFromDom(root: HTMLDivElement): ComposeDraftState {
     const mention = createComposeFileMention(child.dataset.composeMentionPath ?? "", {
       id: child.dataset.composeMentionId ?? "",
       idPrefix: "compose-file",
+      kind:
+        child.dataset.composeMentionKind === "skill"
+          ? "skill"
+          : child.dataset.composeMentionKind === "directory"
+            ? "directory"
+            : child.dataset.composeMentionKind === "mention"
+              ? "mention"
+              : "file",
+      name: child.dataset.composeMentionName ?? "",
+      displayName: child.dataset.composeMentionDisplayName ?? "",
+      iconUrl: child.dataset.composeMentionIconUrl ?? "",
     });
     if (!mention) continue;
     composeInputParts.push(COMPOSE_FILE_TOKEN_CHAR);
@@ -733,6 +866,78 @@ function insertDroppedFiles(
   );
 }
 
+function getSkillKey(skill: SkillState): string {
+  return String(skill.path ?? "").trim() || String(skill.name ?? "").trim();
+}
+
+function closeSkillPicker() {
+  isSkillPickerOpen.value = false;
+  skillInsertOffset.value = null;
+}
+
+function toggleSkillPicker() {
+  if (isSkillPickerOpen.value) {
+    closeSkillPicker();
+    return;
+  }
+  const root = internalComposerInputRef.value;
+  skillInsertOffset.value = root ? getCurrentSelectionOffset(root) : String(props.composeInput ?? "").length;
+  isSkillPickerOpen.value = true;
+  emit("request-skills");
+}
+
+function insertSkillMention(skill: SkillState) {
+  const mention = createComposeSkillMention(skill);
+  if (!mention) return;
+  const root = internalComposerInputRef.value;
+  const offset = Math.max(
+    0,
+    Math.min(
+      String(props.composeInput ?? "").length,
+      skillInsertOffset.value ?? (root ? getCurrentSelectionOffset(root) : String(props.composeInput ?? "").length)
+    )
+  );
+  const mentionInsertIndex = countComposeFileTokensBeforeOffset(props.composeInput, offset);
+  const nextInput = `${props.composeInput.slice(0, offset)}${COMPOSE_FILE_TOKEN_CHAR}${props.composeInput.slice(offset)}`;
+  const nextMentions = [
+    ...props.composeFileMentions.slice(0, mentionInsertIndex),
+    mention,
+    ...props.composeFileMentions.slice(mentionInsertIndex),
+  ];
+  emitComposeDraft(
+    {
+      composeInput: nextInput,
+      composeFileMentions: nextMentions,
+    },
+    {
+      focus: true,
+      focusOffset: offset + 1,
+      selectedMentionId: mention.id,
+    }
+  );
+  skillInsertOffset.value = null;
+  closeSkillPicker();
+}
+
+function onDocumentPointerDown(event: PointerEvent) {
+  if (!isSkillPickerOpen.value) return;
+  const target = event.target instanceof Node ? event.target : null;
+  if (!target) return;
+  if (skillPickerRef.value?.contains(target)) return;
+  if (target instanceof Element && target.closest("#btn-insert-skill")) return;
+  closeSkillPicker();
+}
+
+watch(isSkillPickerOpen, (open) => {
+  if (typeof document === "undefined") return;
+  if (open) document.addEventListener("pointerdown", onDocumentPointerDown, true);
+  else document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+});
+
 function getCaretOffsetFromPoint(clientX: number, clientY: number): number {
   const root = internalComposerInputRef.value;
   if (!root) return String(props.composeInput ?? "").length;
@@ -757,6 +962,12 @@ function onComposerKeydown(event: KeyboardEvent) {
   const root = internalComposerInputRef.value;
   const selection = window.getSelection();
   const isCollapsed = Boolean(selection?.rangeCount && selection.getRangeAt(0).collapsed);
+
+  if (isSkillPickerOpen.value && event.key === "Escape") {
+    event.preventDefault();
+    closeSkillPicker();
+    return;
+  }
 
   if (selectedMentionId.value && (event.key === "Backspace" || event.key === "Delete")) {
     event.preventDefault();

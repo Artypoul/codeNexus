@@ -158,11 +158,13 @@ export type ChatUserMessageSnapshot = {
   textElements: unknown;
   images: string[];
   localImages: string[];
+  content: unknown[];
 };
 
 export type ChatUserMessagePart =
   | { key: string; type: "text"; text: string }
   | { key: string; type: "file"; path: string; label: string; title: string; icon: IconifyIcon }
+  | { key: string; type: "skill"; name: string; path: string; label: string }
   | { key: string; type: "environmentContext"; context: EnvironmentContextBlock };
 
 export type ImageToolImageEntry = {

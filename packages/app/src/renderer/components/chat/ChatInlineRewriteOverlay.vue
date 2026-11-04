@@ -4,6 +4,8 @@
       :composeInput="draft.composeInput"
       :composeAttachments="draft.composeAttachments"
       :composeFileMentions="draft.composeFileMentions"
+      :skills="[]"
+      skillsLoadState="idle"
       :historyRewriteActive="true"
       historyRewriteSource="history"
       :composeMode="draft.composeMode"

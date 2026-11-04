@@ -40,41 +40,58 @@ export function useChatMessageParts(hiddenImageIds: () => Set<string>, onLayoutC
         textElements: undefined,
         images: [],
         localImages: [],
+        content: [],
       };
     }
+    const text = String(params.text ?? "").replace(/\r\n?/g, "\n");
+    const content = Array.isArray(params.content) ? params.content : [];
+    const hasContentText = content.some((item) => {
+      const type = toRecord(item)?.type;
+      return type === "text" || type === "input_text";
+    });
     return {
-      text: String(params.text ?? "").replace(/\r\n?/g, "\n"),
+      text,
       textElements: params.text_elements,
       images: toStringArray(params.images, { keepEmpty: true }),
       localImages: toStringArray(params.local_images),
+      content:
+        text && content.length > 0 && !hasContentText
+          ? [{ type: "text", text, text_elements: params.text_elements }, ...content]
+          : content,
     };
   };
 
   const userMessageParts = (event: TimelineEventItem): ChatUserMessagePart[] => {
     const snapshot = getUserMessageSnapshot(event);
     const parts: ChatUserMessagePart[] = [];
-    let index = 0;
-    for (const segment of buildStructuredTextSegments(snapshot.text, snapshot.textElements, {
-      inferAbsolutePaths: true,
-    })) {
-      if (segment.type === "text") {
-        for (const taggedSegment of splitEnvironmentContextSegments(segment.text)) {
-          if (taggedSegment.type === "text") {
-            if (taggedSegment.text) {
-              parts.push({ key: `${event.id}:text:${index}:${parts.length}`, type: "text", text: taggedSegment.text });
+
+    const pushStructuredTextParts = (text: string, textElements: unknown, keyPrefix: string) => {
+      for (const segment of buildStructuredTextSegments(text, textElements, {
+        inferAbsolutePaths: true,
+      })) {
+        if (segment.type === "text") {
+          for (const taggedSegment of splitEnvironmentContextSegments(segment.text)) {
+            if (taggedSegment.type === "text") {
+              if (taggedSegment.text) {
+                parts.push({
+                  key: `${event.id}:${keyPrefix}:text:${parts.length}`,
+                  type: "text",
+                  text: taggedSegment.text,
+                });
+              }
+            } else {
+              parts.push({
+                key: `${event.id}:${keyPrefix}:environment:${parts.length}`,
+                type: "environmentContext",
+                context: taggedSegment.context,
+              });
             }
-          } else {
-            parts.push({
-              key: `${event.id}:environment:${index}:${parts.length}`,
-              type: "environmentContext",
-              context: taggedSegment.context,
-            });
           }
+          continue;
         }
-      } else {
         const label = String(segment.placeholder ?? "").trim() || basenameFromPath(segment.path) || segment.path;
         parts.push({
-          key: `${event.id}:file:${index}:${segment.path}`,
+          key: `${event.id}:${keyPrefix}:file:${parts.length}:${segment.path}`,
           type: "file",
           path: segment.path,
           label,
@@ -82,8 +99,46 @@ export function useChatMessageParts(hiddenImageIds: () => Set<string>, onLayoutC
           icon: resolveVscodeEntryIcon(segment.path, { isDirectory: segment.kind === "directory" }),
         });
       }
-      index += 1;
+    };
+
+    if (snapshot.content.length > 0) {
+      for (const rawItem of snapshot.content) {
+        const item = toRecord(rawItem);
+        const type = String(item?.type ?? "").trim();
+        if (type === "text" || type === "input_text") {
+          pushStructuredTextParts(String(item?.text ?? ""), item?.text_elements, "content");
+          continue;
+        }
+        if (type === "skill" || type === "input_skill") {
+          const name = String(item?.name ?? "").trim();
+          const path = String(item?.path ?? "").trim();
+          if (!name && !path) continue;
+          parts.push({
+            key: `${event.id}:content:skill:${parts.length}:${path || name}`,
+            type: "skill",
+            name,
+            path,
+            label: name || basenameFromPath(path) || path,
+          });
+          continue;
+        }
+        if (type === "mention") {
+          const path = String(item?.path ?? "").trim();
+          if (!path) continue;
+          parts.push({
+            key: `${event.id}:content:mention:${parts.length}:${path}`,
+            type: "file",
+            path,
+            label: String(item?.name ?? "").trim() || basenameFromPath(path) || path,
+            title: path,
+            icon: resolveVscodeEntryIcon(path, { isDirectory: false }),
+          });
+        }
+      }
+      if (parts.length > 0) return parts;
     }
+
+    pushStructuredTextParts(snapshot.text, snapshot.textElements, "text");
     if (parts.length > 0) return parts;
     const fallbackText = String(event?.paramsText ?? "");
     return fallbackText

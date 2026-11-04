@@ -3,6 +3,7 @@ import {
   buildConfigBatchChangesFromDraft,
   createDefaultGlobalConfigDraft,
   extractGlobalConfigFromReadResult,
+  normalizeSkillsListResult,
 } from "./serverInterop";
 
 describe("global config feature defaults", () => {
@@ -37,5 +38,43 @@ describe("global config feature defaults", () => {
     };
 
     expect(buildConfigBatchChangesFromDraft(draft, baseline)).toEqual([]);
+  });
+});
+
+describe("skills metadata icons", () => {
+  it("keeps official local and remote icon fields", () => {
+    const items = normalizeSkillsListResult({
+      data: [
+        {
+          cwd: "C:/repo",
+          errors: [],
+          skills: [
+            {
+              name: "review",
+              description: "Review code",
+              path: "C:/skills/review/SKILL.md",
+              enabled: true,
+              interface: {
+                displayName: "Code Review",
+                iconSmall: "C:/skills/review/icon.png",
+                iconLarge: "C:/skills/review/icon-large.png",
+                iconSmallUrl: "https://example.com/icon.png",
+                iconLargeUrl: "https://example.com/icon-large.png",
+                brandColor: "#12abef",
+              },
+            },
+          ],
+        },
+      ],
+    } as any);
+
+    expect(items[0]).toMatchObject({
+      name: "review",
+      iconSmall: "C:/skills/review/icon.png",
+      iconLarge: "C:/skills/review/icon-large.png",
+      iconSmallUrl: "https://example.com/icon.png",
+      iconLargeUrl: "https://example.com/icon-large.png",
+      brandColor: "#12abef",
+    });
   });
 });

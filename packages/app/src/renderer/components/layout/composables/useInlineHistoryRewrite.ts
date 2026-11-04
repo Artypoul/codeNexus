@@ -1,5 +1,9 @@
 import { ref, watch } from "vue";
-import { buildComposeDraftFromStructuredText } from "../../../domain/composeFileMentions";
+import {
+  buildComposeDraftFromStructuredText,
+  buildComposeDraftFromUserTurnInputs,
+  userTurnInputsFromMessageContent,
+} from "../../../domain/composeFileMentions";
 import { getRuntimeOrchestrator } from "../../../domain/runtimeOrchestrator";
 import type {
   CollaborationModeKind,
@@ -99,10 +103,14 @@ export function useInlineHistoryRewrite(options: UseInlineHistoryRewriteOptions)
       return;
     }
     const snapshot = options.getUserMessageSnapshot(event);
-    const draft = buildComposeDraftFromStructuredText(snapshot.text, snapshot.textElements, {
-      inferAbsolutePaths: true,
-      idPrefix: "inline-history-file",
-    });
+    const contentInputs = userTurnInputsFromMessageContent(snapshot.content);
+    const draft =
+      contentInputs.length > 0
+        ? buildComposeDraftFromUserTurnInputs(contentInputs)
+        : buildComposeDraftFromStructuredText(snapshot.text, snapshot.textElements, {
+            inferAbsolutePaths: true,
+            idPrefix: "inline-history-file",
+          });
     inlineRewriteDraft.value = {
       anchorEventId,
       anchorTurnId,

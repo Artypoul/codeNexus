@@ -71,6 +71,12 @@ export function createTurnInputRuntime(): TurnInputRuntime {
         ...(Array.isArray(value.text_elements) ? { text_elements: cloneComposeTextElements(value.text_elements) } : {}),
       };
     }
+    if (value.type === "skill") {
+      return { type: "skill", name: String(value.name ?? ""), path: String(value.path ?? "") };
+    }
+    if (value.type === "mention") {
+      return { type: "mention", name: String(value.name ?? ""), path: String(value.path ?? "") };
+    }
     if (value.type === "image") {
       return { type: "image", url: String(value.url ?? "") };
     }
@@ -90,6 +96,12 @@ export function createTurnInputRuntime(): TurnInputRuntime {
           text: String(value.text ?? ""),
           text_elements: cloneProtocolTextElements(value.text_elements),
         };
+      }
+      if (value.type === "skill") {
+        return { type: "skill", name: String(value.name ?? ""), path: String(value.path ?? "") };
+      }
+      if (value.type === "mention") {
+        return { type: "mention", name: String(value.name ?? ""), path: String(value.path ?? "") };
       }
       if (value.type === "image") {
         return { type: "image", url: String(value.url ?? "") };
@@ -172,9 +184,23 @@ export function createTurnInputRuntime(): TurnInputRuntime {
   } => {
     const normalizedInputs = cloneUserTurnInputs(values);
     const draft = buildComposeDraftFromUserTurnInputs(normalizedInputs);
-    const textInput = buildUserTurnInputsFromComposeDraft(draft.composeInput, draft.composeFileMentions).find(
+    const turnInputs = buildUserTurnInputsFromComposeDraft(draft.composeInput, draft.composeFileMentions);
+    const textInputs = turnInputs.filter(
       (item): item is Extract<UserTurnInput, { type: "text" }> => item.type === "text"
-    ) ?? { type: "text", text: "", text_elements: [] };
+    );
+    let textByteOffset = 0;
+    const textEncoder = new TextEncoder();
+    const textElements = textInputs.flatMap((item) => {
+      const elements = cloneComposeTextElements(item.text_elements).map((element) => ({
+        ...element,
+        byteRange: {
+          start: element.byteRange.start + textByteOffset,
+          end: element.byteRange.end + textByteOffset,
+        },
+      }));
+      textByteOffset += textEncoder.encode(item.text).length;
+      return elements;
+    });
 
     const images = normalizedInputs
       .filter((item): item is Extract<UserTurnInput, { type: "image" }> => item.type === "image")
@@ -182,22 +208,32 @@ export function createTurnInputRuntime(): TurnInputRuntime {
     const localImages = normalizedInputs
       .filter((item): item is Extract<UserTurnInput, { type: "localImage" }> => item.type === "localImage")
       .map((item) => String(item.path ?? ""));
+    const skills = normalizedInputs
+      .filter((item): item is Extract<UserTurnInput, { type: "skill" }> => item.type === "skill")
+      .map((item) => ({ name: String(item.name ?? ""), path: String(item.path ?? "") }))
+      .filter((item) => item.name && item.path);
+    const content = normalizedInputs.filter(
+      (item) => item.type === "text" || item.type === "skill" || item.type === "mention"
+    );
 
     const imageCount = images.length + localImages.length;
-    const baseText = String(textInput.text ?? "");
+    const baseText = textInputs.map((item) => String(item.text ?? "")).join("");
     const imageSummary = imageCount > 0 ? translate("runtime.attachedImageSummary", { count: imageCount }) : "";
-    const displayText = baseText ? (imageSummary ? `${baseText}\n${imageSummary}` : baseText) : imageSummary;
+    const contentSummary = content
+      .map((item) => (item.type === "text" ? item.text : item.type === "skill" ? `$${item.name}` : item.path))
+      .join("");
+    const displayText = [contentSummary, imageSummary].filter(Boolean).join("\n");
 
     return {
       displayText,
       payload: {
         role: "user",
         text: baseText,
-        ...(Array.isArray(textInput.text_elements) && textInput.text_elements.length > 0
-          ? { text_elements: cloneComposeTextElements(textInput.text_elements) }
-          : {}),
+        ...(textElements.length > 0 ? { text_elements: textElements } : {}),
         images: images.length > 0 ? [...images] : null,
         local_images: [...localImages],
+        ...(content.length > 0 ? { content } : {}),
+        ...(skills.length > 0 ? { skills } : {}),
       },
     };
   };

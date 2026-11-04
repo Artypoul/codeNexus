@@ -275,6 +275,11 @@ export function normalizeSkillsListResult(result: SkillsListResponse | null | un
           ? item.shortDescription
           : undefined;
     const defaultPrompt = typeof item.interface?.defaultPrompt === "string" ? item.interface.defaultPrompt : undefined;
+    const iconSmall = typeof item.interface?.iconSmall === "string" ? item.interface.iconSmall : undefined;
+    const iconLarge = typeof item.interface?.iconLarge === "string" ? item.interface.iconLarge : undefined;
+    const iconSmallUrl = typeof item.interface?.iconSmallUrl === "string" ? item.interface.iconSmallUrl : undefined;
+    const iconLargeUrl = typeof item.interface?.iconLargeUrl === "string" ? item.interface.iconLargeUrl : undefined;
+    const brandColor = typeof item.interface?.brandColor === "string" ? item.interface.brandColor : undefined;
     const enabled = normalizeSkillEnabled(item);
     const configurable = Boolean(path);
     entries.push({
@@ -284,6 +289,11 @@ export function normalizeSkillsListResult(result: SkillsListResponse | null | un
       ...(displayName ? { displayName } : {}),
       ...(shortDescription ? { shortDescription } : {}),
       ...(defaultPrompt ? { defaultPrompt } : {}),
+      ...(iconSmall ? { iconSmall } : {}),
+      ...(iconLarge ? { iconLarge } : {}),
+      ...(iconSmallUrl ? { iconSmallUrl } : {}),
+      ...(iconLargeUrl ? { iconLargeUrl } : {}),
+      ...(brandColor ? { brandColor } : {}),
       enabled,
       configurable,
     });

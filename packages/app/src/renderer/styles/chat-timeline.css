@@ -457,6 +457,35 @@
   white-space: nowrap;
 }
 
+.timeline-pane--chat .chat-inline-skill-token {
+  display: inline-grid;
+  box-sizing: border-box;
+  grid-template-columns: 16px minmax(0, auto);
+  max-width: min(100%, 280px);
+  height: 22px;
+  align-items: center;
+  column-gap: 5px;
+  margin: 0 2px;
+  padding: 0 7px 0 5px;
+  vertical-align: top;
+  border: 1px solid color-mix(in srgb, var(--border-accent) 78%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface-1) 82%, var(--accent) 18%);
+  color: var(--fg-accent);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.timeline-pane--chat .chat-inline-skill-token__icon {
+  color: var(--fg-accent);
+}
+
+.timeline-pane--chat .chat-inline-skill-token__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .timeline-pane--chat .chat-user-images {
   color: var(--chat-row-muted);
 }

@@ -99,10 +99,22 @@ function cloneComposeAttachments(values: ComposeImageAttachment[] | undefined): 
 }
 
 function cloneComposeFileMention(value: ComposeWorkspaceFileMention): ComposeWorkspaceFileMention {
+  const kind =
+    value.kind === "directory" || value.kind === "skill" || value.kind === "mention"
+      ? value.kind
+      : value.kind === "file"
+        ? "file"
+        : undefined;
+  const name = String(value.name ?? "").trim();
+  const displayName = String(value.displayName ?? "").trim();
+  const iconUrl = String(value.iconUrl ?? "").trim();
   return {
     id: String(value.id ?? "").trim(),
     path: String(value.path ?? "").trim(),
-    ...(value.kind === "directory" || value.kind === "file" ? { kind: value.kind } : {}),
+    ...(kind ? { kind } : {}),
+    ...(name ? { name } : {}),
+    ...(displayName ? { displayName } : {}),
+    ...(iconUrl ? { iconUrl } : {}),
   };
 }
 
@@ -267,7 +279,9 @@ export const useRuntimeStore = defineStore("runtime", {
       this.composeAttachments = next;
       this.saveThreadComposeAttachments(this.currentThreadId);
     },
-    addComposeFileMentions(values: Array<Pick<ComposeWorkspaceFileMention, "path" | "kind">>) {
+    addComposeFileMentions(
+      values: Array<Pick<ComposeWorkspaceFileMention, "path" | "kind" | "name" | "displayName" | "iconUrl">>
+    ) {
       const incoming = Array.isArray(values)
         ? values
             .map((value, index) => {
@@ -276,7 +290,15 @@ export const useRuntimeStore = defineStore("runtime", {
               return {
                 id: `compose-file:${Date.now()}:${index}:${Math.random().toString(16).slice(2)}`,
                 path,
-                ...(value.kind === "directory" || value.kind === "file" ? { kind: value.kind } : {}),
+                ...(value.kind === "directory" ||
+                value.kind === "file" ||
+                value.kind === "skill" ||
+                value.kind === "mention"
+                  ? { kind: value.kind }
+                  : {}),
+                ...(String(value.name ?? "").trim() ? { name: String(value.name).trim() } : {}),
+                ...(String(value.displayName ?? "").trim() ? { displayName: String(value.displayName).trim() } : {}),
+                ...(String(value.iconUrl ?? "").trim() ? { iconUrl: String(value.iconUrl).trim() } : {}),
               } satisfies ComposeWorkspaceFileMention;
             })
             .filter((value): value is ComposeWorkspaceFileMention => Boolean(value))

@@ -291,6 +291,7 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
     text_elements?: unknown;
     images?: unknown;
     local_images?: unknown;
+    content?: unknown;
   }): {
     displayText: string;
     canonical: string;
@@ -301,20 +302,66 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
       text_elements: ReturnType<typeof resolveComposeTextElements>;
       images: string[] | null;
       local_images: string[];
+      content?: unknown[];
     };
   } => {
-    const text = String(payload.text ?? "").replace(/\r\n/g, "\n");
+    const rawContent = Array.isArray(payload.content) ? payload.content : [];
+    const content = rawContent.filter((item) => item && typeof item === "object" && !Array.isArray(item)) as Record<
+      string,
+      unknown
+    >[];
+    const contentText = content
+      .filter((item) => item.type === "text" || item.type === "input_text")
+      .map((item) => String(item.text ?? ""))
+      .join("");
+    const text = (String(payload.text ?? "") || contentText).replace(/\r\n/g, "\n");
     const normalizedImages = Array.isArray(payload.images) ? payload.images.map((item) => String(item ?? "")) : [];
     const normalizedLocalImages = Array.isArray(payload.local_images)
       ? payload.local_images.map((item) => String(item ?? "")).filter((item) => Boolean(item.trim()))
       : [];
-    const imageCount = normalizedImages.length + normalizedLocalImages.length;
-    const images = normalizedImages;
     const textElements = resolveComposeTextElements(text, payload.text_elements, { inferAbsolutePaths: true });
-    const hasVisibleText = Boolean(normalizeText(text));
+    for (const item of content) {
+      if (item.type === "image" && typeof item.url === "string" && item.url.trim()) {
+        normalizedImages.push(item.url.trim());
+      } else if (item.type === "localImage" && typeof item.path === "string" && item.path.trim()) {
+        normalizedLocalImages.push(item.path.trim());
+      } else if (item.type === "input_image") {
+        const imageUrl =
+          typeof item.image_url === "string"
+            ? item.image_url
+            : item.image_url && typeof item.image_url === "object" && "url" in item.image_url
+              ? String(item.image_url.url ?? "")
+              : "";
+        if (imageUrl.trim()) normalizedImages.push(imageUrl.trim());
+      }
+    }
+    const uniqueImages = [...new Set(normalizedImages)];
+    const uniqueLocalImages = [...new Set(normalizedLocalImages)];
+    const imageCount = uniqueImages.length + uniqueLocalImages.length;
+    const skills = content
+      .filter((item) => item.type === "skill" || item.type === "input_skill")
+      .map((item) => ({ name: String(item.name ?? "").trim(), path: String(item.path ?? "").trim() }))
+      .filter((item) => item.name && item.path);
     const imageSummary = imageCount > 0 ? translate("runtime.attachedImageSummary", { count: imageCount }) : "";
-    const displayText = imageSummary ? (hasVisibleText ? `${text}\n${imageSummary}` : imageSummary) : text;
-    const canonicalBase = normalizeText(text).replace(/\s+/g, " ").trim();
+    const contentSummary = content
+      .map((item) => {
+        if (item.type === "text" || item.type === "input_text") return String(item.text ?? "");
+        if (item.type === "skill" || item.type === "input_skill") return item.name ? `$${item.name}` : "";
+        if (item.type === "mention") return String(item.path ?? "");
+        return "";
+      })
+      .join("");
+    const messageSummary = contentText ? contentSummary : [text, contentSummary].filter(Boolean).join("\n");
+    const displayText = [messageSummary, imageSummary].filter(Boolean).join("\n");
+    const canonicalBase = [
+      normalizeText(text),
+      ...skills.map((item) => `${item.name}:${item.path}`),
+      ...content.filter((item) => item.type === "mention").map((item) => String(item.path ?? "")),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
     return {
       displayText,
       canonical: canonicalBase || `__image_only__:${imageCount}`,
@@ -323,8 +370,9 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
         role: "user",
         text,
         text_elements: textElements,
-        images: images.length > 0 ? images : null,
-        local_images: normalizedLocalImages,
+        images: uniqueImages.length > 0 ? uniqueImages : null,
+        local_images: uniqueLocalImages,
+        ...(content.length > 0 ? { content } : {}),
       },
     };
   };
@@ -357,6 +405,7 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
       text_elements?: unknown;
       images?: unknown;
       local_images?: unknown;
+      content?: unknown;
     },
     createdAt: number
   ) => {
@@ -376,16 +425,39 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
       const existingImageCount =
         (Array.isArray(existingParams?.images) ? existingParams.images.length : 0) +
         (Array.isArray(existingParams?.local_images) ? existingParams.local_images.length : 0);
+      const existingContent = Array.isArray(existingParams?.content) ? existingParams.content : [];
       if (
         normalized.displayText.length > existingText.length ||
         normalized.payload.text_elements.length > existingTextElementCount ||
-        normalized.imageCount > existingImageCount
+        normalized.imageCount > existingImageCount ||
+        (normalized.payload.content?.length ?? 0) > existingContent.length
       ) {
         // 事件对象被视为不可变数据：下游会按对象身份做签名缓存，原地改写会让缓存读到旧值。
         events[existingIdx] = {
           ...existing,
-          paramsText: normalized.displayText,
-          params: normalized.payload,
+          paramsText:
+            normalized.displayText.length >= existingText.length ? normalized.displayText : existing.paramsText,
+          params: {
+            ...existingParams,
+            ...normalized.payload,
+            ...(!normalized.payload.content && existingContent.length > 0 ? { content: existingContent } : {}),
+            ...(existingTextElementCount > normalized.payload.text_elements.length ||
+            (existingTextElementCount > 0 && !Array.isArray(payload.text_elements))
+              ? { text_elements: existingParams?.text_elements }
+              : {}),
+            images: [
+              ...new Set([
+                ...(Array.isArray(existingParams?.images) ? existingParams.images : []),
+                ...(normalized.payload.images ?? []),
+              ]),
+            ],
+            local_images: [
+              ...new Set([
+                ...(Array.isArray(existingParams?.local_images) ? existingParams.local_images : []),
+                ...normalized.payload.local_images,
+              ]),
+            ],
+          },
         };
       }
       return;
@@ -534,6 +606,7 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
           text_elements: payload?.text_elements,
           images: payload?.images,
           local_images: payload?.local_images,
+          content: payload?.content,
         },
         createdAt
       );
@@ -548,9 +621,17 @@ export function parseSessionReplayEvents(entries: HistoryThreadEvent[], threadId
     if (payloadType === "message") {
       const role = normalizeText(payload?.role).toLowerCase();
       const text = extractTextFromContent(payload?.content) || normalizeText(payload?.text);
-      if (!text) continue;
+      const content: unknown[] | undefined = Array.isArray(payload?.content) ? payload.content : undefined;
+      if (!text && !content) continue;
       if (role === "user") {
-        pushUserMessage(activeTurnId, { text }, createdAt);
+        const userText = content
+          ?.map((item) => {
+            if (!item || typeof item !== "object") return "";
+            const part = item as Record<string, unknown>;
+            return part.type === "text" || part.type === "input_text" ? String(part.text ?? "") : "";
+          })
+          .join("");
+        pushUserMessage(activeTurnId, { text: userText || text, content }, createdAt);
         continue;
       }
       if (role === "assistant") {

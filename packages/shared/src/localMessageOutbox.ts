@@ -23,11 +23,25 @@ export type LocalImagePathUserInput = {
   path: string;
 };
 
-/** 文本、远程图片和本地图片路径统一归一成 Codex 可消费的用户输入片段。 */
+export type LocalSkillUserInput = {
+  type: "skill";
+  name: string;
+  path: string;
+};
+
+export type LocalMentionUserInput = {
+  type: "mention";
+  name: string;
+  path: string;
+};
+
+/** 文本、远程图片、本地图片路径、skill 和 mention 统一归一成 Codex 可消费的用户输入片段。 */
 export type LocalUserTurnInput =
   | LocalTextUserInput
   | LocalImageUserInput
-  | LocalImagePathUserInput;
+  | LocalImagePathUserInput
+  | LocalSkillUserInput
+  | LocalMentionUserInput;
 
 /** 排队消息保留 displayText 和 localEventId，便于 UI 侧对齐乐观渲染事件。 */
 export type LocalOutboxQueuedMessage = {
@@ -114,22 +128,15 @@ export function normalizeLocalUserTurnInput(
   if (type === "localImage") {
     return { type: "localImage", path: String(record?.path ?? "") };
   }
+  if (type === "skill") {
+    const name = String(record?.name ?? "").trim();
+    const path = String(record?.path ?? "").trim();
+    return name && path ? { type: "skill", name, path } : null;
+  }
   if (type === "mention") {
     const path = String(record?.path ?? "").trim();
-    if (!path) return null;
-    return {
-      type: "text",
-      text: path,
-      text_elements: [
-        {
-          byteRange: {
-            start: 0,
-            end: new TextEncoder().encode(path).length,
-          },
-          placeholder: String(record?.name ?? "").trim() || null,
-        },
-      ],
-    };
+    const name = String(record?.name ?? "").trim();
+    return name && path ? { type: "mention", name, path } : null;
   }
   return null;
 }
@@ -158,6 +165,20 @@ export function cloneLocalUserTurnInput(
   }
   if (value.type === "localImage") {
     return { type: "localImage", path: String(value.path ?? "") };
+  }
+  if (value.type === "skill") {
+    return {
+      type: "skill",
+      name: String(value.name ?? ""),
+      path: String(value.path ?? ""),
+    };
+  }
+  if (value.type === "mention") {
+    return {
+      type: "mention",
+      name: String(value.name ?? ""),
+      path: String(value.path ?? ""),
+    };
   }
   const exhaustive: never = value;
   return exhaustive;

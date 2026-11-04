@@ -238,6 +238,21 @@ button.danger:hover:not(:disabled),
 
 .skill-title-wrap {
   min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  flex: 1 1 auto;
+}
+
+.skill-title-icon {
+  margin-top: 1px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  padding: 3px;
+}
+
+.skill-title-copy {
+  min-width: 0;
   display: grid;
   gap: 6px;
   flex: 1 1 auto;

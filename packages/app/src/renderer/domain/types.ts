@@ -26,7 +26,19 @@ export type LocalImageUserInput = {
   path: string;
 };
 
-export type UserTurnInput = TextUserInput | ImageUserInput | LocalImageUserInput;
+export type SkillUserInput = {
+  type: "skill";
+  name: string;
+  path: string;
+};
+
+export type MentionUserInput = {
+  type: "mention";
+  name: string;
+  path: string;
+};
+
+export type UserTurnInput = TextUserInput | ImageUserInput | LocalImageUserInput | SkillUserInput | MentionUserInput;
 
 export type TimelineUserMessageParams = {
   role: "user";
@@ -34,6 +46,8 @@ export type TimelineUserMessageParams = {
   text_elements?: TextElement[];
   images?: string[] | null;
   local_images?: string[];
+  content?: UserTurnInput[];
+  skills?: Array<{ name: string; path: string }>;
 };
 
 export type ComposeImageAttachment = {
@@ -49,7 +63,10 @@ export type ComposeImageAttachment = {
 export type ComposeWorkspaceFileMention = {
   id: string;
   path: string;
-  kind?: "file" | "directory";
+  kind?: "file" | "directory" | "skill" | "mention";
+  name?: string;
+  displayName?: string;
+  iconUrl?: string;
 };
 
 export type ThreadHistoryItem = {
@@ -257,6 +274,11 @@ export type SkillState = {
   displayName?: string;
   shortDescription?: string;
   defaultPrompt?: string;
+  iconSmall?: string;
+  iconLarge?: string;
+  iconSmallUrl?: string;
+  iconLargeUrl?: string;
+  brandColor?: string;
   enabled: boolean;
   configurable: boolean;
 };
