@@ -3,6 +3,7 @@ import { IPC_CACHE_CHANNELS } from "./channels/cache";
 import { IPC_CODEX_CHANNELS } from "./channels/codex";
 import { IPC_EVENT_CHANNELS } from "./channels/events";
 import { IPC_HISTORY_CHANNELS } from "./channels/history";
+import { IPC_USAGE_CHANNELS } from "./channels/usage";
 import { IPC_WORKSPACE_CHANNELS } from "./channels/workspace";
 
 /*
@@ -20,5 +21,6 @@ export {
   IPC_WORKSPACE_CHANNELS,
   IPC_HISTORY_CHANNELS,
   IPC_CACHE_CHANNELS,
+  IPC_USAGE_CHANNELS,
   IPC_EVENT_CHANNELS,
 };

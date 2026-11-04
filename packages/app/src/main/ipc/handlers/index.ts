@@ -18,9 +18,11 @@ import { registerCacheHandlers } from "./cache.handlers";
 import { registerCodexHandlers } from "./codex.handlers";
 import { registerHistoryHandlers } from "./history.handlers";
 import { registerImageGenerationHandlers } from "./image-generation.handlers";
+import { registerUsageHandlers } from "./usage.handlers";
 import { registerWorkspaceHandlers } from "./workspace.handlers";
 import { registerWindowHandlers } from "./window.handlers";
 import { CacheRegistryService } from "../../services/CacheRegistryService";
+import type { UsageStatsService } from "../../services/UsageStatsService";
 import type { HistoryThreadRunningStateResult } from "@codenexus/shared/ipc/contracts";
 
 export type IpcHandlersDeps = {
@@ -41,6 +43,7 @@ export type IpcHandlersDeps = {
   codexConfigSwitcherService: CodexConfigSwitcherService;
   imageGenerationHistoryService: ImageGenerationHistoryService;
   imageGenerationTaskService: ImageGenerationTaskService;
+  usageStatsService: UsageStatsService;
   updateService: UpdateService;
   cacheRegistryService: CacheRegistryService;
 };
@@ -61,6 +64,7 @@ export function registerAllHandlers(deps: IpcHandlersDeps) {
   registerWindowHandlers({ getMainWindow: deps.getMainWindow });
   registerCodexHandlers({ serverManager: deps.serverManager, sendEvent: deps.sendCodexEvent });
   registerCacheHandlers({ cacheRegistryService: deps.cacheRegistryService });
+  registerUsageHandlers({ usageStatsService: deps.usageStatsService });
   registerHistoryHandlers({
     historyService: deps.historyService,
     threadTaskService: deps.threadTaskService,

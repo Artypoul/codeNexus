@@ -66,6 +66,7 @@ export const useAppShellStore = defineStore("appShell", {
     settingsOpen: false,
     settingsActiveTab: "global" as SettingsTab,
     settingsIntegrationsTab: "skills" as SettingsIntegrationsTab,
+    usageStatsOpen: false,
     leftSidebarVisible: true,
     leftSidebarWidthPx: DEFAULT_LEFT_SIDEBAR_WIDTH_PX,
     filesSidebarVisible: true,
@@ -156,6 +157,7 @@ export const useAppShellStore = defineStore("appShell", {
       if (tab) this.settingsActiveTab = tab;
       if (opts?.integrationsTab) this.settingsIntegrationsTab = opts.integrationsTab;
       this.settingsOpen = true;
+      this.usageStatsOpen = false;
       // 进入设置页后，关闭旧的抽屉状态，避免出现“状态为 open 但 UI 不显示”的混乱。
       this.globalConfigDrawerOpen = false;
       this.envSetupDrawerOpen = false;
@@ -163,6 +165,12 @@ export const useAppShellStore = defineStore("appShell", {
     },
     closeSettings() {
       this.settingsOpen = false;
+    },
+    setUsageStatsOpen(next: boolean) {
+      this.usageStatsOpen = Boolean(next);
+    },
+    toggleUsageStatsOpen() {
+      this.setUsageStatsOpen(!this.usageStatsOpen);
     },
     setSettingsTab(tab: SettingsTab) {
       this.settingsActiveTab = tab;

@@ -5,5 +5,6 @@ export {
   IPC_WORKSPACE_CHANNELS,
   IPC_HISTORY_CHANNELS,
   IPC_CACHE_CHANNELS,
+  IPC_USAGE_CHANNELS,
   IPC_EVENT_CHANNELS,
 } from "@codenexus/shared/ipc/channels";

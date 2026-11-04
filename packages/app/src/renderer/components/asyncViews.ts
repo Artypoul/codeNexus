@@ -13,4 +13,5 @@ export const ComposerSlashCommandList = defineAsyncComponent(
   () => import("./layout/composer/ComposerSlashCommandList.vue")
 );
 export const SkillsManagerOverlay = defineAsyncComponent(() => import("./layout/skills/SkillsManagerOverlay.vue"));
+export const UsageStatsDrawer = defineAsyncComponent(() => import("./layout/overlays/UsageStatsDrawer.vue"));
 export const ChatPane = defineAsyncComponent(() => import("./layout/chat/ChatPane.vue"));

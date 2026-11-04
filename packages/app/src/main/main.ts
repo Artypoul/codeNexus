@@ -21,6 +21,7 @@ import { ThreadArtifactService } from "./services/ThreadArtifactService";
 import { ThreadTaskService } from "./services/ThreadTaskService";
 import { ThreadTitleOverrideService } from "./services/ThreadTitleOverrideService";
 import { UpdateService } from "./services/UpdateService";
+import { UsageStatsService } from "./services/UsageStatsService";
 import { WorkspacePatchService } from "./services/WorkspacePatchService";
 import { createMainWindow } from "./windows/mainWindow";
 
@@ -114,6 +115,7 @@ app
     const threadTitleOverrideService = new ThreadTitleOverrideService(
       join(app.getPath("userData"), "thread-title-overrides.json")
     );
+    const usageStatsService = new UsageStatsService(join(app.getPath("userData"), "token-usage-stats-cache.json"));
     const initialLocalSettings = await localSettingsService.read();
 
     cacheRegistryService.registerProvider({
@@ -177,6 +179,7 @@ app
       codexConfigSwitcherService,
       imageGenerationHistoryService,
       imageGenerationTaskService,
+      usageStatsService,
       updateService,
       cacheRegistryService,
     });

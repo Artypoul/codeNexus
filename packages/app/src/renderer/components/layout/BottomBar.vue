@@ -1,5 +1,18 @@
 <template>
   <footer class="bottom-bar" role="navigation" :aria-label="t('bottomBar.aria')">
+    <div class="bottom-bar__left">
+      <button
+        class="bottom-bar__usage"
+        :class="{ 'is-active': appShellStore.usageStatsOpen }"
+        type="button"
+        :aria-label="t('bottomBar.usageStats')"
+        :aria-expanded="appShellStore.usageStatsOpen ? 'true' : 'false'"
+        @click="appShellStore.toggleUsageStatsOpen()"
+      >
+        <BarChart3 class="bottom-bar__usage-icon" aria-hidden="true" />
+        <span>{{ t("bottomBar.usageStats") }}</span>
+      </button>
+    </div>
     <div class="bottom-bar__right">
       <div class="bottom-bar__conn mono" :class="connectionStateClass">
         <span class="bottom-bar__conn-icon" aria-hidden="true">
@@ -18,6 +31,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { BarChart3 } from "lucide-vue-next";
 import { useAppShellStore } from "../../stores/appShell.store";
 
 const appShellStore = useAppShellStore();
@@ -74,12 +88,54 @@ onBeforeUnmount(() => {
   height: var(--bottombar-h);
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0;
   border-top: 1px solid var(--panel-border, var(--border));
   background: var(--shell-chrome-bg, var(--topbar-bg, var(--panel-bg)));
   backdrop-filter: var(--shell-backdrop-filter, none);
   -webkit-backdrop-filter: var(--shell-backdrop-filter, none);
+}
+
+.bottom-bar__left {
+  min-width: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 6px;
+}
+
+.bottom-bar__usage {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 86%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.bottom-bar__usage:hover:not(:disabled),
+.bottom-bar__usage:focus-visible {
+  border-color: color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+  color: var(--text);
+}
+
+.bottom-bar__usage.is-active {
+  border-color: var(--border-accent);
+  background: var(--bg-accent-soft);
+  color: var(--accent);
+}
+
+.bottom-bar__usage-icon {
+  width: 13px;
+  height: 13px;
 }
 
 .bottom-bar__right {

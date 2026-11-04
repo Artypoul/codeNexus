@@ -51,6 +51,7 @@
       </Transition>
     </main>
     <BottomBar />
+    <UsageStatsDrawer />
     <div class="app-overlays">
       <GoalShutdownCountdownOverlay v-if="showGoalShutdownOverlay" />
     </div>
@@ -68,6 +69,7 @@ import {
   GoalShutdownCountdownOverlay,
   LeftSidebar,
   SettingsPage,
+  UsageStatsDrawer,
   WorkspaceEditorPane,
   WorkspaceFilesSidebar,
 } from "./components/asyncViews";

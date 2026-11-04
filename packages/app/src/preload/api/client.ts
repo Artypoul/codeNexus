@@ -5,6 +5,7 @@ import { createCacheApi } from "./client/cache";
 import { createCodexServerApi } from "./client/codexServer";
 import { createHistoryApi } from "./client/history";
 import { createLocalStateApi } from "./client/localState";
+import { createUsageApi } from "./client/usage";
 import { createWindowApi } from "./client/window";
 import { createWorkspaceApi } from "./client/workspace";
 
@@ -22,6 +23,8 @@ export function createCodexDesktopApi(
     localState: createLocalStateApi(ipcRenderer, initialLocalSettingsSnapshot),
     // 缓存管理：查看和清理各类缓存。
     cache: createCacheApi(ipcRenderer),
+    // 用量统计：读取本地 Codex 会话的 token 聚合数据。
+    usage: createUsageApi(ipcRenderer),
     // Codex 服务：启动进程、请求/通知与事件订阅。
     codexServer: createCodexServerApi(ipcRenderer),
     // 工作区能力：选择目录与应用反向 diff。

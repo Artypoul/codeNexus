@@ -457,6 +457,44 @@ export type CacheClearResult = {
 };
 
 /*
+ * Token 用量统计契约
+ * ─────────────────────────────────────────────────────────────
+ * 作用域：Usage 模块（main / preload / renderer）
+ * 数据口径：每条有效 token_count.last_token_usage 代表一次模型请求。
+ * 日期口径：startDate/endDate 为本地时区 YYYY-MM-DD，首尾均包含。
+ */
+export type TokenUsageStatsArgs = {
+  startDate: string;
+  endDate: string;
+};
+
+export type TokenUsageStatsBreakdown = {
+  requestCount: number;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  cacheWriteInputTokens: number;
+};
+
+export type TokenUsageStatsDay = TokenUsageStatsBreakdown & {
+  date: string;
+};
+
+export type TokenUsageStatsModel = TokenUsageStatsBreakdown & {
+  model: string;
+};
+
+export type TokenUsageStatsResult = {
+  startDate: string;
+  endDate: string;
+  summary: TokenUsageStatsBreakdown;
+  daily: TokenUsageStatsDay[];
+  models: TokenUsageStatsModel[];
+  generatedAt: number;
+};
+
+/*
  * 通知、电源与更新契约
  * ─────────────────────────────────────────────────────────────
  * 作用域：System / Update 模块
@@ -651,6 +689,10 @@ export type CodexDesktopCacheApi = {
   clear(args?: CacheClearArgs): Promise<CacheClearResult>;
 };
 
+export type CodexDesktopUsageApi = {
+  getTokenStats(args: TokenUsageStatsArgs): Promise<TokenUsageStatsResult>;
+};
+
 export type CodexDesktopCodexServerApi = {
   ensureInstalled(): Promise<CodexEnsureInstalledResult>;
   getDiagnostics(): Promise<CodexDiagnosticsResult>;
@@ -751,6 +793,7 @@ export type CodexDesktopApi = {
   window: CodexDesktopWindowApi;
   localState: CodexDesktopLocalStateApi;
   cache: CodexDesktopCacheApi;
+  usage: CodexDesktopUsageApi;
   codexServer: CodexDesktopCodexServerApi;
   workspace: CodexDesktopWorkspaceApi;
   history: CodexDesktopHistoryApi;
