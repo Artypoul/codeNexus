@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createThreadModelCompatibilityRuntime } from "./threadModelCompatibilityRuntime";
+import {
+  createThreadModelCompatibilityRuntime,
+  type ThreadModelCompatibilityRuntimeDeps,
+} from "./threadModelCompatibilityRuntime";
 
 const { rpcMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -22,7 +25,7 @@ const THREAD_MODEL = "workbuddy/deepseek-v4.1-flash";
 const DEFAULT_MODEL = "auto/deepseek-v4.1-flash";
 const DEVELOPER_INSTRUCTIONS = "Use the CodeNexus image generation tool.";
 
-function createRuntime() {
+function createRuntime(overrides?: Partial<ThreadModelCompatibilityRuntimeDeps>) {
   return createThreadModelCompatibilityRuntime({
     runtimeStore: { sandboxMode: "danger-full-access" } as never,
     threadStore: {
@@ -36,6 +39,7 @@ function createRuntime() {
     resumePromisesByThread: new Map(),
     threadScopedCaches: [],
     normalizeWorkspacePath: (value) => String(value ?? "").trim(),
+    ensureProjectForWorkspace: async () => null,
     buildThreadStartParamsForModel: () => {
       throw new Error("thread/start is not expected in this test");
     },
@@ -45,6 +49,7 @@ function createRuntime() {
     clearThreadWorkspace: () => undefined,
     pushEvent: vi.fn(),
     translate: (key) => key,
+    ...overrides,
   });
 }
 
@@ -103,5 +108,54 @@ describe("thread model tool compatibility", () => {
       model: THREAD_MODEL,
     });
     expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("重建空线程时保留已有项目归属", async () => {
+    const nextThreadId = "01a1a1c9-5b37-7081-9af7-3f5c8ca34740";
+    rpcMock.mockResolvedValueOnce({ result: { thread: { id: nextThreadId } } });
+    const replaceLocalThreadId = vi.fn();
+    const runtime = createRuntime({
+      runtimeStore: {
+        sandboxMode: "danger-full-access",
+        moveThreadComposeState: vi.fn(),
+        movePendingThreadInitSendCount: vi.fn(),
+        setCurrentThread: vi.fn(),
+      } as never,
+      threadStore: {
+        hasLocalThread: () => true,
+        runningThreadIds: new Set<string>(),
+        localThreads: [{ id: THREAD_ID, title: "old", projectId: "project-1", meta: "", createdAt: 1, updatedAt: 1 }],
+        replaceThreadId: vi.fn(),
+        replaceLocalThreadId,
+        patchThreadMetadata: vi.fn(),
+        setCurrentThread: vi.fn(),
+      } as never,
+      timelineStore: { eventsForThread: () => [], moveThread: vi.fn() } as never,
+      messageQueueStore: { moveThreadQueue: vi.fn() } as never,
+      buildThreadStartParamsForModel: () => ({
+        params: { model: DEFAULT_MODEL, cwd: "D:\\projects\\jingcai-web" },
+        configOverrides: { "features.image_generation": false },
+      }),
+    });
+
+    await expect(
+      runtime.ensureThreadModelToolCompatibility({
+        threadId: THREAD_ID,
+        threadWorkspace: "D:\\projects\\jingcai-web",
+        threadServerId: "server-1",
+        model: DEFAULT_MODEL,
+      })
+    ).resolves.toEqual({ ok: true, threadId: nextThreadId, model: DEFAULT_MODEL });
+
+    expect(rpcMock).toHaveBeenCalledWith({
+      serverId: "server-1",
+      method: "thread/start",
+      params: expect.objectContaining({ projectId: "project-1" }),
+    });
+    expect(replaceLocalThreadId).toHaveBeenCalledWith(
+      THREAD_ID,
+      nextThreadId,
+      expect.objectContaining({ projectId: "project-1" })
+    );
   });
 });

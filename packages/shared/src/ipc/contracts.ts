@@ -61,6 +61,9 @@ export type HistoryThread = {
   agentRole?: string;
   agentPath?: string;
   gitInfoSummary?: string;
+  projectId?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
 };
 
 export type HistoryThreadMetadataPatch = {
@@ -71,6 +74,9 @@ export type HistoryThreadMetadataPatch = {
   agentRole?: string | null;
   agentPath?: string | null;
   gitInfoSummary?: string | null;
+  projectId?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
 };
 
 export type HistoryThreadTitleOverridesResult = {

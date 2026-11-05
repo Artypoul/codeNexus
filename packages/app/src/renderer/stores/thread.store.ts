@@ -229,6 +229,34 @@ export const useThreadStore = defineStore("thread", {
       else this.localThreads.push(item);
       this.localThreads.sort((a, b) => b.updatedAt - a.updatedAt);
     },
+    patchThreadMetadata(
+      threadIdValue: string,
+      patch: Partial<
+        Pick<
+          ThreadHistoryItem,
+          "projectId" | "sectionId" | "sectionName" | "gitInfoSummary" | "forkedFromId" | "agentNickname" | "agentRole"
+        >
+      >
+    ) {
+      const threadId = normalizeThreadId(threadIdValue);
+      if (!threadId) return;
+      const historyIdx = this.threadHistory.findIndex((item) => item.id === threadId);
+      if (historyIdx >= 0) {
+        this.threadHistory[historyIdx] = {
+          ...this.threadHistory[historyIdx],
+          ...patch,
+          id: threadId,
+        };
+      }
+      const localIdx = this.localThreads.findIndex((item) => item.id === threadId);
+      if (localIdx >= 0) {
+        this.localThreads[localIdx] = {
+          ...this.localThreads[localIdx],
+          ...patch,
+          id: threadId,
+        };
+      }
+    },
     patchLocalThread(threadIdValue: string, patch: Partial<LocalThreadItem>) {
       const threadId = normalizeThreadId(threadIdValue);
       if (!threadId) return;

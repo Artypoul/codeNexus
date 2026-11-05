@@ -66,6 +66,7 @@ import type { ModelProviderCapabilitiesReadResponse } from "@codenexus/generated
 import type { MockExperimentalMethodResponse } from "@codenexus/generated/codex-app-server/v2/MockExperimentalMethodResponse";
 import type { PermissionsRequestApprovalResponse } from "@codenexus/generated/codex-app-server/v2/PermissionsRequestApprovalResponse";
 import type { PermissionProfileListResponse } from "@codenexus/generated/codex-app-server/v2/PermissionProfileListResponse";
+import type { ProjectListResponse } from "@codenexus/generated/codex-app-server/v2/ProjectListResponse";
 import type { PluginInstalledResponse } from "@codenexus/generated/codex-app-server/v2/PluginInstalledResponse";
 import type { PluginInstallResponse } from "@codenexus/generated/codex-app-server/v2/PluginInstallResponse";
 import type { PluginListResponse } from "@codenexus/generated/codex-app-server/v2/PluginListResponse";
@@ -112,6 +113,7 @@ import type { ThreadRealtimeStopResponse } from "@codenexus/generated/codex-app-
 import type { ThreadResumeResponse } from "@codenexus/generated/codex-app-server/v2/ThreadResumeResponse";
 import type { ThreadRevertResponse } from "@codenexus/generated/codex-app-server/v2/ThreadRevertResponse";
 import type { ThreadSearchResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSearchResponse";
+import type { ThreadSectionListResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSectionListResponse";
 import type { ThreadSetNameResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSetNameResponse";
 import type { ThreadSettingsUpdateResponse } from "@codenexus/generated/codex-app-server/v2/ThreadSettingsUpdateResponse";
 import type { ThreadShellCommandResponse } from "@codenexus/generated/codex-app-server/v2/ThreadShellCommandResponse";
@@ -152,6 +154,8 @@ type SupportedCodexRpcResultMap = {
   "thread/unarchive": ThreadUnarchiveResponse;
   "thread/read": ThreadReadResponse;
   "thread/list": ThreadListResponse;
+  "project/list": ProjectListResponse;
+  "threadSection/list": ThreadSectionListResponse;
   "thread/search": ThreadSearchResponse;
   "thread/loaded/list": ThreadLoadedListResponse;
   "thread/increment_elicitation": ThreadIncrementElicitationResponse;

@@ -102,14 +102,28 @@ export function buildHistoryThreadMetadataPatchFromServerThread(
     agentRole: normalizeOptionalText(thread.agentRole) ?? sourceDetails.agentRole,
     agentPath: sourceDetails.agentPath,
     gitInfoSummary: buildGitInfoSummary(thread.gitInfo),
+    projectId: normalizeOptionalText(thread.projectId),
+    sectionId: normalizeOptionalText(thread.section?.id),
+    sectionName: normalizeOptionalText(thread.section?.name),
   };
 }
 
 export function buildThreadHistoryMetadataFromServerThread(
-  thread: Pick<ServerThread, "source" | "forkedFromId" | "agentNickname" | "agentRole" | "gitInfo">
+  thread: Pick<
+    ServerThread,
+    "source" | "forkedFromId" | "agentNickname" | "agentRole" | "gitInfo" | "projectId" | "section"
+  >
 ): Pick<
   ThreadHistoryItem,
-  "threadSourceKind" | "forkedFromId" | "agentNickname" | "agentRole" | "agentPath" | "gitInfoSummary"
+  | "threadSourceKind"
+  | "forkedFromId"
+  | "agentNickname"
+  | "agentRole"
+  | "agentPath"
+  | "gitInfoSummary"
+  | "projectId"
+  | "sectionId"
+  | "sectionName"
 > {
   const sourceDetails = extractThreadSourceDetails(thread.source);
   return {
@@ -119,6 +133,9 @@ export function buildThreadHistoryMetadataFromServerThread(
     agentRole: normalizeOptionalText(thread.agentRole) ?? sourceDetails.agentRole ?? undefined,
     agentPath: sourceDetails.agentPath ?? undefined,
     gitInfoSummary: buildGitInfoSummary(thread.gitInfo) ?? undefined,
+    projectId: normalizeOptionalText(thread.projectId),
+    sectionId: normalizeOptionalText(thread.section?.id),
+    sectionName: normalizeOptionalText(thread.section?.name),
   };
 }
 

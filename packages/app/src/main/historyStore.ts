@@ -24,6 +24,9 @@ export type HistoryThread = {
   agentRole?: string;
   agentPath?: string;
   gitInfoSummary?: string;
+  projectId?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
 };
 
 export type HistoryThreadMetadataPatch = {
@@ -34,6 +37,9 @@ export type HistoryThreadMetadataPatch = {
   agentRole?: string | null;
   agentPath?: string | null;
   gitInfoSummary?: string | null;
+  projectId?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
 };
 
 export type HistoryMessage = {
@@ -78,7 +84,7 @@ type SessionSummaryCacheEntry = {
 };
 
 type HistoryCachePayload = {
-  version: 2;
+  version: 3;
   items: PersistedHistoryThread[];
   sessionSummaries?: SessionSummaryCacheEntry[];
 };
@@ -155,7 +161,10 @@ type HistoryThreadMetadataKeys =
   | "agentNickname"
   | "agentRole"
   | "agentPath"
-  | "gitInfoSummary";
+  | "gitInfoSummary"
+  | "projectId"
+  | "sectionId"
+  | "sectionName";
 
 type HistoryThreadMetadata = Pick<HistoryThread, HistoryThreadMetadataKeys>;
 
@@ -167,6 +176,9 @@ type NormalizedHistoryThreadMetadataPatch = {
   agentRole?: string | undefined;
   agentPath?: string | undefined;
   gitInfoSummary?: string | undefined;
+  projectId?: string | null | undefined;
+  sectionId?: string | null | undefined;
+  sectionName?: string | null | undefined;
 };
 
 const HISTORY_THREAD_SOURCE_KINDS: readonly ThreadSourceKind[] = [
@@ -224,6 +236,9 @@ function toPersistedThread(item: HistoryThread): PersistedHistoryThread {
     agentRole: item.agentRole,
     agentPath: item.agentPath,
     gitInfoSummary: item.gitInfoSummary,
+    projectId: item.projectId,
+    sectionId: item.sectionId,
+    sectionName: item.sectionName,
   };
 }
 
@@ -244,6 +259,9 @@ function toHistoryThread(item: PersistedHistoryThread, source: HistorySource): H
     agentRole: item.agentRole,
     agentPath: item.agentPath,
     gitInfoSummary: item.gitInfoSummary,
+    projectId: item.projectId,
+    sectionId: item.sectionId,
+    sectionName: item.sectionName,
   };
 }
 
@@ -253,10 +271,16 @@ function normalizeThreadSourceKind(value: unknown): ThreadSourceKind | undefined
   return HISTORY_THREAD_SOURCE_KINDS.find((item) => item === raw);
 }
 
+function normalizeNullableMetadataText(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return normalizeText(value) ?? null;
+}
+
 function copyHistoryThreadMetadata(
   item: HistoryThread | PersistedHistoryThread | null | undefined
 ): HistoryThreadMetadata {
-  return {
+  const metadata: HistoryThreadMetadata = {
     threadSourceKind: normalizeThreadSourceKind(item?.threadSourceKind),
     forkedFromId: normalizeText(item?.forkedFromId),
     agentNickname: normalizeText(item?.agentNickname),
@@ -264,6 +288,18 @@ function copyHistoryThreadMetadata(
     agentPath: normalizeText(item?.agentPath),
     gitInfoSummary: normalizeText(item?.gitInfoSummary),
   };
+  if (item) {
+    if (Object.prototype.hasOwnProperty.call(item, "projectId")) {
+      metadata.projectId = normalizeNullableMetadataText(item.projectId);
+    }
+    if (Object.prototype.hasOwnProperty.call(item, "sectionId")) {
+      metadata.sectionId = normalizeNullableMetadataText(item.sectionId);
+    }
+    if (Object.prototype.hasOwnProperty.call(item, "sectionName")) {
+      metadata.sectionName = normalizeNullableMetadataText(item.sectionName);
+    }
+  }
+  return metadata;
 }
 
 function mergeHistoryThreadMetadataIntoItem<T extends HistoryThread | PersistedHistoryThread>(
@@ -287,6 +323,10 @@ function assignOptionalMetadataPatchValue(
     target.threadSourceKind = normalizeThreadSourceKind(source.threadSourceKind);
     return;
   }
+  if (key === "projectId" || key === "sectionId" || key === "sectionName") {
+    target[key] = normalizeNullableMetadataText(source[key]);
+    return;
+  }
   target[key] = normalizeText(source[key]);
 }
 
@@ -302,6 +342,9 @@ function sanitizeHistoryThreadMetadataPatch(input: unknown): NormalizedHistoryTh
   assignOptionalMetadataPatchValue(patch, source, "agentRole");
   assignOptionalMetadataPatchValue(patch, source, "agentPath");
   assignOptionalMetadataPatchValue(patch, source, "gitInfoSummary");
+  assignOptionalMetadataPatchValue(patch, source, "projectId");
+  assignOptionalMetadataPatchValue(patch, source, "sectionId");
+  assignOptionalMetadataPatchValue(patch, source, "sectionName");
   return patch;
 }
 
@@ -316,6 +359,9 @@ function mergeMetadataPatches(
   if (Object.prototype.hasOwnProperty.call(next, "agentRole")) merged.agentRole = next.agentRole;
   if (Object.prototype.hasOwnProperty.call(next, "agentPath")) merged.agentPath = next.agentPath;
   if (Object.prototype.hasOwnProperty.call(next, "gitInfoSummary")) merged.gitInfoSummary = next.gitInfoSummary;
+  if (Object.prototype.hasOwnProperty.call(next, "projectId")) merged.projectId = next.projectId;
+  if (Object.prototype.hasOwnProperty.call(next, "sectionId")) merged.sectionId = next.sectionId;
+  if (Object.prototype.hasOwnProperty.call(next, "sectionName")) merged.sectionName = next.sectionName;
   return merged;
 }
 
@@ -331,6 +377,9 @@ function applyHistoryThreadMetadataPatch<T extends HistoryThread | PersistedHist
   if (Object.prototype.hasOwnProperty.call(patch, "agentRole")) next.agentRole = patch.agentRole;
   if (Object.prototype.hasOwnProperty.call(patch, "agentPath")) next.agentPath = patch.agentPath;
   if (Object.prototype.hasOwnProperty.call(patch, "gitInfoSummary")) next.gitInfoSummary = patch.gitInfoSummary;
+  if (Object.prototype.hasOwnProperty.call(patch, "projectId")) next.projectId = patch.projectId;
+  if (Object.prototype.hasOwnProperty.call(patch, "sectionId")) next.sectionId = patch.sectionId;
+  if (Object.prototype.hasOwnProperty.call(patch, "sectionName")) next.sectionName = patch.sectionName;
   return next;
 }
 
@@ -344,7 +393,10 @@ function hasSameHistoryThreadMetadata(
     left.agentNickname === right.agentNickname &&
     left.agentRole === right.agentRole &&
     left.agentPath === right.agentPath &&
-    left.gitInfoSummary === right.gitInfoSummary
+    left.gitInfoSummary === right.gitInfoSummary &&
+    left.projectId === right.projectId &&
+    left.sectionId === right.sectionId &&
+    left.sectionName === right.sectionName
   );
 }
 
@@ -948,6 +1000,9 @@ function sanitizePersistedHistoryThread(input: unknown): PersistedHistoryThread 
     agentRole: normalizeText((input as any).agentRole),
     agentPath: normalizeText((input as any).agentPath),
     gitInfoSummary: normalizeText((input as any).gitInfoSummary),
+    projectId: normalizeNullableMetadataText((input as any).projectId),
+    sectionId: normalizeNullableMetadataText((input as any).sectionId),
+    sectionName: normalizeNullableMetadataText((input as any).sectionName),
   };
 }
 
@@ -1837,7 +1892,7 @@ export class HistoryStore {
     try {
       await mkdir(dirname(this.cachePath), { recursive: true });
       const payload: HistoryCachePayload = {
-        version: 2,
+        version: 3,
         items: items.map(toPersistedThread),
         sessionSummaries: [...this.sessionSummaryCache.values()],
       };

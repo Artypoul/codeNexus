@@ -37,8 +37,17 @@
     </div>
 
     <div id="thread-history" class="lsb-scroll app-scrollbar">
-      <div class="lsb-thread-groups" :class="{ dim: totalThreadListCount === 0 }">
-        <template v-if="totalThreadListCount === 0">
+      <div class="lsb-thread-groups">
+        <template v-if="isProjectGroupingLoading">
+          <div class="lsb-empty lsb-thread-empty mono">
+            <div class="dim">{{ t("threadHistory.loadingProjects") }}</div>
+          </div>
+        </template>
+        <template
+          v-else-if="
+            totalThreadListCount === 0 && primaryThreadGroups.length === 0 && otherWorkspaceGroups.length === 0
+          "
+        >
           <div class="lsb-empty lsb-thread-empty mono">
             <div class="dim">{{ t("threadHistory.empty") }}</div>
             <button class="lsb-nav-row lsb-nav-row--workspace" type="button" @click="runtime.createThread">
@@ -47,7 +56,10 @@
           </div>
         </template>
         <template v-else>
-          <section v-for="group in threadGroups" :key="group.key" class="lsb-section">
+          <div v-if="projectGroupingNotice" class="lsb-project-notice mono">
+            {{ projectGroupingNotice }}
+          </div>
+          <section v-for="group in primaryThreadGroups" :key="group.key" class="lsb-section">
             <Collapsible
               class="lsb-section-collapsible"
               :open="isThreadGroupExpanded(group.key)"
@@ -85,9 +97,75 @@
                   @rename-thread="onRenameThread"
                   @delete-thread="runtime.deleteHistoryThread"
                 />
+                <div v-for="section in group.sections" :key="section.key" class="lsb-thread-section-group">
+                  <div class="lsb-thread-section-title">{{ section.title }}</div>
+                  <ThreadRow
+                    v-for="row in section.rows"
+                    :key="`row:${row.item.id}`"
+                    :row="row"
+                    :active-thread-id="runtimeStore.currentThreadId"
+                    :is-invalid-workspace-item="isInvalidWorkspaceItem"
+                    :is-pending-thread-id="isPendingThreadId"
+                    :should-show-user-input-badge="shouldShowUserInputBadge"
+                    :should-show-thread-attention="shouldShowThreadAttention"
+                    :running-thread-ids="threadStore.runningThreadIds"
+                    :recently-completed-thread-ids="threadStore.recentlyCompletedThreadIds"
+                    :thread-aria-label="threadAriaLabel"
+                    :thread-row-depth-style="threadRowDepthStyle"
+                    :format-relative-time="formatRelativeTime"
+                    @open-thread="onThreadItemClick"
+                    @clear-thread-attention="onClearThreadAttention"
+                    @rename-thread="onRenameThread"
+                    @delete-thread="runtime.deleteHistoryThread"
+                  />
+                </div>
               </div>
             </Collapsible>
           </section>
+          <template v-if="otherWorkspaceGroups.length > 0">
+            <div class="lsb-thread-area-label mono">{{ t("threadHistory.otherWorkspaces") }}</div>
+            <section v-for="group in otherWorkspaceGroups" :key="group.key" class="lsb-section">
+              <Collapsible
+                class="lsb-section-collapsible"
+                :open="isThreadGroupExpanded(group.key)"
+                @update:open="(next) => onThreadGroupOpenChange(group.key, next)"
+              >
+                <template #trigger="{ open, triggerProps }">
+                  <div role="heading" aria-level="3">
+                    <button class="lsb-group-head lsb-group-head-toggle" type="button" v-bind="triggerProps">
+                      <span class="lsb-group-head-left">
+                        <Folder class="lsb-group-icon" aria-hidden="true" />
+                        <span class="lsb-group-title">{{ group.title }}</span>
+                      </span>
+                      <ChevronDown class="lsb-chevron" :class="{ open }" aria-hidden="true" />
+                    </button>
+                  </div>
+                </template>
+
+                <div class="lsb-group-body">
+                  <ThreadRow
+                    v-for="row in group.rows"
+                    :key="`row:${row.item.id}`"
+                    :row="row"
+                    :active-thread-id="runtimeStore.currentThreadId"
+                    :is-invalid-workspace-item="isInvalidWorkspaceItem"
+                    :is-pending-thread-id="isPendingThreadId"
+                    :should-show-user-input-badge="shouldShowUserInputBadge"
+                    :should-show-thread-attention="shouldShowThreadAttention"
+                    :running-thread-ids="threadStore.runningThreadIds"
+                    :recently-completed-thread-ids="threadStore.recentlyCompletedThreadIds"
+                    :thread-aria-label="threadAriaLabel"
+                    :thread-row-depth-style="threadRowDepthStyle"
+                    :format-relative-time="formatRelativeTime"
+                    @open-thread="onThreadItemClick"
+                    @clear-thread-attention="onClearThreadAttention"
+                    @rename-thread="onRenameThread"
+                    @delete-thread="runtime.deleteHistoryThread"
+                  />
+                </div>
+              </Collapsible>
+            </section>
+          </template>
         </template>
       </div>
     </div>
@@ -105,7 +183,9 @@ import { useAppShellStore } from "../../../stores/appShell.store";
 import { useRuntimeStore } from "../../../stores/runtime.store";
 import { useThreadStore } from "../../../stores/thread.store";
 import { useUserInputStore } from "../../../stores/userInput.store";
+import { useProjectStore } from "../../../stores/project.store";
 import { normalizeThreadTitleOverride } from "../../../features/history/threadTitle";
+import { buildThreadHistoryGroups, type ThreadHistoryGroup } from "../../../features/history/projectThreadGroups";
 import { isPendingThreadId } from "../../../shared/threadCreateDebug";
 import Collapsible from "../../ui/Collapsible.vue";
 import ThreadRow from "./ThreadRow.vue";
@@ -123,20 +203,21 @@ type ThreadListItem = Pick<
   | "agentRole"
   | "agentPath"
   | "gitInfoSummary"
+  | "projectId"
+  | "sectionId"
+  | "sectionName"
 > & {
   localStatus?: LocalThreadItem["status"];
 };
-type ThreadRowModel = {
-  item: ThreadListItem;
-  depth: number;
-};
-type ThreadGroup = { key: string; title: string; cwdFull: string; updatedAt: number; rows: ThreadRowModel[] };
+type ThreadRowModel = ThreadHistoryGroup<ThreadListItem>["rows"][number];
+type ThreadGroup = ThreadHistoryGroup<ThreadListItem>;
 
 const runtime = getRuntimeOrchestrator();
 const appShellStore = useAppShellStore();
 const runtimeStore = useRuntimeStore();
 const threadStore = useThreadStore();
 const userInputStore = useUserInputStore();
+const projectStore = useProjectStore();
 const { t } = useI18n();
 
 const isRefreshingHistory = ref(false);
@@ -153,7 +234,7 @@ const onRefreshHistoryClick = async () => {
   }
 };
 
-function normalizeFsPath(value: string): string {
+function normalizeFsPath(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
   let s = raw.replace(/\//g, "\\");
@@ -165,31 +246,6 @@ function normalizeThreadId(value: unknown): string {
   return String(value ?? "").trim();
 }
 
-function toBasename(pathValue: string): string {
-  const normalized = String(pathValue ?? "")
-    .trim()
-    .replace(/\//g, "\\")
-    .replace(/\\+$/, "");
-  if (!normalized) return "";
-  const parts = normalized.split("\\").filter(Boolean);
-  return parts.length > 0 ? String(parts[parts.length - 1] ?? "").trim() : normalized;
-}
-
-const workspaceTitleCollator =
-  typeof Intl !== "undefined" && typeof Intl.Collator === "function"
-    ? new Intl.Collator(["zh-Hans-u-co-pinyin", "zh-CN-u-co-pinyin", "zh-CN", "en"], {
-        usage: "sort",
-        sensitivity: "base",
-        numeric: true,
-        ignorePunctuation: true,
-      })
-    : null;
-const compareWorkspaceTitle = (a: string, b: string) =>
-  workspaceTitleCollator
-    ? workspaceTitleCollator.compare(String(a ?? "").trim(), String(b ?? "").trim())
-    : String(a ?? "")
-        .trim()
-        .localeCompare(String(b ?? "").trim(), "zh-CN", { sensitivity: "base", numeric: true });
 const sortByUpdatedAtDesc = (a: ThreadListItem, b: ThreadListItem) =>
   a.updatedAt !== b.updatedAt ? b.updatedAt - a.updatedAt : a.title.localeCompare(b.title);
 
@@ -213,6 +269,9 @@ const visibleThreadItems = computed<ThreadListItem[]>(() => {
       agentRole: item.agentRole,
       agentPath: item.agentPath,
       gitInfoSummary: item.gitInfoSummary,
+      projectId: item.projectId,
+      sectionId: item.sectionId,
+      sectionName: item.sectionName,
       localStatus: item.status,
     });
   }
@@ -228,56 +287,57 @@ const threadHistoryById = computed(() => {
   return map;
 });
 
-const threadGroups = computed<ThreadGroup[]>(() => {
-  const groups = new Map<
-    string,
-    { key: string; title: string; cwdFull: string; updatedAt: number; items: ThreadListItem[] }
-  >();
-  for (const sourceItem of visibleThreadItems.value) {
-    const item: ThreadListItem = {
-      id: String(sourceItem.id ?? ""),
-      title: threadStore.displayThreadTitle(sourceItem.id, sourceItem.title),
-      meta: String(sourceItem.meta ?? ""),
-      updatedAt: Number(sourceItem.updatedAt ?? 0),
-      cwd: sourceItem.cwd,
-      forkedFromId: sourceItem.forkedFromId,
-      agentNickname: sourceItem.agentNickname,
-      agentRole: sourceItem.agentRole,
-      agentPath: sourceItem.agentPath,
-      gitInfoSummary: sourceItem.gitInfoSummary,
-      localStatus: sourceItem.localStatus,
-    };
-    const cwd = String(item.cwd ?? "").trim();
-    const key = cwd ? normalizeFsPath(cwd) : "__no_workspace__";
-    const title = cwd ? toBasename(cwd) : t("threadHistory.noWorkspace");
-    const existing = groups.get(key);
-    if (existing) {
-      existing.updatedAt = Math.max(existing.updatedAt, item.updatedAt);
-      existing.items.push(item);
-      continue;
-    }
-    groups.set(key, { key, title, cwdFull: cwd, updatedAt: item.updatedAt, items: [item] });
-  }
-  const out: ThreadGroup[] = [];
-  for (const group of groups.values()) {
-    const items = [...group.items].sort(sortByUpdatedAtDesc);
-    const rows: ThreadRowModel[] = items.map((item) => ({ item, depth: 0 }));
-    out.push({ key: group.key, title: group.title, cwdFull: group.cwdFull, updatedAt: group.updatedAt, rows });
-  }
-  out.sort((a, b) => {
-    if (a.key === "__no_workspace__" && b.key !== "__no_workspace__") return 1;
-    if (b.key === "__no_workspace__" && a.key !== "__no_workspace__") return -1;
-    const byTitle = compareWorkspaceTitle(a.title, b.title);
-    return byTitle !== 0 ? byTitle : compareWorkspaceTitle(a.cwdFull || a.key, b.cwdFull || b.key);
-  });
-  return out;
+const activeProjectWorkspace = computed(() => normalizeFsPath(runtimeStore.workspacePath));
+const hasProjectSnapshot = computed(() =>
+  projectStore.hasSnapshotForWorkspace(String(runtimeStore.workspacePath ?? ""))
+);
+const isProjectGroupingLoading = computed(() => {
+  if (hasProjectSnapshot.value || !activeProjectWorkspace.value) return false;
+  if (projectStore.status === "loading") return true;
+  return (
+    projectStore.status !== "error" &&
+    (appShellStore.serverConnState === "connecting" || appShellStore.serverConnState === "connected")
+  );
 });
+const projectGroupingMode = computed<"project" | "workspace">(() =>
+  hasProjectSnapshot.value ? "project" : "workspace"
+);
+const projectGroupingNotice = computed(() => {
+  if (projectStore.status !== "error") return "";
+  return hasProjectSnapshot.value
+    ? t("threadHistory.projectRefreshFailed")
+    : t("threadHistory.projectUnavailableFallback");
+});
+
+const threadGrouping = computed(() => {
+  const items = visibleThreadItems.value.map((sourceItem) => ({
+    ...sourceItem,
+    title: threadStore.displayThreadTitle(sourceItem.id, sourceItem.title),
+  }));
+  return buildThreadHistoryGroups({
+    mode: projectGroupingMode.value,
+    items,
+    projects: projectGroupingMode.value === "project" ? projectStore.projects : [],
+    sections: projectGroupingMode.value === "project" ? projectStore.sections : [],
+    currentWorkspace: String(runtimeStore.workspacePath ?? "").trim(),
+    labels: {
+      unassigned: t("threadHistory.unassigned"),
+      noWorkspace: t("threadHistory.noWorkspace"),
+    },
+  });
+});
+const primaryThreadGroups = computed<ThreadGroup[]>(() => threadGrouping.value.primaryGroups);
+const otherWorkspaceGroups = computed<ThreadGroup[]>(() => threadGrouping.value.otherWorkspaceGroups);
 
 const runningThreadsCount = computed(() => threadStore.runningThreadIds.size);
 const totalThreadListCount = computed(() => visibleThreadItems.value.length);
 const threadsCountText = computed(() => t("threadHistory.totalCount", { count: totalThreadListCount.value }));
 const visibleThreadGroupKeys = computed(() => {
-  return new Set(threadGroups.value.map((group) => String(group.key ?? "").trim()).filter(Boolean));
+  return new Set(
+    [...primaryThreadGroups.value, ...otherWorkspaceGroups.value]
+      .map((group) => String(group.key ?? "").trim())
+      .filter(Boolean)
+  );
 });
 
 const currentThreadGroupKey = computed(() => {
@@ -286,12 +346,24 @@ const currentThreadGroupKey = computed(() => {
 
   const currentThread = threadHistoryById.value.get(currentId);
   if (currentThread) {
+    if (projectGroupingMode.value === "project") {
+      const projectId = String(currentThread.projectId ?? "").trim();
+      if (projectId && projectStore.projectById.has(projectId)) return `project:${projectId}`;
+      const cwd = normalizeFsPath(currentThread.cwd);
+      if (!cwd || cwd === activeProjectWorkspace.value) {
+        return `unassigned:${activeProjectWorkspace.value || "__no_workspace__"}`;
+      }
+      return `other:${cwd || "__no_workspace__"}`;
+    }
     const cwd = String(currentThread.cwd ?? "").trim();
-    return cwd ? normalizeFsPath(cwd) : "__no_workspace__";
+    return `workspace:${cwd ? normalizeFsPath(cwd) : "__no_workspace__"}`;
   }
 
   const fallbackWorkspace = String(threadStore.currentWorkspace ?? runtimeStore.workspacePath ?? "").trim();
-  return fallbackWorkspace ? normalizeFsPath(fallbackWorkspace) : "__no_workspace__";
+  if (projectGroupingMode.value === "project") {
+    return `unassigned:${activeProjectWorkspace.value || "__no_workspace__"}`;
+  }
+  return `workspace:${fallbackWorkspace ? normalizeFsPath(fallbackWorkspace) : "__no_workspace__"}`;
 });
 
 watch(

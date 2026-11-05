@@ -33,5 +33,8 @@ export function toThreadHistoryItem(item: HistoryThread): ThreadHistoryItem {
     agentRole: String(item.agentRole ?? "").trim() || undefined,
     agentPath: String(item.agentPath ?? "").trim() || undefined,
     gitInfoSummary: String(item.gitInfoSummary ?? "").trim() || undefined,
+    projectId: item.projectId,
+    sectionId: item.sectionId,
+    sectionName: item.sectionName,
   };
 }

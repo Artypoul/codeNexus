@@ -29,7 +29,7 @@ export type ThreadMetadataRuntimeDeps = {
 };
 
 export type ThreadMetadataRuntime = {
-  hydrateThreadMetadataForWorkspace: (workspacePath: string) => Promise<void>;
+  hydrateThreadMetadataForWorkspace: (workspacePath: string, options?: { force?: boolean }) => Promise<void>;
   hydrateThreadHandoffDiagnostics: (threadId: string, options?: { force?: boolean }) => Promise<void>;
 };
 
@@ -107,13 +107,16 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
     return [...deduped.values()];
   };
 
-  const hydrateThreadMetadataForWorkspace = async (workspacePathValue: string): Promise<void> => {
+  const hydrateThreadMetadataForWorkspace = async (
+    workspacePathValue: string,
+    options?: { force?: boolean }
+  ): Promise<void> => {
     const workspace = normalizeWorkspacePath(workspacePathValue);
     const serverId = getServerIdForWorkspace(workspace);
     if (!workspace || !serverId) return;
     const cacheKey = `${workspace}\u0000${serverId}`;
     const hydratedAt = hydratedAtByServer.get(cacheKey);
-    if (hydratedAt != null && Date.now() - hydratedAt < hydrationTtlMs) return;
+    if (!options?.force && hydratedAt != null && Date.now() - hydratedAt < hydrationTtlMs) return;
 
     const existing = threadMetadataHydrationPromiseByWorkspace.get(workspace);
     if (existing) return existing;
@@ -124,7 +127,14 @@ export function createThreadMetadataRuntime(deps: ThreadMetadataRuntimeDeps): Th
         if (getServerIdForWorkspace(workspace) !== serverId) return;
         const patches = threads.flatMap((thread) => {
           const patch = buildHistoryThreadMetadataPatchFromServerThread(thread);
-          return patch ? [patch] : [];
+          if (!patch) return [];
+          // 这里按 cwd 全量读取，不能把缺失的 projectId 当成“显式取消归属”。
+          // 项目/Section 归属由 projectRuntime 通过 projectId 过滤后的权威结果维护。
+          const metadataOnly = { ...patch };
+          delete metadataOnly.projectId;
+          delete metadataOnly.sectionId;
+          delete metadataOnly.sectionName;
+          return [metadataOnly];
         });
         if (patches.length > 0) await codexDesktop.history.mergeThreadMetadata({ threads: patches });
         if (getServerIdForWorkspace(workspace) === serverId) hydratedAtByServer.set(cacheKey, Date.now());

@@ -202,6 +202,41 @@
   min-height: 88px;
 }
 
+.lsb-project-notice {
+  padding: 7px 9px;
+  border: 1px dashed color-mix(in srgb, var(--warning) 42%, var(--lsb-control-border) 58%);
+  border-radius: var(--lsb-radius-sm);
+  background: color-mix(in srgb, var(--warning) 8%, var(--lsb-control-bg) 92%);
+  color: color-mix(in srgb, var(--warning) 70%, var(--lsb-text) 30%);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.lsb-thread-area-label {
+  margin-top: 5px;
+  padding: 4px 6px 0;
+  color: var(--lsb-muted);
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.lsb-thread-section-group {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.lsb-thread-section-title {
+  padding: 3px 8px 2px;
+  color: var(--lsb-muted);
+  font-size: 11px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
 .lsb-section {
   min-width: 0;
   display: grid;

@@ -83,6 +83,9 @@ export type ThreadHistoryItem = {
   agentRole?: string;
   agentPath?: string;
   gitInfoSummary?: string;
+  projectId?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
 };
 
 export type ThreadGoalState = {
@@ -114,6 +117,9 @@ export type LocalThreadItem = {
   agentRole?: string;
   agentPath?: string;
   gitInfoSummary?: string;
+  projectId?: string | null;
+  sectionId?: string | null;
+  sectionName?: string | null;
 };
 
 export type TimelineEventLevel = "info" | "warn" | "error";

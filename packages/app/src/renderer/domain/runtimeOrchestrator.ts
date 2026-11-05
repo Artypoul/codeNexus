@@ -22,6 +22,7 @@ import { useCodexSkillRootsStore } from "../stores/codexSkillRoots.store";
 import { useCodexConfigSwitcherStore } from "../stores/codexConfigSwitcher.store";
 import { useApprovalStore } from "../stores/approval.store";
 import { useWorkspaceFilesStore } from "../stores/workspaceFiles.store";
+import { useProjectStore } from "../stores/project.store";
 import { type ThreadReplayCache } from "./runtime/historyReplayRuntime";
 import { createHistoryListRuntime } from "./runtime/historyListRuntime";
 import { createCodexServerEventRuntime } from "./runtime/codexServerEventRuntime";
@@ -56,6 +57,7 @@ import { createThreadResumeRuntime } from "./runtime/threadResumeRuntime";
 import { createThreadRuntimeCleanupRuntime } from "./runtime/threadRuntimeCleanupRuntime";
 import { createThreadStartParamsRuntime } from "./runtime/threadStartParamsRuntime";
 import { createThreadMetadataRuntime } from "./runtime/threadMetadataRuntime";
+import { createProjectRuntime } from "./runtime/projectRuntime";
 import { createCodexConfigSwitcherRuntime } from "./runtime/codexConfigSwitcherRuntime";
 import { createMcpManagementRuntime } from "./runtime/mcpManagementRuntime";
 import { createSkillsManagementRuntime } from "./runtime/skillsManagementRuntime";
@@ -101,6 +103,7 @@ const HISTORY_REPLAY_BATCH = 1000;
 const HISTORY_REPLAY_TURN_SEGMENTS = 4;
 const TIMELINE_MAX_VISIBLE_TURNS = 16;
 const THREAD_METADATA_PAGE_SIZE = 200;
+const PROJECT_METADATA_PAGE_SIZE = 100;
 const THREAD_CONTENT_CACHE_TTL_MS = 2000;
 const MCP_STATUS_REFRESH_DEBOUNCE_MS = 250;
 const SKILLS_REFRESH_DEBOUNCE_MS = 250;
@@ -223,6 +226,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   const approvalStore = useApprovalStore(pinia);
   const messageQueueStore = useMessageQueueStore(pinia);
   const workspaceFilesStore = useWorkspaceFilesStore(pinia);
+  const projectStore = useProjectStore(pinia);
   const codexSkillRootsStore = useCodexSkillRootsStore(pinia);
   const codexConfigSwitcherStore = useCodexConfigSwitcherStore(pinia);
 
@@ -336,7 +340,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     applyCachedRightPanels,
     refreshRightPanels: (opts) => refreshRightPanels(opts),
     refreshHistory: (force) => refreshHistory(force),
-    hydrateThreadMetadataForWorkspace: (workspace) => hydrateThreadMetadataForWorkspace(workspace),
+    hydrateThreadMetadataForWorkspace: (workspace) => hydrateWorkspaceMetadata(workspace),
     pushEvent,
     translate,
     showToast,
@@ -359,6 +363,23 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     switchWorkspace,
   } = workspaceSessionRuntime;
 
+  const projectRuntime = createProjectRuntime({
+    projectStore,
+    threadStore,
+    getActiveWorkspace: () => String(runtimeStore.workspacePath ?? "").trim(),
+    getServerIdForWorkspace,
+    normalizeWorkspacePath,
+    pageSize: PROJECT_METADATA_PAGE_SIZE,
+  });
+  const {
+    ensureProjectForWorkspace,
+    refreshProjectTaskList,
+    handleProjectChangedNotification,
+    handleThreadProjectUpdatedNotification,
+    dispose: disposeProjectRuntime,
+  } = projectRuntime;
+  disposers.push(disposeProjectRuntime);
+
   const threadModelCompatibilityRuntime = createThreadModelCompatibilityRuntime({
     runtimeStore,
     threadStore,
@@ -373,6 +394,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
       olderHistoryLoadPromiseByThread,
     ],
     normalizeWorkspacePath,
+    ensureProjectForWorkspace,
     buildThreadStartParamsForModel,
     getDeveloperInstructions: resolveCurrentDeveloperInstructions,
     findThreadListItem,
@@ -467,12 +489,17 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   });
   const { hydrateThreadMetadataForWorkspace, hydrateThreadHandoffDiagnostics } = threadMetadataRuntime;
 
+  const hydrateWorkspaceMetadata = async (workspacePath: string, options?: { force?: boolean }) => {
+    await refreshProjectTaskList(workspacePath, options);
+    await hydrateThreadMetadataForWorkspace(workspacePath, options);
+  };
+
   const historyListRuntime = createHistoryListRuntime({
     threadStore,
     threadContentCacheByKey,
     getWorkspacePath: () => String(runtimeStore.workspacePath ?? "").trim(),
     setThreadWorkspace,
-    hydrateThreadMetadataForWorkspace,
+    refreshWorkspaceMetadata: hydrateWorkspaceMetadata,
   });
   const { refreshHistory, subscribeHistoryUpdates } = historyListRuntime;
 
@@ -731,6 +758,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     resolveModel: (value) => resolveModelValue(value),
     resolveEffort: (modelValue, effort) => resolveEffortValue(modelValue, effort),
     ensureModelCatalog: () => modelCatalogStore.ensureModels({ maxAgeMs: 60_000 }),
+    ensureProjectForWorkspace,
     startServer,
     clearThreadRuntimeState,
     setThreadWorkspace,
@@ -1154,6 +1182,8 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     scheduleMcpStatusRefresh,
     refreshMcp,
     hydrateThreadHandoffDiagnostics,
+    handleProjectChangedNotification,
+    handleThreadProjectUpdatedNotification,
     notifyCompletedTurnIfBackground,
     flushQueueForThread,
     translate,

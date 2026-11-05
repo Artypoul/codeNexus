@@ -40,6 +40,16 @@ export type CodexServerEventRuntimeDeps = {
   scheduleMcpStatusRefresh: (workspacePath: string) => void;
   refreshMcp: () => Promise<void>;
   hydrateThreadHandoffDiagnostics: (threadId: string, opts?: { force?: boolean }) => Promise<void>;
+  handleProjectChangedNotification: (args: {
+    workspacePath: string;
+    projectId: string;
+    changeType: "created" | "updated" | "deleted";
+  }) => void;
+  handleThreadProjectUpdatedNotification: (args: {
+    workspacePath: string;
+    threadId: string;
+    projectId: string | null;
+  }) => Promise<void>;
   notifyCompletedTurnIfBackground: (threadId: string) => Promise<void>;
   flushQueueForThread: (threadId: string) => Promise<void>;
   translate: TranslateFn;
@@ -77,6 +87,28 @@ export function createCodexServerEventRuntime(deps: CodexServerEventRuntimeDeps)
         }
 
         if (msg.method === "turn/started") {
+          return;
+        }
+
+        if (msg.method === "project/changed" || msg.method === "thread/project/updated") {
+          const eventServerId = deps.normalizeWorkspacePath(payload?.serverId ?? "");
+          const workspace = deps.normalizeWorkspacePath(
+            deps.getWorkspaceForServerId(eventServerId) ||
+              (eventServerId && eventServerId === deps.runtimeStore.serverId ? deps.runtimeStore.workspacePath : "")
+          );
+          if (workspace && msg.method === "project/changed") {
+            deps.handleProjectChangedNotification({
+              workspacePath: workspace,
+              projectId: msg.params.projectId,
+              changeType: msg.params.changeType,
+            });
+          } else if (workspace && msg.method === "thread/project/updated") {
+            void deps.handleThreadProjectUpdatedNotification({
+              workspacePath: workspace,
+              threadId: msg.params.threadId,
+              projectId: msg.params.projectId,
+            });
+          }
           return;
         }
 

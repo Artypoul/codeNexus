@@ -52,6 +52,7 @@ export type ThreadCreationRuntimeDeps = {
   resolveModel: (value: string) => string;
   resolveEffort: (modelValue: string, effort: string) => string;
   ensureModelCatalog: () => Promise<unknown>;
+  ensureProjectForWorkspace: (workspacePath: string) => Promise<string | null>;
   startServer: () => Promise<boolean>;
   clearThreadRuntimeState: (threadId: string) => void;
   setThreadWorkspace: (threadId: string, workspacePath: string | undefined) => void;
@@ -112,6 +113,7 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
     resolveModel,
     resolveEffort,
     ensureModelCatalog,
+    ensureProjectForWorkspace,
     startServer,
     clearThreadRuntimeState,
     setThreadWorkspace,
@@ -269,17 +271,40 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
         reasoningEffort: resolvedSeedEffort,
       });
 
+      const projectStartedAt = perfNow();
+      let projectId: string | null = null;
+      try {
+        projectId = workspace ? await ensureProjectForWorkspace(workspace) : null;
+        appendDebugLog("thread.create", "project assignment resolved", {
+          attemptId,
+          workspace: workspace || null,
+          projectId,
+          elapsedMs: elapsedMs(projectStartedAt),
+          totalElapsedMs: elapsedMs(createStartedAt),
+        });
+      } catch (error: unknown) {
+        appendDebugLog("thread.create", "project assignment failed", {
+          attemptId,
+          workspace: workspace || null,
+          elapsedMs: elapsedMs(projectStartedAt),
+          message: readErrorMessage(error),
+        });
+        console.warn("[runtimeOrchestrator] project assignment failed", readErrorMessage(error));
+      }
+
       // `thread/start` 的 `sandbox` 使用 kebab-case，见 schema 的 v2/ThreadStartParams.json。
       const { params: threadStartParams, configOverrides: modelConfigOverrides } = buildThreadStartParamsForModel({
         model: resolvedSeedModel,
         workspace,
         sandboxMode: newThreadComposeSeed.sandboxMode,
       });
+      if (projectId) threadStartParams.projectId = projectId;
       const rpcStartedAt = perfNow();
       appendDebugLog("thread.create", "thread/start rpc begin", {
         attemptId,
         serverId,
         workspace: workspace || null,
+        projectId,
         model: threadStartParams.model,
         sandbox: threadStartParams.sandbox,
         approvalPolicy: threadStartParams.approvalPolicy,
@@ -314,9 +339,11 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
         updatedAt: Date.now(),
         running: false,
         status: "ready",
+        ...(projectId ? { projectId } : {}),
       };
       threadStore.replaceThreadId(optimisticThreadId, id);
       threadStore.replaceLocalThreadId(optimisticThreadId, id, finalizedLocalThread);
+      if (projectId) threadStore.patchThreadMetadata(id, { projectId });
       messageQueueStore.moveThreadQueue(optimisticThreadId, id);
       markThreadResumed(id);
       setThreadWorkspace(id, workspace);
@@ -325,6 +352,7 @@ export function createThreadCreationRuntime(deps: ThreadCreationRuntimeDeps): Th
       appendDebugLog("thread.create", "local state applied", {
         attemptId,
         threadId: id,
+        projectId,
         threadHistorySize: threadStore.threadHistory.length,
         localThreadSize: threadStore.localThreads.length,
         elapsedMs: elapsedMs(applyStateStartedAt),

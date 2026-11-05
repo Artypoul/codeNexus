@@ -46,6 +46,7 @@ export type ThreadModelCompatibilityRuntimeDeps = {
   resumePromisesByThread: Map<string, Promise<boolean>>;
   threadScopedCaches: ThreadScopedState[];
   normalizeWorkspacePath: (value: string) => string;
+  ensureProjectForWorkspace: (workspacePath: string) => Promise<string | null>;
   buildThreadStartParamsForModel: (args: {
     model: string;
     workspace: string;
@@ -103,6 +104,7 @@ export function createThreadModelCompatibilityRuntime(
     resumePromisesByThread,
     threadScopedCaches,
     normalizeWorkspacePath,
+    ensureProjectForWorkspace,
     buildThreadStartParamsForModel,
     getDeveloperInstructions,
     findThreadListItem,
@@ -182,16 +184,30 @@ export function createThreadModelCompatibilityRuntime(
 
     const existing = findThreadListItem(oldThreadId);
     const oldLocalThread = threadStore.localThreads.find((item) => item.id === oldThreadId);
+    let projectId = String(existing?.projectId ?? oldLocalThread?.projectId ?? "").trim();
+    if (!projectId) {
+      try {
+        projectId = String((await ensureProjectForWorkspace(workspace)) ?? "").trim();
+      } catch (error: unknown) {
+        appendDebugLog("thread.create", "recreate project assignment failed", {
+          oldThreadId,
+          workspace,
+          message: readErrorMessage(error),
+        });
+      }
+    }
     const { params: threadStartParams, configOverrides } = buildThreadStartParamsForModel({
       model,
       workspace,
       sandboxMode: runtimeStore.sandboxMode,
     });
+    if (projectId) threadStartParams.projectId = projectId;
     const startedAt = perfNow();
     appendDebugLog("thread.create", "recreate empty thread for model config begin", {
       oldThreadId,
       workspace,
       model,
+      projectId: projectId || null,
       config: threadStartParams.config ?? null,
     });
 
@@ -218,6 +234,7 @@ export function createThreadModelCompatibilityRuntime(
       updatedAt: now,
       running: false,
       status: "ready",
+      ...(projectId ? { projectId } : {}),
     };
 
     runtimeStore.moveThreadComposeState(oldThreadId, newThreadId);
@@ -225,6 +242,7 @@ export function createThreadModelCompatibilityRuntime(
     timelineStore.moveThread(oldThreadId, newThreadId);
     threadStore.replaceThreadId(oldThreadId, newThreadId);
     threadStore.replaceLocalThreadId(oldThreadId, newThreadId, nextLocalThread);
+    if (projectId) threadStore.patchThreadMetadata(newThreadId, { projectId });
     messageQueueStore.moveThreadQueue(oldThreadId, newThreadId);
     resumedThreadIds.delete(oldThreadId);
     resumedThreadIds.add(newThreadId);

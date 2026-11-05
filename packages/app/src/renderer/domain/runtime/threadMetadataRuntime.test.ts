@@ -8,7 +8,13 @@ vi.mock("../../api/codexDesktopClient", () => ({
 vi.mock("../../features/history/threadMetadata", () => ({
   ALL_THREAD_SOURCE_KINDS: [],
   normalizeOptionalText: (value: unknown) => String(value ?? ""),
-  buildHistoryThreadMetadataPatchFromServerThread: (thread: { id: string }) => ({ id: thread.id }),
+  buildHistoryThreadMetadataPatchFromServerThread: (thread: { id: string }) => ({
+    id: thread.id,
+    projectId: null,
+    sectionId: null,
+    sectionName: null,
+    gitInfoSummary: `git:${thread.id}`,
+  }),
   resolveThreadParentIdForGraph: () => "",
 }));
 beforeEach(() => {
@@ -40,6 +46,18 @@ function setup() {
 }
 
 describe("workspace metadata hydration", () => {
+  it("does not clear project or section assignment during cwd hydration", async () => {
+    const { runtime } = setup();
+    await runtime.hydrateThreadMetadataForWorkspace("A");
+    expect(merge).toHaveBeenCalledWith({
+      threads: [{ id: "A", gitInfoSummary: "git:A" }],
+    });
+    const patch = merge.mock.calls[0]?.[0]?.threads?.[0];
+    expect(patch).not.toHaveProperty("projectId");
+    expect(patch).not.toHaveProperty("sectionId");
+    expect(patch).not.toHaveProperty("sectionName");
+  });
+
   it("reuses completed hydration across A → B → A, with TTL and server invalidation", async () => {
     const { runtime, servers } = setup();
     await runtime.hydrateThreadMetadataForWorkspace("A");
