@@ -84,4 +84,64 @@ describe("chat row caches across workspaces", () => {
     for (const id of ["A", "B", "C", "D", "E", "A"]) select(id);
     expect(build).toHaveBeenCalledTimes(6);
   });
+
+  it("treats agent messages without a phase as answer rows instead of process rows", () => {
+    const { select, events, revision } = setup();
+    const base = events.get("A")![0];
+    events.set("A", [
+      { ...base, id: "no-phase", paramsText: "final answer", params: { item: { type: "agentMessage" } } },
+    ]);
+    revision.value += 1;
+
+    const rows = select("A");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("assistant");
+  });
+
+  it("keeps explicit commentary messages inside the process group", () => {
+    const { select, events, revision } = setup();
+    const base = events.get("A")![0];
+    events.set("A", [
+      {
+        ...base,
+        id: "commentary",
+        paramsText: "working",
+        params: { item: { type: "agentMessage", phase: "commentary" } },
+      },
+    ]);
+    revision.value += 1;
+
+    const rows = select("A");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe("auxActivityGroup");
+  });
+
+  it("keeps a streamed answer outside the process group when completion adds final_answer", () => {
+    const { select, events, revision } = setup();
+    const base = events.get("A")![0];
+    const streaming = {
+      ...base,
+      id: "streamed-answer",
+      paramsText: "partial answer",
+      params: { item: { type: "agentMessage" } },
+    };
+    events.set("A", [streaming]);
+    revision.value += 1;
+
+    const before = select("A");
+    expect(before.map((row) => row.kind)).toEqual(["assistant"]);
+
+    events.set("A", [
+      {
+        ...streaming,
+        paramsText: "partial answer complete",
+        params: { item: { type: "agentMessage", phase: "final_answer" } },
+      },
+    ]);
+    revision.value += 1;
+
+    const after = select("A");
+    expect(after.map((row) => row.kind)).toEqual(["assistant"]);
+    expect(after[0].id).toBe(before[0].id);
+  });
 });

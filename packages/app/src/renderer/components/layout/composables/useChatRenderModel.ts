@@ -58,11 +58,14 @@ function toEventParamsObject(event: TimelineEventItem): Record<string, any> {
     : {};
 }
 
-function isFinalAnswerAgentMessageEvent(event: TimelineEventItem): boolean {
+// Codex treats visible assistant text without a phase as a final answer.
+// Only explicitly labelled commentary belongs to the intermediate process.
+function isAnswerAgentMessageEvent(event: TimelineEventItem): boolean {
   if (event.method !== "item/agentMessage/delta") return false;
   const params = toEventParamsObject(event);
   const item = params.item && typeof params.item === "object" ? (params.item as Record<string, any>) : null;
-  return String(item?.phase ?? "").trim() === "final_answer";
+  const phase = String(item?.phase ?? "").trim();
+  return phase === "final_answer" || phase === "";
 }
 
 function isIntermediateAgentMessageEvent(event: TimelineEventItem): boolean {
@@ -70,7 +73,7 @@ function isIntermediateAgentMessageEvent(event: TimelineEventItem): boolean {
   const params = toEventParamsObject(event);
   const item = params.item && typeof params.item === "object" ? (params.item as Record<string, any>) : null;
   const phase = String(item?.phase ?? "").trim();
-  return phase === "commentary" || phase === "";
+  return phase === "commentary";
 }
 
 function paramsObjectSignature(value: unknown): string {
@@ -501,7 +504,7 @@ export function useChatRenderModel(
           continue;
         }
         if (
-          (e.method === "item/agentMessage/delta" && isMarkdownEvent(e) && isFinalAnswerAgentMessageEvent(e)) ||
+          (e.method === "item/agentMessage/delta" && isMarkdownEvent(e) && isAnswerAgentMessageEvent(e)) ||
           e.method === "item/plan/delta"
         ) {
           pushRow({ id: `a:${e.id}`, turnKey, kind: "assistant", event: e });
