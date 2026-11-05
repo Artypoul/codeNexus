@@ -1,39 +1,19 @@
 <template>
-  <Teleport to="body">
+  <Teleport to=".main">
     <Transition name="usage-stats-drawer">
-      <div v-if="open" class="usage-stats-overlay" role="presentation" @click.self="closeDrawer">
-        <div class="usage-stats-backdrop" @click="closeDrawer"></div>
+      <div v-if="open" class="usage-stats-overlay">
         <section
           class="usage-stats-panel"
           role="dialog"
-          aria-modal="true"
           :aria-label="t('usageStats.aria')"
           :aria-busy="loading ? 'true' : 'false'"
         >
           <header class="usage-stats-head">
             <div class="usage-stats-head-title">
-              <span class="usage-stats-head-icon" aria-hidden="true">
-                <BarChart3 />
-              </span>
-              <div class="usage-stats-head-copy">
-                <div class="usage-stats-title">{{ t("usageStats.title") }}</div>
-                <div class="usage-stats-subtitle">{{ t("usageStats.subtitle") }}</div>
-              </div>
+              <BarChart3 class="usage-stats-head-icon" aria-hidden="true" />
+              <div class="usage-stats-title">{{ t("usageStats.title") }}</div>
             </div>
-            <button
-              ref="closeButtonRef"
-              class="usage-stats-icon-btn"
-              type="button"
-              :aria-label="t('common.close')"
-              :title="t('common.close')"
-              @click="closeDrawer"
-            >
-              <X aria-hidden="true" />
-            </button>
-          </header>
-
-          <div class="usage-stats-body app-scrollbar">
-            <section class="usage-stats-filters" :aria-label="t('usageStats.dateRangeAria')">
+            <div class="usage-stats-head-actions">
               <div class="usage-stats-quick-ranges">
                 <button
                   class="usage-stats-quick-btn"
@@ -52,41 +32,30 @@
                   {{ t("usageStats.last30Days") }}
                 </button>
               </div>
+              <button
+                class="usage-stats-icon-btn"
+                type="button"
+                :disabled="loading"
+                :aria-label="t('common.refresh')"
+                :title="t('common.refresh')"
+                @click="refresh"
+              >
+                <RefreshCw :class="{ spin: loading }" aria-hidden="true" />
+              </button>
+              <button
+                ref="closeButtonRef"
+                class="usage-stats-icon-btn"
+                type="button"
+                :aria-label="t('common.close')"
+                :title="t('common.close')"
+                @click="closeDrawer"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+          </header>
 
-              <div class="usage-stats-date-controls">
-                <label class="usage-stats-date-field">
-                  <span>{{ t("usageStats.startDate") }}</span>
-                  <input v-model="draftStartDate" type="date" :max="todayYmd" />
-                </label>
-                <span class="usage-stats-date-separator" aria-hidden="true">—</span>
-                <label class="usage-stats-date-field">
-                  <span>{{ t("usageStats.endDate") }}</span>
-                  <input v-model="draftEndDate" type="date" :max="todayYmd" />
-                </label>
-                <button class="usage-stats-apply-btn" type="button" :disabled="loading" @click="applyCustomRange">
-                  {{ t("usageStats.query") }}
-                </button>
-                <button
-                  class="usage-stats-icon-btn usage-stats-refresh-btn"
-                  type="button"
-                  :disabled="loading"
-                  :aria-label="t('common.refresh')"
-                  :title="t('common.refresh')"
-                  @click="refresh"
-                >
-                  <RefreshCw :class="{ spin: loading }" aria-hidden="true" />
-                </button>
-              </div>
-
-              <div class="usage-stats-filter-meta">
-                <span class="mono">{{ appliedStartDate }} — {{ appliedEndDate }}</span>
-                <span v-if="stats" class="mono">
-                  {{ t("usageStats.updatedAt", { time: formatUpdatedAt(stats.generatedAt) }) }}
-                </span>
-              </div>
-              <div v-if="rangeError" class="usage-stats-inline-error" role="alert">{{ rangeError }}</div>
-            </section>
-
+          <div class="usage-stats-body app-scrollbar">
             <div v-if="loading && !stats" class="usage-stats-state" aria-live="polite">
               <LoaderCircle class="usage-stats-state-icon spin" aria-hidden="true" />
               <span>{{ t("usageStats.loading") }}</span>
@@ -115,15 +84,6 @@
                   <strong class="usage-stats-metric-value mono">{{ formatCount(stats.summary.outputTokens) }}</strong>
                 </article>
                 <article class="usage-stats-metric">
-                  <span class="usage-stats-metric-label">{{ t("usageStats.cachedInputTokens") }}</span>
-                  <strong class="usage-stats-metric-value mono">{{
-                    formatCount(stats.summary.cachedInputTokens)
-                  }}</strong>
-                  <span class="usage-stats-metric-note">
-                    {{ t("usageStats.cacheWriteTokens", { count: formatCount(stats.summary.cacheWriteInputTokens) }) }}
-                  </span>
-                </article>
-                <article class="usage-stats-metric">
                   <span class="usage-stats-metric-label">{{ t("usageStats.requestCount") }}</span>
                   <strong class="usage-stats-metric-value mono">{{ formatCount(stats.summary.requestCount) }}</strong>
                   <span class="usage-stats-metric-note">{{ t("usageStats.modelCalls") }}</span>
@@ -137,11 +97,7 @@
               <template v-else>
                 <section class="usage-stats-section">
                   <header class="usage-stats-section-head">
-                    <div>
-                      <h3>{{ t("usageStats.dailyTitle") }}</h3>
-                      <p>{{ t("usageStats.dailyDesc") }}</p>
-                    </div>
-                    <CalendarDays class="usage-stats-section-icon" aria-hidden="true" />
+                    <h3>{{ t("usageStats.dailyTitle") }}</h3>
                   </header>
                   <div class="usage-stats-table-wrap app-scrollbar">
                     <table class="usage-stats-table">
@@ -150,10 +106,6 @@
                           <th>{{ t("usageStats.date") }}</th>
                           <th class="is-numeric">{{ t("usageStats.requests") }}</th>
                           <th class="is-numeric">{{ t("usageStats.total") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.input") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.output") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.cacheInput") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.cacheWrite") }}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -170,10 +122,6 @@
                               <span class="mono">{{ formatCount(row.totalTokens) }}</span>
                             </div>
                           </td>
-                          <td class="is-numeric mono">{{ formatCount(row.inputTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.outputTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.cachedInputTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.cacheWriteInputTokens) }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -182,11 +130,7 @@
 
                 <section class="usage-stats-section">
                   <header class="usage-stats-section-head">
-                    <div>
-                      <h3>{{ t("usageStats.modelTitle") }}</h3>
-                      <p>{{ t("usageStats.modelDesc") }}</p>
-                    </div>
-                    <Cpu class="usage-stats-section-icon" aria-hidden="true" />
+                    <h3>{{ t("usageStats.modelTitle") }}</h3>
                   </header>
                   <div class="usage-stats-table-wrap app-scrollbar">
                     <table class="usage-stats-table">
@@ -195,10 +139,6 @@
                           <th>{{ t("usageStats.model") }}</th>
                           <th class="is-numeric">{{ t("usageStats.requests") }}</th>
                           <th class="is-numeric">{{ t("usageStats.total") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.input") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.output") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.cacheInput") }}</th>
-                          <th class="is-numeric">{{ t("usageStats.cacheWrite") }}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -208,18 +148,12 @@
                           </td>
                           <td class="is-numeric mono">{{ formatCount(row.requestCount) }}</td>
                           <td class="is-numeric mono">{{ formatCount(row.totalTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.inputTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.outputTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.cachedInputTokens) }}</td>
-                          <td class="is-numeric mono">{{ formatCount(row.cacheWriteInputTokens) }}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </section>
               </template>
-
-              <p class="usage-stats-note">{{ t("usageStats.note") }}</p>
             </template>
           </div>
         </section>
@@ -231,7 +165,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { BarChart3, CalendarDays, Cpu, LoaderCircle, RefreshCw, X } from "lucide-vue-next";
+import { BarChart3, LoaderCircle, RefreshCw, X } from "lucide-vue-next";
 import type { TokenUsageStatsResult } from "@codenexus/shared/ipc/contracts";
 import { codexDesktop } from "../../../api/codexDesktopClient";
 import { useAppShellStore } from "../../../stores/appShell.store";
@@ -244,7 +178,6 @@ const closeButtonRef = ref<HTMLButtonElement | null>(null);
 const stats = ref<TokenUsageStatsResult | null>(null);
 const loading = ref(false);
 const loadError = ref("");
-const rangeError = ref("");
 let requestId = 0;
 
 function toYmd(date: Date): string {
@@ -262,28 +195,15 @@ function addDaysYmd(ymd: string, days: number): string {
   return toYmd(date);
 }
 
-function isValidYmd(value: string): boolean {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return false;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return (
-    date.getFullYear() === Number(match[1]) &&
-    date.getMonth() === Number(match[2]) - 1 &&
-    date.getDate() === Number(match[3])
-  );
-}
-
 const todayYmd = toYmd(new Date());
 const initialEndDate = todayYmd;
 const initialStartDate = addDaysYmd(todayYmd, -6);
-const draftStartDate = ref(initialStartDate);
-const draftEndDate = ref(initialEndDate);
 const appliedStartDate = ref(initialStartDate);
 const appliedEndDate = ref(initialEndDate);
 
 const activeQuickRange = computed(() => {
-  if (draftStartDate.value === addDaysYmd(todayYmd, -6) && draftEndDate.value === todayYmd) return 7;
-  if (draftStartDate.value === addDaysYmd(todayYmd, -29) && draftEndDate.value === todayYmd) return 30;
+  if (appliedStartDate.value === addDaysYmd(todayYmd, -6) && appliedEndDate.value === todayYmd) return 7;
+  if (appliedStartDate.value === addDaysYmd(todayYmd, -29) && appliedEndDate.value === todayYmd) return 30;
   return 0;
 });
 
@@ -291,19 +211,6 @@ const numberFormatter = computed(() => new Intl.NumberFormat(appShellStore.langu
 
 function formatCount(value: number): string {
   return numberFormatter.value.format(Math.max(0, Math.round(Number(value) || 0)));
-}
-
-function formatUpdatedAt(value: number): string {
-  try {
-    return new Intl.DateTimeFormat(appShellStore.language, {
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
-  } catch {
-    return new Date(value).toLocaleString();
-  }
 }
 
 function displayModel(model: string): string {
@@ -319,23 +226,9 @@ function dailyBarWidth(totalTokens: number): string {
   return `${Math.max(0, Math.min(100, (Number(totalTokens) / maxDailyTotal.value) * 100))}%`;
 }
 
-function validateDraftRange(): boolean {
-  rangeError.value = "";
-  if (!isValidYmd(draftStartDate.value) || !isValidYmd(draftEndDate.value)) {
-    rangeError.value = t("usageStats.invalidDate");
-    return false;
-  }
-  if (draftStartDate.value > draftEndDate.value) {
-    rangeError.value = t("usageStats.invalidRange");
-    return false;
-  }
-  return true;
-}
-
-async function loadStats(): Promise<void> {
-  if (!validateDraftRange()) return;
-  appliedStartDate.value = draftStartDate.value;
-  appliedEndDate.value = draftEndDate.value;
+async function loadStats(startDate = appliedStartDate.value, endDate = appliedEndDate.value): Promise<void> {
+  appliedStartDate.value = startDate;
+  appliedEndDate.value = endDate;
   const currentRequestId = ++requestId;
   loading.value = true;
   loadError.value = "";
@@ -355,17 +248,12 @@ async function loadStats(): Promise<void> {
 }
 
 function applyQuickRange(days: number): void {
-  draftEndDate.value = todayYmd;
-  draftStartDate.value = addDaysYmd(todayYmd, -(Math.max(1, days) - 1));
-  void loadStats();
-}
-
-function applyCustomRange(): void {
-  void loadStats();
+  const endDate = todayYmd;
+  const startDate = addDaysYmd(todayYmd, -(Math.max(1, days) - 1));
+  void loadStats(startDate, endDate);
 }
 
 function refresh(): void {
-  if (!validateDraftRange()) return;
   void loadStats();
 }
 
@@ -383,8 +271,6 @@ watch(
   open,
   (isOpen) => {
     if (!isOpen) return;
-    draftStartDate.value = appliedStartDate.value;
-    draftEndDate.value = appliedEndDate.value;
     void nextTick(() => closeButtonRef.value?.focus());
     void loadStats();
   },
@@ -402,93 +288,73 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .usage-stats-overlay {
-  position: fixed;
-  inset: calc(var(--topbar-h) + 8px) 10px calc(var(--bottombar-h) + 8px) 10px;
-  z-index: 1220;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.usage-stats-backdrop {
   position: absolute;
-  inset: -100px;
-  background: color-mix(in srgb, var(--surface-1) 36%, transparent);
-  backdrop-filter: var(--frost-soft);
+  left: calc(var(--left-sidebar-w, 0px) + 12px);
+  bottom: 12px;
+  z-index: 1220;
+  width: min(440px, 48vw, calc(100vw - var(--left-sidebar-w, 0px) - 24px));
+  pointer-events: none;
 }
 
 .usage-stats-panel {
   position: relative;
-  width: min(1040px, 82vw);
-  height: 100%;
+  pointer-events: auto;
+  width: 100%;
+  max-height: min(64vh, 520px);
   min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 8px;
+  background: var(--surface-elevated, var(--surface-1));
   box-shadow:
-    0 32px 90px rgb(from var(--ui-shadow-source) r g b / 0.42),
+    0 18px 48px rgb(from var(--ui-shadow-source) r g b / 0.34),
     inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
-  backdrop-filter: var(--frost-strong);
+  backdrop-filter: var(--frost-soft);
 }
 
 .usage-stats-head {
-  min-height: 58px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 10px 14px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
   background: color-mix(in srgb, var(--surface-2) 48%, transparent);
 }
 
 .usage-stats-head-title {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .usage-stats-head-icon {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
-  border-radius: 6px;
-  background: var(--bg-accent-soft);
   color: var(--accent);
 }
 
-.usage-stats-head-icon svg {
-  width: 17px;
-  height: 17px;
-}
-
-.usage-stats-head-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
 .usage-stats-title {
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 760;
-  line-height: 1.2;
-}
-
-.usage-stats-subtitle {
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.35;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.usage-stats-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .usage-stats-body {
@@ -496,28 +362,18 @@ onBeforeUnmount(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.usage-stats-filters {
-  display: grid;
   gap: 9px;
-  padding: 11px;
-  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--surface-2) 30%, transparent);
+  overflow-y: auto;
+  padding: 9px;
 }
 
 .usage-stats-quick-ranges {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .usage-stats-quick-btn,
-.usage-stats-apply-btn,
 .usage-stats-icon-btn {
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: color-mix(in srgb, var(--button-bg, var(--surface-1)) 88%, transparent);
@@ -526,15 +382,14 @@ onBeforeUnmount(() => {
 }
 
 .usage-stats-quick-btn {
-  height: 26px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
 }
 
 .usage-stats-quick-btn:hover:not(:disabled),
-.usage-stats-apply-btn:hover:not(:disabled),
 .usage-stats-icon-btn:hover:not(:disabled) {
   border-color: var(--border-accent-hover, var(--border-accent));
   background: var(--button-bg-hover, var(--surface-2));
@@ -547,65 +402,9 @@ onBeforeUnmount(() => {
   color: var(--accent);
 }
 
-.usage-stats-date-controls {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.usage-stats-date-field {
-  display: grid;
-  gap: 4px;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.usage-stats-date-field input {
-  height: 30px;
-  min-width: 142px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: 4px;
-  background: var(--control-surface, var(--surface-1));
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  color-scheme: dark;
-}
-
-:root[data-tone="light"] .usage-stats-date-field input {
-  color-scheme: light;
-}
-
-.usage-stats-date-field input:focus-visible {
-  outline: none;
-  border-color: var(--border-accent-hover, var(--border-accent));
-  box-shadow: 0 0 0 2px var(--focus-ring, var(--accent-soft));
-}
-
-.usage-stats-date-separator {
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.usage-stats-apply-btn {
-  height: 30px;
-  padding: 0 13px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 680;
-}
-
 .usage-stats-icon-btn {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -614,48 +413,37 @@ onBeforeUnmount(() => {
 }
 
 .usage-stats-icon-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
-.usage-stats-icon-btn:disabled,
-.usage-stats-apply-btn:disabled {
+.usage-stats-icon-btn:disabled {
   cursor: default;
   opacity: 0.48;
 }
 
-.usage-stats-filter-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
-  font-size: 10px;
-}
-
 .usage-stats-inline-error {
-  padding: 7px 9px;
+  padding: 6px 8px;
   border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border));
   border-radius: 4px;
   background: var(--bg-danger-soft);
   color: var(--danger);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.4;
 }
 
 .usage-stats-state {
-  min-height: 180px;
+  min-height: 96px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 24px;
+  gap: 8px;
+  padding: 16px;
   border: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 5px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -666,25 +454,25 @@ onBeforeUnmount(() => {
 }
 
 .usage-stats-state-icon {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   color: var(--accent);
 }
 
 .usage-stats-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .usage-stats-metric {
   min-width: 0;
-  min-height: 88px;
+  min-height: 60px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 3px;
-  padding: 11px 12px;
+  gap: 1px;
+  padding: 7px 8px;
   border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   border-radius: 5px;
   background: color-mix(in srgb, var(--surface-2) 34%, transparent);
@@ -700,7 +488,7 @@ onBeforeUnmount(() => {
 .usage-stats-metric-label {
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
@@ -711,7 +499,7 @@ onBeforeUnmount(() => {
 .usage-stats-metric-value {
   overflow: hidden;
   color: var(--text);
-  font-size: clamp(18px, 2vw, 25px);
+  font-size: 16px;
   font-weight: 750;
   line-height: 1.1;
   text-overflow: ellipsis;
@@ -720,15 +508,7 @@ onBeforeUnmount(() => {
 
 .usage-stats-metric.is-primary .usage-stats-metric-value {
   color: var(--accent);
-}
-
-.usage-stats-metric-note {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 18px;
 }
 
 .usage-stats-section {
@@ -744,29 +524,15 @@ onBeforeUnmount(() => {
 .usage-stats-section-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  padding: 6px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 44%, transparent);
 }
 
 .usage-stats-section-head h3 {
   margin: 0;
   color: var(--text);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 720;
-}
-
-.usage-stats-section-head p {
-  margin: 2px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.usage-stats-section-icon {
-  width: 15px;
-  height: 15px;
-  color: var(--text-muted);
 }
 
 .usage-stats-table-wrap {
@@ -776,15 +542,15 @@ onBeforeUnmount(() => {
 
 .usage-stats-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 0;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
 .usage-stats-table th,
 .usage-stats-table td {
-  padding: 8px 10px;
+  padding: 5px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
   text-align: left;
   white-space: nowrap;
@@ -792,7 +558,7 @@ onBeforeUnmount(() => {
 
 .usage-stats-table th {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 650;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -812,7 +578,7 @@ onBeforeUnmount(() => {
 
 .usage-stats-total-cell {
   position: relative;
-  min-width: 92px;
+  min-width: 68px;
   display: flex;
   justify-content: flex-end;
   padding: 2px 4px;
@@ -833,17 +599,10 @@ onBeforeUnmount(() => {
 }
 
 .usage-stats-model-cell {
-  max-width: 300px;
+  max-width: 180px;
   overflow: hidden;
   color: var(--text);
   text-overflow: ellipsis;
-}
-
-.usage-stats-note {
-  margin: 0;
-  color: color-mix(in srgb, var(--text-muted) 84%, transparent);
-  font-size: 10px;
-  line-height: 1.45;
 }
 
 .usage-stats-drawer-enter-active,
@@ -866,34 +625,18 @@ onBeforeUnmount(() => {
 .usage-stats-drawer-enter-from .usage-stats-panel,
 .usage-stats-drawer-leave-to .usage-stats-panel {
   opacity: 0;
-  transform: translateX(28px) scale(0.985);
+  transform: translateY(10px) scale(0.985);
 }
 
-@media (max-width: 1100px) {
-  .usage-stats-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
+@media (max-width: 560px) {
   .usage-stats-overlay {
-    inset: 8px;
-  }
-
-  .usage-stats-panel {
-    width: 100%;
+    left: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
   }
 
   .usage-stats-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .usage-stats-date-field {
-    flex: 1 1 140px;
-  }
-
-  .usage-stats-date-field input {
-    width: 100%;
   }
 }
 </style>
