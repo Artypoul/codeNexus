@@ -210,7 +210,6 @@ onBeforeUnmount(() => {
 
 .bottom-bar__conn.is-connecting .bottom-bar__conn-dot {
   background: var(--accent);
-  animation: connPulse 1.2s ease-in-out infinite;
 }
 
 .bottom-bar__conn.is-failed .bottom-bar__conn-icon {
@@ -220,16 +219,5 @@ onBeforeUnmount(() => {
 
 .bottom-bar__conn.is-failed .bottom-bar__conn-dot {
   background: var(--danger);
-}
-
-@keyframes connPulse {
-  0% {
-    transform: scale(0.82);
-    opacity: 0.62;
-  }
-  100% {
-    transform: scale(1.12);
-    opacity: 1;
-  }
 }
 </style>

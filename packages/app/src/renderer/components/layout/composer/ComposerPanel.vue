@@ -163,7 +163,6 @@
                 :percent="contextUsagePercent"
                 :level="contextUsageLevel"
                 :size="28"
-                :animated="contextUsageLevel === 'critical'"
                 :aria-label="contextUsageTooltip"
               />
               <div class="composer-context-copy">
@@ -182,7 +181,6 @@
               :aria-label="sendTitle"
               @click="emit('send')"
             >
-              <div v-if="!sendDisabled && !isTurnRunning" class="composer-send-ping"></div>
               <SendHorizontal class="composer-send-icon" />
               <span class="composer-send-label">{{ t("composer.send") }}</span>
             </button>

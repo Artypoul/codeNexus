@@ -133,39 +133,3 @@ body.is-resizing .main {
   opacity: 0;
   transform: translateX(14px);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .main {
-    transition: none;
-  }
-
-  .main-view-forward-enter-active,
-  .main-view-forward-leave-active,
-  .main-view-back-enter-active,
-  .main-view-back-leave-active,
-  .main-view-fade-enter-active,
-  .main-view-fade-leave-active,
-  .left-pane-switch-forward-enter-active,
-  .left-pane-switch-forward-leave-active,
-  .left-pane-switch-back-enter-active,
-  .left-pane-switch-back-leave-active,
-  .left-pane-switch-fade-enter-active,
-  .left-pane-switch-fade-leave-active,
-  .side-pane-switch-enter-active,
-  .side-pane-switch-leave-active {
-    transition: none !important;
-  }
-
-  .main-view-forward-enter-from,
-  .main-view-forward-leave-to,
-  .main-view-back-enter-from,
-  .main-view-back-leave-to,
-  .left-pane-switch-forward-enter-from,
-  .left-pane-switch-forward-leave-to,
-  .left-pane-switch-back-enter-from,
-  .left-pane-switch-back-leave-to,
-  .side-pane-switch-enter-from,
-  .side-pane-switch-leave-to {
-    transform: none !important;
-  }
-}

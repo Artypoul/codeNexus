@@ -102,8 +102,7 @@ watch(
     if (next) hasEverOpened.value = true;
     if (next) heightContentMounted.value = true;
     else if (props.lazy && heightContentMounted.value) {
-      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) unmountHeightContent();
-      else heightUnmountTimer = setTimeout(unmountHeightContent, 260);
+      heightUnmountTimer = setTimeout(unmountHeightContent, 260);
     }
   },
   { immediate: true, flush: "sync" }

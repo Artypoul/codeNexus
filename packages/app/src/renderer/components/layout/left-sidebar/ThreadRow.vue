@@ -24,8 +24,6 @@
             v-if="isPendingThreadId(row.item.id)"
             class="lsb-thread-title-text"
             :baseText="t('threadRow.creating')"
-            :intervalMs="350"
-            :maxDots="3"
             :ariaLabel="t('threadRow.creating')"
           />
           <template v-else>
@@ -62,11 +60,11 @@
               class="lsb-thread-status-icon is-question"
               aria-hidden="true"
             />
-            <span
+            <ExecutionCoreIcon
               v-else-if="threadVisualStatus === 'running'"
-              class="running-indicator is-thread-running"
-              aria-hidden="true"
-            ></span>
+              class="lsb-thread-status-icon is-thread-running"
+              running
+            />
             <button
               v-else-if="threadVisualStatus === 'attention'"
               class="lsb-thread-attention-btn"
@@ -105,6 +103,7 @@ import { useI18n } from "vue-i18n";
 import { BellRing, CheckCircle2, MessageCircleQuestionMark, Trash2 } from "lucide-vue-next";
 import { useThreadStore } from "../../../stores/thread.store";
 import LoadingDots from "../../ui/LoadingDots.vue";
+import ExecutionCoreIcon from "../../ui/ExecutionCoreIcon.vue";
 
 type ThreadVisualStatus = "question" | "running" | "attention" | "completed" | "idle";
 

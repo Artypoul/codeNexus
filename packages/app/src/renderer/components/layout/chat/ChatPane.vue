@@ -15,22 +15,19 @@
     </div>
 
     <div ref="pinnedPromptLayerRef" class="chat-pinned-prompt-layer">
-      <Transition name="chat-pinned-prompt">
-        <ChatPinnedUserPromptBox
-          v-if="pinnedUserMessage"
-          :contentKey="pinnedUserMessage.rowId"
-          :text="pinnedUserMessage.text"
-          :messageParts="pinnedUserMessage.parts"
-          :title="pinnedUserMessage.title"
-          :fileCount="pinnedUserMessage.fileCount"
-          :imageCount="pinnedUserMessage.imageCount"
-          :transitionDirection="pinnedPromptTransitionDirection"
-          :showTimestamp="viewPrefs.showTimestamps"
-          :formattedTime="pinnedUserMessage.formattedTime"
-          @locate="onPinnedUserClick"
-          @file-token-click="onUserFileTokenClick"
-        />
-      </Transition>
+      <ChatPinnedUserPromptBox
+        v-if="pinnedUserMessage"
+        :contentKey="pinnedUserMessage.rowId"
+        :text="pinnedUserMessage.text"
+        :messageParts="pinnedUserMessage.parts"
+        :title="pinnedUserMessage.title"
+        :fileCount="pinnedUserMessage.fileCount"
+        :imageCount="pinnedUserMessage.imageCount"
+        :showTimestamp="viewPrefs.showTimestamps"
+        :formattedTime="pinnedUserMessage.formattedTime"
+        @locate="onPinnedUserClick"
+        @file-token-click="onUserFileTokenClick"
+      />
     </div>
 
     <ChatTimelineViewport
@@ -238,7 +235,6 @@ const viewPrefs = useViewPrefsStore();
 const modelCatalogStore = useModelCatalogStore();
 const localViewportAdapter = ref<TimelineViewportAdapter | null>(null);
 const pinnedUserRowId = ref("");
-const pinnedPromptTransitionDirection = ref<"up" | "down">("up");
 const pinnedPromptLayerRef = ref<HTMLElement | null>(null);
 const PINNED_PROMPT_TOP_GAP_PX = 0;
 
@@ -403,16 +399,7 @@ function setLocalViewportAdapter(adapter: TimelineViewportAdapter | null) {
 }
 
 function setPinnedUserRowId(rowId: string) {
-  const nextRowId = String(rowId ?? "").trim();
-  const previousRowId = pinnedUserRowId.value;
-  if (nextRowId && previousRowId && nextRowId !== previousRowId) {
-    const previousIndex = chatRenderedRows.value.findIndex((item) => item.id === previousRowId);
-    const nextIndex = chatRenderedRows.value.findIndex((item) => item.id === nextRowId);
-    if (previousIndex >= 0 && nextIndex >= 0) {
-      pinnedPromptTransitionDirection.value = nextIndex > previousIndex ? "up" : "down";
-    }
-  }
-  pinnedUserRowId.value = nextRowId;
+  pinnedUserRowId.value = String(rowId ?? "").trim();
 }
 
 const pinnedUserRow = computed(() => {
@@ -473,7 +460,7 @@ function scrollDomRowToTop(rowId: string, offsetPx = 0) {
   const rowRect = row.getBoundingClientRect();
   const delta = rowRect.top - elementRect.top - Math.max(0, Math.round(offsetPx));
   const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
-  element.scrollTo({ top: Math.max(0, Math.min(maxScrollTop, element.scrollTop + delta)), behavior: "smooth" });
+  element.scrollTo({ top: Math.max(0, Math.min(maxScrollTop, element.scrollTop + delta)), behavior: "auto" });
   return true;
 }
 
@@ -481,8 +468,8 @@ function onPinnedUserClick() {
   const rowId = pinnedUserMessage.value?.rowId ?? "";
   if (!rowId) return;
   const offsetPx = pinnedPromptLocateOffsetPx();
-  if (props.onLocateRow?.(rowId, offsetPx, "smooth")) return;
-  if (localViewportAdapter.value?.scrollRowToTop(rowId, offsetPx, "smooth")) return;
+  if (props.onLocateRow?.(rowId, offsetPx, "auto")) return;
+  if (localViewportAdapter.value?.scrollRowToTop(rowId, offsetPx, "auto")) return;
   scrollDomRowToTop(rowId, offsetPx);
 }
 

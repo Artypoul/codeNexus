@@ -12,10 +12,10 @@
 | `Collapsible.vue`          | 折叠面板                |
 | `DetailDisclosure.vue`     | 详情展开                |
 | `LazyImageThumb.vue`       | 图片缩略图懒加载        |
-| `LoadingDots.vue`          | 加载点动画              |
+| `LoadingDots.vue`          | 加载文字                |
 | `SelectDropdown.vue`       | 下拉选择                |
 | `WaterBallProgress.vue`    | 水球进度条              |
-| `WaveText.vue`             | 动效文字                |
+| `WaveText.vue`             | 执行状态文字            |
 
 ## 维护边界
 

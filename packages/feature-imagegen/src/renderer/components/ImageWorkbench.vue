@@ -725,11 +725,4 @@ onBeforeUnmount(() => {
     overflow-x: auto;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .image-workbench__tool,
-  .image-workbench__viewport img {
-    transition: none;
-  }
-}
 </style>

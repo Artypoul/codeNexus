@@ -53,7 +53,6 @@ function applyThemeToDocument(theme: AppThemeName): void {
 
 function supportsThemeViewTransition(): boolean {
   if (typeof window === "undefined" || typeof document === "undefined") return false;
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return false;
   return typeof document.startViewTransition === "function";
 }
 

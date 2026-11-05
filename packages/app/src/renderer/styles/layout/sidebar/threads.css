@@ -475,9 +475,9 @@
   color: var(--lsb-thread-state);
 }
 
-.running-indicator.is-thread-running {
-  --spinner-track: color-mix(in srgb, var(--lsb-thread-state) 25%, transparent);
-  --spinner-head: var(--lsb-thread-state);
+.lsb-thread-status-icon.is-thread-running {
+  --execution-core-size: 16px;
+  color: var(--lsb-thread-state);
 }
 
 .lsb-thread-attention-btn {
@@ -565,19 +565,5 @@
   .lsb-delete svg {
     width: 12px;
     height: 12px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lsb-nav-row,
-  .lsb-icon-btn,
-  .lsb-thread-item,
-  .lsb-thread-item::before,
-  .lsb-group-head-toggle,
-  .lsb-thread-attention-btn,
-  .lsb-chevron,
-  .spin {
-    transition: none;
-    animation: none;
   }
 }

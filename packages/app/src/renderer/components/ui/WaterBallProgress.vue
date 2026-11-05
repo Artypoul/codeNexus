@@ -1,11 +1,5 @@
 <template>
-  <div
-    class="ui-waterball-progress"
-    :class="[levelClass, { 'is-static': !animated }]"
-    :style="rootStyle"
-    role="img"
-    :aria-label="ariaLabelText"
-  >
+  <div class="ui-waterball-progress" :class="levelClass" :style="rootStyle" role="img" :aria-label="ariaLabelText">
     <span class="ui-waterball-progress__ring" aria-hidden="true">
       <span class="ui-waterball-progress__value">{{ displayPercent }}</span>
     </span>
@@ -29,19 +23,16 @@ const props = withDefaults(
     percent: number;
     size?: number;
     level?: string;
-    animated?: boolean;
     ariaLabel?: string;
   }>(),
   {
     size: undefined,
     level: "",
-    animated: true,
   }
 );
 
 const { t } = useI18n();
 const clampedPercent = computed(() => clamp(toFinite(props.percent, 0), 0, 100));
-const animated = computed(() => Boolean(props.animated));
 const level = computed<ProgressLevel>(() => {
   const raw = String(props.level ?? "")
     .trim()
@@ -139,21 +130,5 @@ const ariaLabelText = computed(() => {
   line-height: 1;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
-}
-
-.ui-waterball-progress:not(.is-static) .ui-waterball-progress__ring {
-  animation: ui-progress-soft-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes ui-progress-soft-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    box-shadow:
-      inset 0 0 0 1px rgb(from var(--progress-color) r g b / 0.08),
-      0 0 9px var(--progress-shadow);
-  }
 }
 </style>

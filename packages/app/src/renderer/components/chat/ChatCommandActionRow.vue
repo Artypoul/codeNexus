@@ -92,27 +92,9 @@ const isRunning = computed(() => props.item.item.status === "running");
 <style scoped>
 .chat-terminal-action-line.is-running .chat-terminal-action-icon {
   color: var(--accent);
-  animation: command-action-running-pulse 1.35s ease-in-out infinite;
 }
 
 .chat-terminal-action-text {
   line-height: 20px;
-}
-
-@keyframes command-action-running-pulse {
-  0%,
-  100% {
-    opacity: 0.58;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-terminal-action-line.is-running .chat-terminal-action-icon {
-    animation: none;
-  }
 }
 </style>

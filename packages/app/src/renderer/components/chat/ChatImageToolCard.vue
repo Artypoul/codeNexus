@@ -19,9 +19,7 @@
       </header>
 
       <div v-if="showRunningSkeleton" class="official-image-card__skeleton-grid" aria-hidden="true">
-        <div v-for="index in skeletonCount" :key="index" class="official-image-card__skeleton">
-          <div class="official-image-card__skeleton-glow" />
-        </div>
+        <div v-for="index in skeletonCount" :key="index" class="official-image-card__skeleton" />
       </div>
 
       <div v-else-if="visibleImages.length > 0" class="official-image-card__grid" :class="gridClass">

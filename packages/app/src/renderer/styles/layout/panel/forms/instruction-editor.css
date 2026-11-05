@@ -105,17 +105,3 @@
   transform: translateY(12px);
   opacity: 0;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .instruction-editor-enter-active,
-  .instruction-editor-leave-active,
-  .instruction-editor-enter-active .instruction-editor-window,
-  .instruction-editor-leave-active .instruction-editor-window {
-    transition: none;
-  }
-  .instruction-editor-enter-from .instruction-editor-window,
-  .instruction-editor-leave-to .instruction-editor-window {
-    transform: none;
-    opacity: 1;
-  }
-}

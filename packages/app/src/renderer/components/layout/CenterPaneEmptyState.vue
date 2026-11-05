@@ -14,8 +14,6 @@
           <LoadingDots
             class="center-thread-create-state__title"
             :baseText="t('centerEmpty.creatingThread')"
-            :intervalMs="360"
-            :maxDots="3"
             as="div"
             :ariaLabel="t('centerEmpty.creatingThread')"
           />
@@ -139,12 +137,6 @@ const { t } = useI18n();
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .center-thread-create-state {
-    animation: none;
   }
 }
 </style>

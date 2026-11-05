@@ -117,7 +117,6 @@ const runtimeStore = useRuntimeStore();
 const workspaceFilesStore = useWorkspaceFilesStore();
 const rightStackRef = ref<HTMLElement | null>(null);
 
-const reducedMotionQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
 let rightStackAnimationFrame = 0;
 let rightStackAnimationTimer = 0;
 
@@ -145,10 +144,6 @@ const filesPaneTitle = computed(() => {
   return filesPaneVisible.value ? t("topbar.closeFilesPanel") : t("topbar.openFilesPanel");
 });
 
-function prefersReducedMotion() {
-  return Boolean(reducedMotionQuery?.matches);
-}
-
 function clearRightStackLayoutAnimation() {
   if (rightStackAnimationFrame) {
     window.cancelAnimationFrame(rightStackAnimationFrame);
@@ -170,7 +165,7 @@ watch(
   () => runtimeStore.workspacePath,
   async () => {
     const rightStack = rightStackRef.value;
-    if (!rightStack || prefersReducedMotion()) return;
+    if (!rightStack) return;
 
     const previousLeft = rightStack.getBoundingClientRect().left;
     await nextTick();

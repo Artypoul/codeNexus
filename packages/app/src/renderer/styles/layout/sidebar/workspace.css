@@ -1041,12 +1041,3 @@ html[data-tone="light"] .workspace-files-editor-footer__error {
 html[data-tone="light"] .workspace-editor-pane {
   --wf-surface: color-mix(in srgb, white 86%, var(--accent-soft) 14%);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .workspace-file-tree-row,
-  .workspace-file-tree-row::after,
-  .workspace-file-tree-row__chevron {
-    transition: none;
-    animation: none;
-  }
-}

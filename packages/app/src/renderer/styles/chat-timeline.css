@@ -44,13 +44,10 @@
   --chat-focus-ring: color-mix(in srgb, var(--border-accent) 72%, transparent);
   --chat-aux-bg: color-mix(in srgb, var(--panel-surface, var(--surface-1)) 34%, transparent);
   --chat-aux-bg-hover: color-mix(in srgb, var(--panel-surface-strong, var(--surface-2)) 48%, transparent);
-  --chat-aux-bg-running: color-mix(in srgb, var(--accent) 5%, transparent);
   --chat-aux-border: color-mix(in srgb, var(--border) 74%, transparent);
   --chat-aux-border-hover: color-mix(in srgb, var(--border) 68%, var(--accent) 20%);
-  --chat-aux-border-running: color-mix(in srgb, var(--accent) 44%, var(--border) 56%);
   --chat-aux-body-bg: color-mix(in srgb, var(--ui-well-bg-strong) 34%, transparent);
   --chat-aux-count-bg: color-mix(in srgb, var(--ui-well-bg-strong) 54%, transparent);
-  --chat-aux-meteor-core: color-mix(in srgb, var(--accent) 78%, var(--text) 22%);
 
   --chat-status-running: var(--accent);
   --chat-status-ok: var(--success);
@@ -310,49 +307,6 @@
 .timeline-pane--chat .chat-pinned-prompt__file-token .chat-inline-file-token__icon {
   width: 14px;
   height: 14px;
-}
-
-.chat-pinned-prompt-content-up-enter-active,
-.chat-pinned-prompt-content-up-leave-active,
-.chat-pinned-prompt-content-down-enter-active,
-.chat-pinned-prompt-content-down-leave-active {
-  transition:
-    opacity 130ms ease,
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
-}
-
-.chat-pinned-prompt-content-up-enter-from {
-  opacity: 0;
-  transform: translateY(100%);
-}
-
-.chat-pinned-prompt-content-up-leave-to {
-  opacity: 0;
-  transform: translateY(-100%);
-}
-
-.chat-pinned-prompt-content-down-enter-from {
-  opacity: 0;
-  transform: translateY(-100%);
-}
-
-.chat-pinned-prompt-content-down-leave-to {
-  opacity: 0;
-  transform: translateY(100%);
-}
-
-.chat-pinned-prompt-enter-active,
-.chat-pinned-prompt-leave-active {
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-}
-
-.chat-pinned-prompt-enter-from,
-.chat-pinned-prompt-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 
 .timeline-pane--chat .chat-row--tail {
@@ -769,8 +723,20 @@
 }
 
 .timeline-pane--chat .reasoning-summary-meta {
-  min-height: 24px;
+  min-height: 26px;
+  padding: 1px 2px;
+  gap: 6px;
   color: var(--chat-row-muted);
+}
+
+.timeline-pane--chat .chat-activity-toggle-slot {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .timeline-pane--chat .reasoning-summary-meta:hover {
@@ -778,7 +744,6 @@
 }
 
 .timeline-pane--chat .chat-aux-activity {
-  --chat-aux-meteor-duration: 5s;
   --chat-aux-header-line-height: 20px;
   position: relative;
   width: 100%;
@@ -788,93 +753,6 @@
   border-radius: var(--chat-radius-lg);
   background: var(--chat-aux-bg);
   box-shadow: none;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
-}
-
-.timeline-pane--chat .chat-aux-activity__meteor-svg {
-  position: absolute;
-  inset: -1px;
-  z-index: 1;
-  width: calc(100% + 2px);
-  height: calc(100% + 2px);
-  overflow: visible;
-  pointer-events: none;
-  clip-path: inset(0 round var(--chat-radius-lg));
-}
-
-.timeline-pane--chat .chat-aux-activity__meteor-glow,
-.timeline-pane--chat .chat-aux-activity__meteor-tail,
-.timeline-pane--chat .chat-aux-activity__meteor-head {
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 4.5 45.5 4.5 45.5;
-  stroke-dashoffset: 0;
-  opacity: 0;
-  animation: none;
-}
-
-.timeline-pane--chat .chat-aux-activity__meteor-glow {
-  stroke: var(--accent);
-  stroke-width: 7;
-}
-
-.timeline-pane--chat .chat-aux-activity__meteor-tail {
-  stroke: var(--accent);
-  stroke-width: 2.8;
-}
-
-.timeline-pane--chat .chat-aux-activity__meteor-head {
-  stroke: var(--chat-aux-meteor-core);
-  stroke-width: 1.45;
-  stroke-dasharray: 1.5 48.5 1.5 48.5;
-}
-
-.timeline-pane--chat .chat-aux-activity > :not(.chat-aux-activity__meteor-svg) {
-  position: relative;
-  z-index: 2;
-}
-
-.timeline-pane--chat .chat-aux-activity.is-running {
-  --chat-aux-meteor-duration: 2.5s;
-  border-color: var(--chat-aux-border-running);
-  background: var(--chat-aux-bg-running);
-}
-
-.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor-glow {
-  opacity: 0.12;
-  animation: chatAuxMeteorTravel var(--chat-aux-meteor-duration) linear infinite;
-}
-
-.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor-tail {
-  opacity: 0.55;
-  animation: chatAuxMeteorTravel var(--chat-aux-meteor-duration) linear infinite;
-}
-
-.timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__meteor-head {
-  opacity: 1;
-  animation: chatAuxMeteorTravelHead var(--chat-aux-meteor-duration) linear infinite;
-}
-
-@keyframes chatAuxMeteorTravel {
-  from {
-    stroke-dashoffset: 0;
-  }
-
-  to {
-    stroke-dashoffset: -100;
-  }
-}
-
-@keyframes chatAuxMeteorTravelHead {
-  from {
-    stroke-dashoffset: -3;
-  }
-
-  to {
-    stroke-dashoffset: -103;
-  }
 }
 
 .timeline-pane--chat .chat-aux-activity__summary {
@@ -911,8 +789,10 @@
   line-height: 0;
 }
 
-.timeline-pane--chat .chat-aux-activity__icon > svg {
+.timeline-pane--chat .chat-aux-activity__core {
   display: block;
+  width: 20px;
+  height: 20px;
 }
 
 .timeline-pane--chat .chat-aux-activity__main {
@@ -999,10 +879,13 @@
 
 .timeline-pane--chat .chat-aux-activity__state {
   color: color-mix(in srgb, var(--chat-row-muted) 76%, transparent);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
 
 .timeline-pane--chat .chat-aux-activity.is-running .chat-aux-activity__state {
+  min-width: 16ch;
   color: var(--fg-accent);
 }
 
@@ -1029,10 +912,6 @@
   opacity: 0;
   pointer-events: none;
   transform: translate3d(0, -3px, 0);
-  transition:
-    grid-template-rows 210ms cubic-bezier(0.25, 1, 0.5, 1),
-    opacity 140ms ease,
-    transform 210ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .timeline-pane--chat .chat-aux-activity__body-shell.is-open {
@@ -1102,7 +981,9 @@
 }
 
 .timeline-pane--chat .chat-aux-activity__item .chat-assistant-commentary {
-  padding: 2px 2px 3px;
+  padding: 2px 2px 3px 26px;
+  color: color-mix(in srgb, var(--chat-row-text) 82%, var(--chat-row-muted) 18%);
+  font-size: 12px;
 }
 
 .timeline-pane--chat .chat-terminal-action-files {
@@ -1286,14 +1167,6 @@
     color-mix(in srgb, var(--surface-2) 72%, transparent);
 }
 
-.timeline-pane--chat .official-image-card__skeleton-glow {
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
-  animation: official-image-card-sweep 1.7s ease-in-out infinite;
-}
-
 .timeline-pane--chat .official-image-card__empty {
   display: inline-flex;
   max-width: 100%;
@@ -1405,17 +1278,6 @@
   }
 }
 
-@keyframes official-image-card-sweep {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  52%,
-  100% {
-    transform: translateX(100%);
-  }
-}
-
 @container (max-width: 560px) {
   .timeline-pane--chat {
     --chat-row-gap-body: 6px;
@@ -1475,30 +1337,5 @@
 
   .timeline-pane--chat .chat-aux-activity__count {
     max-width: 96px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .timeline-pane--chat .chat-bubble-user,
-  .timeline-pane--chat .chat-inline-file-token,
-  .timeline-pane--chat .mcp-tool-chevron,
-  .timeline-pane--chat .chat-aux-activity__chevron,
-  .timeline-pane--chat .chat-aux-activity__body-shell,
-  .timeline-pane--chat .chat-aux-activity__body-shell.is-open,
-  .chat-pinned-prompt-content-up-enter-active,
-  .chat-pinned-prompt-content-up-leave-active,
-  .chat-pinned-prompt-content-down-enter-active,
-  .chat-pinned-prompt-content-down-leave-active {
-    transition: none;
-    transform: none;
-  }
-
-  .timeline-pane--chat .official-image-card.is-running .official-image-card__icon,
-  .timeline-pane--chat .official-image-card__skeleton-glow {
-    animation: none;
-  }
-
-  .timeline-pane--chat .chat-aux-activity__meteor-svg {
-    display: none;
   }
 }

@@ -76,11 +76,11 @@ describe("lazy height disclosures", () => {
     expect(unmounted).not.toHaveBeenCalled();
   });
 
-  it("unloads immediately for reduced motion and preserves the default non-lazy behavior", async () => {
-    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+  it("unloads after the close fallback and preserves the default non-lazy behavior", async () => {
     const { props, unmounted } = mountCollapsible({ open: true });
     props.open = false;
     await nextTick();
+    await vi.advanceTimersByTimeAsync(300);
     expect(unmounted).toHaveBeenCalledTimes(1);
     app!.unmount();
     const { mounted } = mountCollapsible({ lazy: false });

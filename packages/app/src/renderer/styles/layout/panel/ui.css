@@ -18,13 +18,6 @@
   pointer-events: auto;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ui-collapsible-content {
-    transition: none;
-    transform: none;
-  }
-}
-
 .ui-collapsible-inner {
   min-height: 0;
   overflow: hidden;
@@ -41,13 +34,6 @@
 .ui-collapsible-fade-leave-to {
   opacity: 0;
   transform: translate3d(0, 4px, 0);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ui-collapsible-fade-enter-active,
-  .ui-collapsible-fade-leave-active {
-    transition: none;
-  }
 }
 
 .ui-collapsible-fade-content {
@@ -226,13 +212,6 @@
   opacity: 0;
   transform: translateY(-8px) scale(0.986);
   filter: blur(4px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ui-select-popover-enter-active,
-  .ui-select-popover-leave-active {
-    transition: none;
-  }
 }
 
 .btn-mini {

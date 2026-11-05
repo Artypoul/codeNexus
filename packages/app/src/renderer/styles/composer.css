@@ -165,10 +165,6 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 14%, transparent);
 }
 
-.composer-queue-status-dot.is-sending {
-  animation: pulse-queue-sending 1.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-}
-
 .composer-queue-status-dot.is-failed {
   color: var(--fg-danger, var(--danger));
 }
@@ -235,27 +231,6 @@
   height: 30px;
   stroke-width: 2.2;
   transform: scale(1.18);
-}
-
-@keyframes pulse-queue-sending {
-  0%,
-  100% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 0%, transparent);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-queue-status-dot.is-sending {
-    animation: none;
-  }
-
-  .composer-queue-actions,
-  .composer-queue-item {
-    transition: none;
-  }
 }
 
 .composer-slash-popover {
@@ -430,15 +405,6 @@
 .composer-slash-popover[data-dir="down"].composer-slash-popover-enter-from,
 .composer-slash-popover[data-dir="down"].composer-slash-popover-leave-to {
   transform: translateY(-8px) scale(0.986);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-slash-content-enter-active,
-  .composer-slash-content-leave-active,
-  .composer-slash-popover-enter-active,
-  .composer-slash-popover-leave-active {
-    transition: none;
-  }
 }
 
 .composer-lightbox-overlay {
@@ -640,13 +606,6 @@
 .composer-lightbox-enter-from,
 .composer-lightbox-leave-to {
   opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-lightbox-enter-active,
-  .composer-lightbox-leave-active {
-    transition: none;
-  }
 }
 
 .sandbox-risk-icon {
@@ -856,14 +815,6 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   border-color: var(--border-danger-hover);
   background: color-mix(in srgb, var(--bg-danger-soft-hover, var(--bg-danger-soft)) 96%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-danger-soft, var(--accent-soft)) 96%, transparent);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .codex-modal {
-    animation: none;
-    transform: none;
-    opacity: 1;
-  }
 }
 
 .codex-toast-host {
@@ -1076,14 +1027,6 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   to {
     opacity: 0;
     transform: translateY(-6px) scale(0.992);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .codex-toast,
-  .codex-center-toast,
-  .codex-toast.closing {
-    animation: none;
   }
 }
 
@@ -2150,24 +2093,6 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   color: var(--fg-danger);
 }
 
-.composer-send-button.is-running {
-  animation: pulse-danger 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
-}
-
-.composer-send-ping {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--accent);
-  opacity: 0.2;
-  pointer-events: none;
-  animation: composer-send-ping 1.1s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-.composer-send-button:hover .composer-send-ping {
-  display: none;
-}
-
 .composer-send-icon {
   width: 16px;
   height: 16px;
@@ -2225,24 +2150,6 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   );
   border-color: color-mix(in srgb, var(--accent) 88%, var(--light-text) 12%);
   box-shadow: 0 8px 18px rgb(from var(--accent) r g b / 0.2);
-}
-
-@keyframes pulse-danger {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--fg-danger) 40%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 8px color-mix(in srgb, var(--fg-danger) 0%, transparent);
-  }
-}
-
-@keyframes composer-send-ping {
-  75%,
-  100% {
-    opacity: 0;
-    transform: scale(1.8);
-  }
 }
 
 @media (max-width: 1500px) {
@@ -2457,11 +2364,4 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   flex: 0 0 auto;
   justify-self: end;
   width: auto;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-send-ping,
-  .composer-send-button.is-running {
-    animation: none;
-  }
 }

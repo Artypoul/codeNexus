@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-// 执行中文案波动：统一工具调用、网页搜索、文件操作等 running 状态的动态文本。
+// 执行中状态文案：统一工具调用、网页搜索、文件操作等 running 状态的文本入口。
 import WaveText from "./WaveText.vue";
 
 defineOptions({

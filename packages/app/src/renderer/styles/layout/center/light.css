@@ -1,20 +1,3 @@
-:root[data-tone="light"] .center-pane .history-replay-indicator {
-  border-color: rgb(from var(--text) r g b / 0.14);
-  background: color-mix(in srgb, white 0.55%, transparent);
-}
-
-:root[data-tone="light"] .center-pane .history-replay-indicator-loading {
-  border-color: rgb(from var(--accent) r g b / 0.35);
-  color: rgb(from var(--text) r g b / 0.92);
-  background: rgb(from var(--accent) r g b / 0.1);
-}
-
-:root[data-tone="light"] .center-pane .history-replay-indicator-error {
-  border-color: rgb(from var(--danger) r g b / 0.45);
-  color: rgb(from var(--danger) r g b / 0.92);
-  background: rgb(from var(--danger) r g b / 0.12);
-}
-
 :root[data-tone="light"] .composer-lightbox-overlay .composer-lightbox-backdrop {
   background: rgb(from var(--text) r g b / 0.56);
 }

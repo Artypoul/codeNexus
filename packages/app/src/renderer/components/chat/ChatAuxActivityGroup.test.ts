@@ -78,14 +78,14 @@ describe("activity group lazy mounting", () => {
     expect(unmounted).toHaveBeenCalledTimes(1);
   });
 
-  it("unloads immediately for reduced motion and follows automatic collapse", async () => {
-    vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+  it("unloads after the close fallback and follows automatic collapse", async () => {
     const { props, mounted, unmounted } = mountGroup();
     props.defaultCollapsed = false;
     await nextTick();
     expect(mounted).toHaveBeenCalledTimes(1);
     props.defaultCollapsed = true;
     await nextTick();
+    await vi.advanceTimersByTimeAsync(300);
     expect(unmounted).toHaveBeenCalledTimes(1);
   });
 });

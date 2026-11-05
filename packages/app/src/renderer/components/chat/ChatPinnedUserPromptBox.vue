@@ -10,43 +10,39 @@
     @keydown.space.prevent="emit('locate')"
   >
     <span class="chat-pinned-prompt__content-clip">
-      <Transition :name="contentTransitionName">
-        <span :key="contentKey" class="chat-pinned-prompt__content">
-          <span class="chat-pinned-prompt__text">
-            <template v-for="part in displayParts" :key="part.key">
-              <span v-if="part.type === 'text'" class="chat-pinned-prompt__text-part">{{ part.text }}</span>
-              <button
-                v-else-if="part.type === 'file'"
-                class="chat-inline-file-token chat-pinned-prompt__file-token"
-                type="button"
-                v-tooltip="part.title"
-                @click.stop="emit('file-token-click', part.path)"
-                @keydown.enter.stop
-                @keydown.space.stop
-              >
-                <Icon class="chat-inline-file-token__icon" :icon="part.icon" aria-hidden="true" />
-                <span class="chat-inline-file-token__label">{{ part.label }}</span>
-              </button>
-            </template>
-          </span>
+      <span :key="contentKey" class="chat-pinned-prompt__content">
+        <span class="chat-pinned-prompt__text">
+          <template v-for="part in displayParts" :key="part.key">
+            <span v-if="part.type === 'text'" class="chat-pinned-prompt__text-part">{{ part.text }}</span>
+            <button
+              v-else-if="part.type === 'file'"
+              class="chat-inline-file-token chat-pinned-prompt__file-token"
+              type="button"
+              v-tooltip="part.title"
+              @click.stop="emit('file-token-click', part.path)"
+              @keydown.enter.stop
+              @keydown.space.stop
+            >
+              <Icon class="chat-inline-file-token__icon" :icon="part.icon" aria-hidden="true" />
+              <span class="chat-inline-file-token__label">{{ part.label }}</span>
+            </button>
+          </template>
         </span>
-      </Transition>
+      </span>
     </span>
     <template #meta>
       <span v-if="showMeta" class="chat-pinned-prompt__meta-clip">
-        <Transition :name="contentTransitionName">
-          <span :key="`${contentKey}:meta`" class="chat-pinned-prompt__meta">
-            <span v-if="showTimestamp" class="mono dim">{{ formattedTime }}</span>
-            <span v-if="hasMeta" class="chat-pinned-prompt__tags" aria-hidden="true">
-              <span v-if="normalizedFileCount > 0" class="chat-pinned-prompt__tag">{{
-                t("chat.activity.fileTag", { count: normalizedFileCount })
-              }}</span>
-              <span v-if="normalizedImageCount > 0" class="chat-pinned-prompt__tag">{{
-                t("chat.activity.imageTag", { count: normalizedImageCount })
-              }}</span>
-            </span>
+        <span :key="`${contentKey}:meta`" class="chat-pinned-prompt__meta">
+          <span v-if="showTimestamp" class="mono dim">{{ formattedTime }}</span>
+          <span v-if="hasMeta" class="chat-pinned-prompt__tags" aria-hidden="true">
+            <span v-if="normalizedFileCount > 0" class="chat-pinned-prompt__tag">{{
+              t("chat.activity.fileTag", { count: normalizedFileCount })
+            }}</span>
+            <span v-if="normalizedImageCount > 0" class="chat-pinned-prompt__tag">{{
+              t("chat.activity.imageTag", { count: normalizedImageCount })
+            }}</span>
           </span>
-        </Transition>
+        </span>
       </span>
     </template>
   </ChatUserBubbleFrame>
@@ -68,7 +64,6 @@ const props = defineProps<{
   showTimestamp?: boolean;
   formattedTime?: string;
   contentKey?: string;
-  transitionDirection?: "up" | "down";
 }>();
 
 const emit = defineEmits<{
@@ -109,7 +104,4 @@ const displayParts = computed<ChatUserMessagePart[]>(() => {
 });
 const tooltipText = computed(() => String(props.title ?? "").trim() || displayText.value);
 const contentKey = computed(() => String(props.contentKey ?? displayText.value).trim() || displayText.value);
-const contentTransitionName = computed(() =>
-  props.transitionDirection === "down" ? "chat-pinned-prompt-content-down" : "chat-pinned-prompt-content-up"
-);
 </script>

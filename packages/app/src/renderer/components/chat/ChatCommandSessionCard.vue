@@ -50,7 +50,7 @@
         </button>
 
         <button
-          class="command-session__icon-button"
+          class="command-session__icon-button chat-activity-toggle-slot"
           type="button"
           :aria-expanded="open ? 'true' : 'false'"
           :title="t('chat.activity.expandLog')"

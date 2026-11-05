@@ -1338,35 +1338,3 @@
   opacity: 1;
   transform: translateY(0) scale(1);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .topbar-fly-enter-active,
-  .topbar-fly-leave-active,
-  .topbar button.topbar-theme-switch,
-  .topbar-mainview-btn,
-  .topbar-theme-icon-enter-active,
-  .topbar-theme-icon-leave-active,
-  .topbar-right-stack.is-layout-animating,
-  .topbar-more-panel,
-  .topbar-single-switch-thumb,
-  .topbar-menu-item-chevron,
-  .topbar-plan-caret,
-  .topbar-goal-caret,
-  .topbar-plan-step-slide-enter-active,
-  .topbar-plan-step-slide-leave-active,
-  .topbar-update-slide-enter-active,
-  .topbar-update-slide-leave-active,
-  .dynamic-tools-switch-track,
-  .dynamic-tools-switch-thumb {
-    transition: none;
-  }
-
-  .topbar-update-notice.is-downloading .topbar-update-notice__icon {
-    animation: none;
-  }
-
-  .topbar button.topbar-theme-switch:hover:not(:disabled),
-  .topbar button.topbar-theme-switch:active:not(:disabled) {
-    transform: none;
-  }
-}

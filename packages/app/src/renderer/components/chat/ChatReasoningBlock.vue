@@ -21,11 +21,12 @@
               </span>
               <span v-if="durationText" class="mono dim whitespace-nowrap">{{ durationText }}</span>
             </span>
-            <ChevronDown
-              class="ml-auto h-3.5 w-3.5 flex-none opacity-80 transition-transform duration-150 [stroke-width:2.4]"
-              :class="{ 'rotate-180': open }"
-              aria-hidden="true"
-            />
+            <span class="chat-activity-toggle-slot" aria-hidden="true">
+              <ChevronDown
+                class="h-3.5 w-3.5 flex-none opacity-80 transition-transform duration-150 [stroke-width:2.4]"
+                :class="{ 'rotate-180': open }"
+              />
+            </span>
           </div>
         </template>
 

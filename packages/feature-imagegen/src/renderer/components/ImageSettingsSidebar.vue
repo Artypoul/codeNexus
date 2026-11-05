@@ -725,33 +725,10 @@ onBeforeUnmount(() => {
     transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.image-workbench__dropzone::before {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border-radius: 6px;
-  pointer-events: none;
-  opacity: 0;
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      color-mix(in srgb, var(--accent) 16%, transparent),
-      transparent
-    ),
-    color-mix(in srgb, var(--accent) 5%, transparent);
-  transform: translateX(-32%);
-}
-
 .image-workbench__dropzone.is-file-dragging {
   border-color: color-mix(in srgb, var(--accent) 56%, var(--border));
   background: color-mix(in srgb, var(--accent) 5%, var(--surface-1));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.image-workbench__dropzone.is-file-dragging::before {
-  opacity: 1;
-  animation: image-dropzone-soft-scan 1.35s ease-in-out infinite;
 }
 
 .image-workbench__dropzone.is-dragging {
@@ -761,11 +738,6 @@ onBeforeUnmount(() => {
     inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
     0 10px 22px color-mix(in srgb, var(--accent) 12%, transparent);
   transform: translateY(-1px);
-}
-
-.image-workbench__dropzone.is-dragging::before {
-  opacity: 1;
-  animation: image-dropzone-strong-scan 0.85s ease-in-out infinite;
 }
 
 .image-workbench__dropzone-btn {
@@ -833,26 +805,6 @@ onBeforeUnmount(() => {
   padding: 8px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-@keyframes image-dropzone-soft-scan {
-  0%,
-  100% {
-    transform: translateX(-34%);
-  }
-  50% {
-    transform: translateX(34%);
-  }
-}
-
-@keyframes image-dropzone-strong-scan {
-  0%,
-  100% {
-    transform: translateX(-38%);
-  }
-  50% {
-    transform: translateX(38%);
-  }
 }
 
 /* Restore the previous lighter sidebar treatment. */

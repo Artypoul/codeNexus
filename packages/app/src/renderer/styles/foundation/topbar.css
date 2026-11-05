@@ -405,13 +405,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .attn-breathe,
-  .topbar .btn-icon.has-approval-dot::after {
-    animation: none;
-  }
-}
-
 /* Shared app control baseline. Kept here to preserve current import order. */
 button,
 select,

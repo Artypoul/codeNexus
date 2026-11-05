@@ -20,59 +20,6 @@
     font-size: 10px;
   }
 
-  .history-replay-panel {
-    min-height: 30px;
-    margin-bottom: 6px;
-  }
-
-  .history-replay-indicator {
-    gap: 6px;
-    min-height: 24px;
-    padding: 4px 9px;
-    border-radius: 999px;
-  }
-
-  .history-replay-indicator-placeholder {
-    width: min(146px, 100%);
-  }
-
-  .history-replay-retry {
-    height: 24px;
-    padding: 0 8px;
-    font-size: 11px;
-  }
-
-  .history-orbit-loader {
-    width: 14px;
-    height: 14px;
-  }
-
-  .history-orbit-ring-outer {
-    border-width: 1.4px;
-  }
-
-  .history-orbit-ring-inner {
-    inset: 2px;
-    border-width: 1.2px;
-  }
-
-  .history-orbit-core {
-    width: 3px;
-    height: 3px;
-    margin-left: -1.5px;
-    margin-top: -1.5px;
-  }
-
-  .history-replay-indicator-icon {
-    width: 12px;
-    height: 12px;
-  }
-
-  .history-replay-status {
-    font-size: 11px;
-    padding: 4px 9px;
-  }
-
   .event.mcp-tool-event > .mcp-tool-summary {
     padding: 8px;
   }

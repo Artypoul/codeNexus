@@ -329,10 +329,4 @@ watch(
     grid-row: 1;
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .markdown-plan-card-body-shell {
-    transition: none;
-  }
-}
 </style>
