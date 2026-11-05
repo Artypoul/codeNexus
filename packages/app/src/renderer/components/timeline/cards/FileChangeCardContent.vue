@@ -28,10 +28,10 @@
           <div class="file-change-stat-cluster mono" :aria-label="entry.lineStatsAriaLabel">
             <template v-if="entry.lineStats.kind === 'lines'">
               <span class="file-change-stat file-change-stat--add" :class="{ 'is-zero': entry.lineStats.add === 0 }">
-                +<AnimatedCount :value="entry.lineStats.add" />
+                +{{ entry.lineStats.add }}
               </span>
               <span class="file-change-stat file-change-stat--del" :class="{ 'is-zero': entry.lineStats.del === 0 }">
-                -<AnimatedCount :value="entry.lineStats.del" />
+                -{{ entry.lineStats.del }}
               </span>
             </template>
             <span v-else class="file-change-stat file-change-stat--plain">{{ entry.lineStats.text }}</span>
@@ -68,7 +68,6 @@
               :fileKind="entry.file.kind"
               maxHeightClass="max-h-[170px]"
               :wrapLines="wrapDiffLines"
-              :animateUpdates="isRunning"
               ariaLabel="diff-view"
             />
           </section>
@@ -84,7 +83,6 @@ import { useActivityItemState } from "../../chat/activityItemState";
 import { useI18n } from "vue-i18n";
 import { ChevronDown } from "lucide-vue-next";
 import UnifiedDiffViewer from "./UnifiedDiffViewer.vue";
-import AnimatedCount from "../../ui/AnimatedCount.vue";
 import { getDiffLineStats } from "../../../features/timeline/renderModel/diff";
 import type { FileChangeFile, FileChangeNode } from "../../../features/timeline/renderModel/buildTimelineNodes";
 import {
@@ -210,9 +208,6 @@ const requestLayoutChange = () => {
   }
 };
 
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
 const clearElementTransitionTimer = (element: Element) => {
   const timer = diffTransitionTimers.get(element);
   if (timer == null) return;
@@ -240,12 +235,6 @@ const clearDiffBodyTransitionStyles = (element: Element) => {
 
 const onDiffBodyEnter = (element: Element, done: () => void) => {
   const el = element as HTMLElement;
-  if (prefersReducedMotion()) {
-    clearDiffBodyTransitionStyles(el);
-    done();
-    return;
-  }
-
   clearElementTransitionTimer(el);
   el.style.overflow = "hidden";
   el.style.height = "0px";
@@ -262,12 +251,6 @@ const onDiffBodyEnter = (element: Element, done: () => void) => {
 
 const onDiffBodyLeave = (element: Element, done: () => void) => {
   const el = element as HTMLElement;
-  if (prefersReducedMotion()) {
-    clearDiffBodyTransitionStyles(el);
-    done();
-    return;
-  }
-
   clearElementTransitionTimer(el);
   el.style.overflow = "hidden";
   el.style.height = `${el.scrollHeight}px`;
@@ -497,12 +480,6 @@ watch(
   .file-change-expand-button {
     grid-column: 2;
     grid-row: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .file-change-expand-icon {
-    transition: none;
   }
 }
 </style>
