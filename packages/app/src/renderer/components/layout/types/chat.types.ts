@@ -119,6 +119,7 @@ export type ChatMainRow =
 export type ChatAuxActivityGroupRow = ChatRowBase & {
   kind: "auxActivityGroup";
   items: ChatAuxiliaryRow[];
+  groups?: ChatAuxActivityGroupRow[];
   summaryItems: ChatAuxActivitySummaryItem[];
   summaryText: string;
   status: ChatAuxActivityStatus;

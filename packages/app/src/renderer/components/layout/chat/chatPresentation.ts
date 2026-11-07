@@ -131,6 +131,7 @@ function estimatedHeightPx(row: ChatRenderedRow): number {
     case "tokenUsageSummary":
       return 28;
     case "auxActivityGroup":
+      if (row.groups?.length) return row.defaultCollapsed ? 36 : 40 + Math.min(8, row.groups.length) * 34;
       return row.defaultCollapsed ? 36 : 180;
     case "user":
       return row.event.paramsText?.length > 260 ? 120 : 64;

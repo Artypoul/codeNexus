@@ -98,7 +98,7 @@ describe("chat row caches across workspaces", () => {
     expect(rows[0].kind).toBe("assistant");
   });
 
-  it("keeps explicit commentary messages inside the process group", () => {
+  it("keeps a single explicit commentary message inside its process group", () => {
     const { select, events, revision } = setup();
     const base = events.get("A")![0];
     events.set("A", [
@@ -114,6 +114,35 @@ describe("chat row caches across workspaces", () => {
     const rows = select("A");
     expect(rows).toHaveLength(1);
     expect(rows[0].kind).toBe("auxActivityGroup");
+  });
+
+  it("starts a new process card for each commentary message", () => {
+    const { select, events, revision } = setup();
+    const base = events.get("A")![0];
+    const commentary = (id: string, text: string, createdAt: number) => ({
+      ...base,
+      id,
+      turnId: "turn-shared",
+      paramsText: text,
+      params: { item: { type: "agentMessage", phase: "commentary" } },
+      createdAt,
+    });
+    events.set("A", [commentary("c1", "first conclusion", 10), commentary("c2", "second conclusion", 20)]);
+    revision.value += 1;
+
+    const rows = select("A");
+    expect(rows.map((row) => row.kind)).toEqual(["auxActivityGroup"]);
+    const [section] = rows;
+    if (section.kind !== "auxActivityGroup") return;
+
+    const [first, second] = section.groups ?? [];
+    expect(section.items).toEqual([]);
+    expect(first?.items.map((item) => item.id)).toEqual(["agent-commentary:c1"]);
+    expect(second?.items.map((item) => item.id)).toEqual(["agent-commentary:c2"]);
+    expect(first?.defaultCollapsed).toBe(true);
+    expect(second?.defaultCollapsed).toBe(true);
+    expect(section.defaultCollapsed).toBe(true);
+    expect(section.summaryItems).toContainEqual({ key: "commentary", label: "timeline.auxCommentary", count: 2 });
   });
 
   it("keeps a streamed answer outside the process group when completion adds final_answer", () => {

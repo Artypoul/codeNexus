@@ -160,7 +160,7 @@ function getLocalDynamicImageGenerationCallId(event: TimelineEventItem): string 
   return String(item.id ?? "").trim();
 }
 
-const AUX_ACTIVITY_KIND_ORDER = ["reasoning", "search", "command", "mcp", "tool", "activity"] as const;
+const AUX_ACTIVITY_KIND_ORDER = ["reasoning", "search", "command", "mcp", "tool", "activity", "commentary"] as const;
 const AUX_ACTIVITY_KIND_LABELS: Record<(typeof AUX_ACTIVITY_KIND_ORDER)[number], string> = {
   reasoning: "timeline.auxReasoning",
   search: "timeline.auxSearch",
@@ -168,6 +168,7 @@ const AUX_ACTIVITY_KIND_LABELS: Record<(typeof AUX_ACTIVITY_KIND_ORDER)[number],
   mcp: "MCP",
   tool: "timeline.auxTool",
   activity: "timeline.auxActivity",
+  commentary: "timeline.auxCommentary",
 };
 
 type AuxFileChangeStats = {
@@ -196,6 +197,7 @@ function isAuxiliaryRow(row: ChatRow): row is ChatAuxiliaryRow {
 }
 
 function auxActivityKind(row: ChatAuxiliaryRow): (typeof AUX_ACTIVITY_KIND_ORDER)[number] {
+  if (row.kind === "assistantCommentary") return "commentary";
   if (row.kind === "reasoningBlock") return "reasoning";
   if (row.kind === "webSearch") return "search";
   if (
@@ -269,21 +271,17 @@ function buildAuxFileChangeStats(items: ChatAuxiliaryRow[]): AuxFileChangeStats 
   return { fileCount: files.size, addedLines, deletedLines };
 }
 
-function buildAuxActivityGroup(params: {
-  items: ChatAuxiliaryRow[];
-  groupIndex: number;
-  defaultCollapsed: boolean;
-  startedAtMs: number | null;
-  answerStartedAtMs: number | null;
-  elapsedLive: boolean;
-}): ChatAuxActivityGroupRow {
+function buildAuxActivitySummary(items: ChatAuxiliaryRow[]): {
+  summaryItems: ChatAuxActivitySummaryItem[];
+  summaryText: string;
+} {
   const counts = new Map<string, number>();
-  for (const item of params.items) {
+  for (const item of items) {
     if (item.kind === "fileChange") continue;
     const kind = auxActivityKind(item);
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
-  const fileChangeStats = buildAuxFileChangeStats(params.items);
+  const fileChangeStats = buildAuxFileChangeStats(items);
   const summaryItems: ChatAuxActivitySummaryItem[] = AUX_ACTIVITY_KIND_ORDER.flatMap((key) => {
     const count = counts.get(key) ?? 0;
     const label = AUX_ACTIVITY_KIND_LABELS[key] === "MCP" ? "MCP" : translate(AUX_ACTIVITY_KIND_LABELS[key]);
@@ -302,6 +300,21 @@ function buildAuxActivityGroup(params: {
   const summaryText = summaryItems
     .map((item) => [item.label, item.valueText ?? item.count, item.addText, item.delText].filter(Boolean).join(" "))
     .join(" · ");
+  return {
+    summaryItems,
+    summaryText: summaryText || translate("timeline.activityCount", { count: items.length }),
+  };
+}
+
+function buildAuxActivityGroup(params: {
+  items: ChatAuxiliaryRow[];
+  groupIndex: number;
+  defaultCollapsed: boolean;
+  startedAtMs: number | null;
+  answerStartedAtMs: number | null;
+  elapsedLive: boolean;
+}): ChatAuxActivityGroupRow {
+  const { summaryItems, summaryText } = buildAuxActivitySummary(params.items);
   const first = params.items[0];
   const status = mergeAuxActivityStatus(params.items);
   return {
@@ -310,12 +323,41 @@ function buildAuxActivityGroup(params: {
     kind: "auxActivityGroup",
     items: [...params.items],
     summaryItems,
-    summaryText: summaryText || translate("timeline.activityCount", { count: params.items.length }),
+    summaryText,
     status,
     defaultCollapsed: params.defaultCollapsed,
     startedAtMs: params.startedAtMs,
     answerStartedAtMs: params.answerStartedAtMs,
     elapsedLive: params.elapsedLive,
+  };
+}
+
+function buildAuxActivitySection(params: {
+  groups: ChatAuxActivityGroupRow[];
+  sectionIndex: number;
+}): ChatAuxActivityGroupRow {
+  const first = params.groups[0];
+  const items = params.groups.flatMap((group) => group.items);
+  const { summaryItems, summaryText } = buildAuxActivitySummary(items);
+  const startedTimes = params.groups
+    .map((group) => group.startedAtMs)
+    .filter((value): value is number => Number.isFinite(value) && Number(value) > 0);
+  const endedTimes = params.groups
+    .map((group) => group.answerStartedAtMs)
+    .filter((value): value is number => Number.isFinite(value) && Number(value) > 0);
+  return {
+    id: `aux-section:${params.sectionIndex}:${first.id}`,
+    turnKey: first.turnKey,
+    kind: "auxActivityGroup",
+    items: [],
+    groups: params.groups,
+    summaryItems,
+    summaryText,
+    status: params.groups.some((group) => group.status === "running" || group.elapsedLive) ? "running" : "completed",
+    defaultCollapsed: params.groups.every((group) => group.defaultCollapsed),
+    startedAtMs: startedTimes.length > 0 ? Math.min(...startedTimes) : null,
+    answerStartedAtMs: endedTimes.length > 0 ? Math.max(...endedTimes) : null,
+    elapsedLive: params.groups.some((group) => group.elapsedLive),
   };
 }
 
@@ -780,7 +822,11 @@ export function useChatRenderModel(
       return row?.kind === "assistant" && row.event.method === "item/agentMessage/delta";
     };
 
-    const flushPending = (interruptedBy: ChatRow | null) => {
+    const flushPending = (
+      interruptedBy: ChatRow | null,
+      boundaryEndedAtMs: number | null = null,
+      boundarySettled = false
+    ) => {
       if (pending.length === 0) return;
       const groupStatus = mergeAuxActivityStatus(pending);
       const matchesActiveTurn = Boolean(activeTurnKey && pending.some((row) => row.turnKey === activeTurnKey));
@@ -790,15 +836,19 @@ export function useChatRenderModel(
       const startedAtMs = resolvePendingStartedAt();
       const finalAnswerEvent = finalAnswerStarted && interruptedBy?.kind === "assistant" ? interruptedBy.event : null;
       const answerStartedAtMs =
-        finalAnswerEvent && Number.isFinite(finalAnswerEvent.createdAt)
-          ? Math.max(startedAtMs ?? 0, Math.round(Number(finalAnswerEvent.createdAt)))
-          : null;
+        boundaryEndedAtMs != null
+          ? Math.max(startedAtMs ?? 0, boundaryEndedAtMs)
+          : finalAnswerEvent && Number.isFinite(finalAnswerEvent.createdAt)
+            ? Math.max(startedAtMs ?? 0, Math.round(Number(finalAnswerEvent.createdAt)))
+            : null;
       const elapsedLive =
-        !finalAnswerStarted && (groupStatus === "running" || (currentThreadRunning && matchesActiveTurn));
+        boundaryEndedAtMs == null &&
+        !finalAnswerStarted &&
+        (groupStatus === "running" || (currentThreadRunning && matchesActiveTurn));
       const flags = {
         groupIndex,
         locale,
-        defaultCollapsed: !shouldStayOpen,
+        defaultCollapsed: boundarySettled || !shouldStayOpen,
         startedAtMs,
         answerStartedAtMs,
         elapsedLive,
@@ -817,7 +867,19 @@ export function useChatRenderModel(
       pending = [];
     };
 
+    const answeredTurnKeys = new Set<string>();
     for (const row of rows) {
+      if (isFinalAnswerRow(row)) answeredTurnKeys.add(row.turnKey);
+    }
+
+    for (const row of rows) {
+      if (row.kind === "assistantCommentary") {
+        // 每条中间结论结束当前过程卡，并作为该卡的最后一项；下一条结论另起一张新卡。
+        // 最终回答已经出现时收起为一行摘要，流式过程中保持展开。
+        pending.push(row);
+        flushPending(null, chatAuxRowCreatedAt(row), answeredTurnKeys.has(row.turnKey));
+        continue;
+      }
       if (isAuxiliaryRow(row)) {
         pending.push(row);
         continue;
@@ -829,7 +891,32 @@ export function useChatRenderModel(
     // 组数量可能变少，截断多余的缓存条目。
     auxGroupCache.length = auxGroupCursor;
     auxGroupCaches.set(contextKey, auxGroupCache);
-    return grouped;
+
+    // 同一轮的多段过程再包一层“过程总览”，形成两级折叠。
+    const sectioned: ChatRow[] = [];
+    let sectionGroups: ChatAuxActivityGroupRow[] = [];
+    let sectionIndex = 0;
+    const flushSection = () => {
+      if (sectionGroups.length === 0) return;
+      if (sectionGroups.length > 1) {
+        sectioned.push(buildAuxActivitySection({ groups: sectionGroups, sectionIndex }));
+        sectionIndex += 1;
+      } else {
+        sectioned.push(sectionGroups[0]);
+      }
+      sectionGroups = [];
+    };
+    for (const row of grouped) {
+      if (row.kind !== "auxActivityGroup") {
+        flushSection();
+        sectioned.push(row);
+        continue;
+      }
+      if (sectionGroups.length > 0 && sectionGroups[0].turnKey !== row.turnKey) flushSection();
+      sectionGroups.push(row);
+    }
+    flushSection();
+    return sectioned;
   });
 
   const chatRenderedRows = computed<ChatRenderedRow[]>(() => chatRows.value);

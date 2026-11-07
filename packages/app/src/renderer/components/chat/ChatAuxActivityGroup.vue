@@ -45,8 +45,27 @@
         @transitionend="onBodyTransitionEnd"
       >
         <div class="chat-aux-activity__body-frame">
+          <div v-if="bodyMounted && childGroups.length > 0" class="chat-aux-activity__children">
+            <ChatAuxActivityGroup
+              v-for="child in childGroups"
+              :key="child.id"
+              :id="child.id"
+              :items="child.items"
+              :groups="child.groups"
+              :summary-items="child.summaryItems"
+              :summary-text="child.summaryText"
+              :status="child.status"
+              :default-collapsed="child.defaultCollapsed"
+              :started-at-ms="child.startedAtMs"
+              :answer-started-at-ms="child.answerStartedAtMs"
+              :elapsed-live="child.elapsedLive"
+              @layout-change="emit('layout-change')"
+            >
+              <template #default="{ item }"><slot :item="item" /></template>
+            </ChatAuxActivityGroup>
+          </div>
           <ChatAuxActivityViewport
-            v-if="bodyMounted"
+            v-else-if="bodyMounted"
             :key="id"
             :items="items"
             :active="open"
@@ -64,7 +83,12 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { ChevronDown } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-import type { ChatAuxActivityStatus, ChatAuxActivitySummaryItem, ChatAuxiliaryRow } from "../layout/types/chat.types";
+import type {
+  ChatAuxActivityGroupRow,
+  ChatAuxActivityStatus,
+  ChatAuxActivitySummaryItem,
+  ChatAuxiliaryRow,
+} from "../layout/types/chat.types";
 import { CHAT_ROW_BASE_CLASS } from "../layout/chat/chatPresentation";
 import ExecutionCoreIcon from "../ui/ExecutionCoreIcon.vue";
 import ChatAuxActivityViewport from "./ChatAuxActivityViewport.vue";
@@ -73,6 +97,7 @@ import { provideActivityItemStates } from "./activityItemState";
 const props = defineProps<{
   id: string;
   items: ChatAuxiliaryRow[];
+  groups?: ChatAuxActivityGroupRow[];
   summaryItems: ChatAuxActivitySummaryItem[];
   summaryText: string;
   status: ChatAuxActivityStatus;
@@ -92,6 +117,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const resetItemStates = provideActivityItemStates();
+const childGroups = computed(() => props.groups ?? []);
+const isSection = computed(() => childGroups.value.length > 0);
 const open = ref(!props.defaultCollapsed);
 const bodyMounted = ref(open.value);
 let bodyUnmountTimer: ReturnType<typeof setTimeout> | null = null;
@@ -99,7 +126,7 @@ const userTouched = ref(false);
 const nowMs = ref(Date.now());
 let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
-const titleText = computed(() => t("chat.activity.auxTitle"));
+const titleText = computed(() => t(isSection.value ? "chat.activity.sectionTitle" : "chat.activity.auxTitle"));
 
 const elapsedMs = computed(() => {
   const startedAt = Number(props.startedAtMs);

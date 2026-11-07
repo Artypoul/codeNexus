@@ -43,6 +43,7 @@
     v-else-if="renderedRow.kind === 'auxActivityGroup'"
     :id="renderedRow.id"
     :items="renderedRow.items"
+    :groups="renderedRow.groups"
     :summaryItems="renderedRow.summaryItems"
     :summaryText="renderedRow.summaryText"
     :status="renderedRow.status"
