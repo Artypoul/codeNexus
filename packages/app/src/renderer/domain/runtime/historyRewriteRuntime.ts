@@ -219,7 +219,8 @@ export function createHistoryRewriteRuntime(deps: HistoryRewriteRuntimeDeps): Hi
       return false;
     }
 
-    if (!noVisibleOutputBelowAnchor) {
+    const needsConfirmation = !noVisibleOutputBelowAnchor && rollback.count > 1;
+    if (needsConfirmation) {
       let confirmed = false;
       try {
         confirmed = await confirmModalLazy({
