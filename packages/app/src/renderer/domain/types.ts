@@ -69,14 +69,18 @@ export type ComposeWorkspaceFileMention = {
   iconUrl?: string;
 };
 
+export type ThreadListStatus = "persisted" | "creating" | "ready";
+
 export type ThreadHistoryItem = {
   id: string;
   title: string;
   meta: string;
+  createdAt?: number;
   updatedAt: number;
   cwd?: string;
   modelProvider?: string;
   running?: boolean;
+  status?: ThreadListStatus;
   threadSourceKind?: ThreadSourceKind;
   forkedFromId?: string;
   agentNickname?: string;
@@ -99,27 +103,11 @@ export type ThreadGoalState = {
   updatedAt: number;
 };
 
-export type LocalThreadStatus = "creating" | "ready";
+export type LocalThreadStatus = Exclude<ThreadListStatus, "persisted">;
 
-export type LocalThreadItem = {
-  id: string;
-  title: string;
-  meta: string;
+export type LocalThreadItem = ThreadHistoryItem & {
   createdAt: number;
-  updatedAt: number;
   status: LocalThreadStatus;
-  cwd?: string;
-  modelProvider?: string;
-  running?: boolean;
-  threadSourceKind?: ThreadSourceKind;
-  forkedFromId?: string;
-  agentNickname?: string;
-  agentRole?: string;
-  agentPath?: string;
-  gitInfoSummary?: string;
-  projectId?: string | null;
-  sectionId?: string | null;
-  sectionName?: string | null;
 };
 
 export type TimelineEventLevel = "info" | "warn" | "error";

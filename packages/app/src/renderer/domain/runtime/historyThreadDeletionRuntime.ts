@@ -47,8 +47,7 @@ export function createHistoryThreadDeletionRuntime(
   const deleteHistoryThread = async (threadId: string) => {
     const id = String(threadId ?? "").trim();
     if (!id) return;
-    const hasHistoryThread = threadStore.threadHistory.some((item) => item.id === id);
-    if (!hasHistoryThread && threadStore.hasLocalThread(id)) {
+    if (threadStore.hasLocalThread(id)) {
       invalidateThreadContentCache(threadContentCacheByKey, id);
       clearThreadRuntimeState(id);
       pushEvent("history", translate("runtime.localSessionRemoved"), { threadId: appTimelineId });

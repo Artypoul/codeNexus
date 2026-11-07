@@ -115,7 +115,6 @@ type ThreadRowItem = {
     cwd?: string;
     agentNickname?: string;
     gitInfoSummary?: string;
-    localStatus?: "creating" | "ready";
   };
   depth: number;
 };

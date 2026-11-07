@@ -176,7 +176,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, Folder, RefreshCw, SquarePen } from "lucide-vue-next";
-import type { LocalThreadItem, ThreadHistoryItem } from "../../../domain/types";
+import type { ThreadHistoryItem } from "../../../domain/types";
 import { getRuntimeOrchestrator } from "../../../domain/runtimeOrchestrator";
 import { codexDesktop } from "../../../api/codexDesktopClient";
 import { useAppShellStore } from "../../../stores/appShell.store";
@@ -206,9 +206,9 @@ type ThreadListItem = Pick<
   | "projectId"
   | "sectionId"
   | "sectionName"
-> & {
-  localStatus?: LocalThreadItem["status"];
-};
+  | "createdAt"
+  | "status"
+>;
 type ThreadRowModel = ThreadHistoryGroup<ThreadListItem>["rows"][number];
 type ThreadGroup = ThreadHistoryGroup<ThreadListItem>;
 
@@ -254,26 +254,6 @@ const visibleThreadItems = computed<ThreadListItem[]>(() => {
   for (const item of threadStore.threadHistory) {
     const id = normalizeThreadId(item.id);
     if (id) map.set(id, item);
-  }
-  for (const item of threadStore.localThreads) {
-    const id = normalizeThreadId(item.id);
-    if (!id || map.has(id)) continue;
-    map.set(id, {
-      id,
-      title: String(item.title ?? ""),
-      meta: String(item.meta ?? ""),
-      updatedAt: Number(item.updatedAt ?? item.createdAt ?? Date.now()),
-      cwd: item.cwd,
-      forkedFromId: item.forkedFromId,
-      agentNickname: item.agentNickname,
-      agentRole: item.agentRole,
-      agentPath: item.agentPath,
-      gitInfoSummary: item.gitInfoSummary,
-      projectId: item.projectId,
-      sectionId: item.sectionId,
-      sectionName: item.sectionName,
-      localStatus: item.status,
-    });
   }
   return [...map.values()].sort(sortByUpdatedAtDesc);
 });

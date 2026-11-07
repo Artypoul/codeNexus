@@ -15,9 +15,7 @@ export function useChatLayout() {
   const threadHistoryById = computed(
     () =>
       new Map(
-        [...threadStore.threadHistory, ...threadStore.localThreads]
-          .map((item) => [normalizeThreadId(item?.id), item] as const)
-          .filter(([id]) => !!id)
+        threadStore.threadHistory.map((item) => [normalizeThreadId(item?.id), item] as const).filter(([id]) => !!id)
       )
   );
 

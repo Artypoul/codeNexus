@@ -15,10 +15,7 @@ export function createThreadListLookupRuntime(deps: ThreadListLookupRuntimeDeps)
   const findThreadListItem = (threadIdValue: string) => {
     const threadId = String(threadIdValue ?? "").trim();
     if (!threadId) return undefined;
-    return (
-      deps.threadStore.threadHistory.find((item) => item.id === threadId) ??
-      deps.threadStore.localThreads.find((item) => item.id === threadId)
-    );
+    return deps.threadStore.threadHistory.find((item) => item.id === threadId);
   };
 
   return { findThreadListItem };

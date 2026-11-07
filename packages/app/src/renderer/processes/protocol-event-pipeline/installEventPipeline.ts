@@ -1316,9 +1316,7 @@ export function installEventPipeline(pinia: Pinia) {
       if (threadId) {
         const cwdText = String(thread.cwd ?? "").trim();
         const existingTitle = String(
-          threadStore.threadHistory.find((item) => item.id === threadId)?.title ??
-            threadStore.localThreads.find((item) => item.id === threadId)?.title ??
-            ""
+          threadStore.threadHistory.find((item) => item.id === threadId)?.title ?? ""
         ).trim();
         const historyMetadata = buildThreadHistoryMetadataFromServerThread(thread);
         const serverTitle = String(thread.name ?? thread.preview ?? "").trim();

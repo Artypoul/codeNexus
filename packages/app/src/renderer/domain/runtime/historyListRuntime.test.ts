@@ -100,11 +100,59 @@ describe("history list runtime", () => {
     expect(threadStore.localThreads).toEqual([]);
     expect(threadStore.threadHistory[0]).toMatchObject({
       id: "t1",
+      status: "persisted",
       projectId: "p1",
       sectionId: "s1",
       sectionName: "In progress",
     });
     expect(incoming).not.toHaveProperty("projectId");
+  });
+
+  it("keeps local threads in the shared list until they are persisted", () => {
+    const { runtime, threadStore } = setup();
+    threadStore.upsertLocalThread({
+      id: "t1",
+      title: "Creating",
+      meta: "repo",
+      cwd: "C:\\repo",
+      createdAt: Date.now(),
+      updatedAt: 1,
+      status: "creating",
+    });
+
+    expect(threadStore.threadHistory.map((item) => item.id)).toEqual(["t1"]);
+    expect(threadStore.localThreads.map((item) => item.id)).toEqual(["t1"]);
+
+    runtime.applyHistoryItems([historyThread({ id: "t1" })]);
+
+    expect(threadStore.threadHistory[0]).toMatchObject({ id: "t1", status: "persisted" });
+    expect(threadStore.localThreads).toEqual([]);
+  });
+
+  it("drops local threads that never reach disk after the local ttl", () => {
+    const { runtime, threadStore } = setup();
+    const now = Date.now();
+    threadStore.upsertLocalThread({
+      id: "stale",
+      title: "Stale",
+      meta: "repo",
+      createdAt: now - 11 * 60_000,
+      updatedAt: now - 11 * 60_000,
+      status: "ready",
+    });
+    threadStore.upsertLocalThread({
+      id: "fresh",
+      title: "Fresh",
+      meta: "repo",
+      createdAt: now,
+      updatedAt: now,
+      status: "ready",
+    });
+
+    runtime.applyHistoryItems([]);
+
+    expect(threadStore.threadHistory.map((item) => item.id)).toEqual(["fresh"]);
+    expect(threadStore.localThreads.map((item) => item.id)).toEqual(["fresh"]);
   });
 
   it("preserves known history metadata across repeated updates with undefined fields", () => {

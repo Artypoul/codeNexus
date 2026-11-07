@@ -104,6 +104,10 @@ function normalizeThreadId(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function isLocalThreadItem(item: ThreadHistoryItem): item is LocalThreadItem {
+  return item.status === "creating" || item.status === "ready";
+}
+
 function normalizeGoalStatus(value: unknown): ThreadGoalState["status"] {
   const status = String(value ?? "").trim();
   return THREAD_GOAL_STATUSES.has(status) ? (status as ThreadGoalState["status"]) : "active";
@@ -133,7 +137,6 @@ export const useThreadStore = defineStore("thread", {
     currentThreadId: "" as string,
     loadingThreadId: "" as string,
     threadHistory: [] as ThreadHistoryItem[],
-    localThreads: [] as LocalThreadItem[],
     runningThreadIds: new Set<string>(),
     attentionThreadIds: new Set<string>(),
     recentlyCompletedThreadIds: new Set<string>(),
@@ -151,6 +154,9 @@ export const useThreadStore = defineStore("thread", {
     turnPlansByThread: new Map<string, Map<string, TurnPlanState>>(),
   }),
   getters: {
+    localThreads(state): LocalThreadItem[] {
+      return state.threadHistory.filter(isLocalThreadItem);
+    },
     // 当前线程 token 使用量（无线程时返回空值占位）。
     currentTokenUsage(state): TokenUsageState {
       const key = state.currentThreadId;
@@ -219,15 +225,29 @@ export const useThreadStore = defineStore("thread", {
     // 历史会话 upsert，并按更新时间倒序。
     upsertThreadHistory(item: ThreadHistoryItem) {
       const idx = this.threadHistory.findIndex((x) => x.id === item.id);
-      if (idx >= 0) this.threadHistory[idx] = item;
-      else this.threadHistory.push(item);
+      const previous = idx >= 0 ? this.threadHistory[idx] : undefined;
+      const next: ThreadHistoryItem = {
+        ...item,
+        createdAt: item.createdAt ?? previous?.createdAt,
+        status: item.status ?? "persisted",
+      };
+      if (idx >= 0) this.threadHistory[idx] = next;
+      else this.threadHistory.push(next);
       this.threadHistory.sort((a, b) => b.updatedAt - a.updatedAt);
     },
     upsertLocalThread(item: LocalThreadItem) {
-      const idx = this.localThreads.findIndex((x) => x.id === item.id);
-      if (idx >= 0) this.localThreads[idx] = item;
-      else this.localThreads.push(item);
-      this.localThreads.sort((a, b) => b.updatedAt - a.updatedAt);
+      const idx = this.threadHistory.findIndex((x) => x.id === item.id);
+      if (idx >= 0) {
+        const existing = this.threadHistory[idx];
+        this.threadHistory[idx] = {
+          ...existing,
+          ...item,
+          status: isLocalThreadItem(existing) ? item.status : "persisted",
+        };
+      } else {
+        this.threadHistory.push({ ...item });
+      }
+      this.threadHistory.sort((a, b) => b.updatedAt - a.updatedAt);
     },
     patchThreadMetadata(
       threadIdValue: string,
@@ -240,18 +260,10 @@ export const useThreadStore = defineStore("thread", {
     ) {
       const threadId = normalizeThreadId(threadIdValue);
       if (!threadId) return;
-      const historyIdx = this.threadHistory.findIndex((item) => item.id === threadId);
-      if (historyIdx >= 0) {
-        this.threadHistory[historyIdx] = {
-          ...this.threadHistory[historyIdx],
-          ...patch,
-          id: threadId,
-        };
-      }
-      const localIdx = this.localThreads.findIndex((item) => item.id === threadId);
-      if (localIdx >= 0) {
-        this.localThreads[localIdx] = {
-          ...this.localThreads[localIdx],
+      const idx = this.threadHistory.findIndex((item) => item.id === threadId);
+      if (idx >= 0) {
+        this.threadHistory[idx] = {
+          ...this.threadHistory[idx],
           ...patch,
           id: threadId,
         };
@@ -260,39 +272,46 @@ export const useThreadStore = defineStore("thread", {
     patchLocalThread(threadIdValue: string, patch: Partial<LocalThreadItem>) {
       const threadId = normalizeThreadId(threadIdValue);
       if (!threadId) return;
-      const idx = this.localThreads.findIndex((item) => item.id === threadId);
+      const idx = this.threadHistory.findIndex((item) => item.id === threadId && isLocalThreadItem(item));
       if (idx < 0) return;
-      this.localThreads[idx] = {
-        ...this.localThreads[idx],
+      this.threadHistory[idx] = {
+        ...this.threadHistory[idx],
         ...patch,
         id: threadId,
       };
-      this.localThreads.sort((a, b) => b.updatedAt - a.updatedAt);
+      this.threadHistory.sort((a, b) => b.updatedAt - a.updatedAt);
     },
     removeLocalThread(threadIdValue: string) {
       const threadId = normalizeThreadId(threadIdValue);
       if (!threadId) return;
-      this.localThreads = this.localThreads.filter((item) => item.id !== threadId);
+      this.threadHistory = this.threadHistory.filter((item) => item.id !== threadId || !isLocalThreadItem(item));
     },
     hasLocalThread(threadIdValue: string): boolean {
       const threadId = normalizeThreadId(threadIdValue);
-      return Boolean(threadId && this.localThreads.some((item) => item.id === threadId));
+      return Boolean(threadId && this.threadHistory.some((item) => item.id === threadId && isLocalThreadItem(item)));
     },
     replaceLocalThreadId(fromThreadIdValue: string, toThreadIdValue: string, patch?: Partial<LocalThreadItem>) {
       const fromId = normalizeThreadId(fromThreadIdValue);
       const toId = normalizeThreadId(toThreadIdValue);
       if (!fromId || !toId || fromId === toId) return;
-      const fromLocal = this.localThreads.find((item) => item.id === fromId);
-      const toLocal = this.localThreads.find((item) => item.id === toId);
-      this.localThreads = this.localThreads.filter((item) => item.id !== fromId && item.id !== toId);
+      const fromLocal = this.threadHistory.find((item) => item.id === fromId && isLocalThreadItem(item));
+      const toLocal = this.threadHistory.find((item) => item.id === toId && isLocalThreadItem(item));
+      const toPersisted = this.threadHistory.find((item) => item.id === toId);
+      if (!fromLocal && !toLocal && !patch) return;
+      this.threadHistory = this.threadHistory.filter((item) => {
+        if (item.id === fromId) return !isLocalThreadItem(item);
+        if (item.id === toId && isLocalThreadItem(item)) return false;
+        return true;
+      });
+      if (toPersisted && !toLocal) return;
       const mergedLocal = {
         ...(fromLocal ?? {}),
         ...(toLocal ?? {}),
         ...(patch ?? {}),
         id: toId,
       } as LocalThreadItem;
-      if (mergedLocal.id) this.localThreads.push(mergedLocal);
-      this.localThreads.sort((a, b) => b.updatedAt - a.updatedAt);
+      if (mergedLocal.id) this.threadHistory.push(mergedLocal);
+      this.threadHistory.sort((a, b) => b.updatedAt - a.updatedAt);
     },
     applyThreadTitleOverrides(overrides: Record<string, string> | null | undefined) {
       const next = new Map<string, string>();

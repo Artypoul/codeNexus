@@ -3,6 +3,7 @@ import { toThreadHistoryItem as toThreadHistoryItemFromHistory } from "../../fea
 import { fallbackThreadTitle } from "../../features/history/threadTitle";
 import { appendDebugLog } from "../../shared/debugLog";
 import type { useThreadStore } from "../../stores/thread.store";
+import type { ThreadHistoryItem } from "../types";
 import type { HistoryThread } from "@codenexus/shared/ipc";
 import { invalidateThreadContentCache, type ThreadContentCacheEntry } from "./rendererCacheRuntime";
 
@@ -24,6 +25,10 @@ export type HistoryListRuntime = {
 
 const LOCAL_THREAD_TTL_MS = 10 * 60_000;
 const THREAD_GROUPING_METADATA_KEYS = ["projectId", "sectionId", "sectionName"] as const;
+
+function isLocalThreadItem(item: { status?: string }): boolean {
+  return item.status === "creating" || item.status === "ready";
+}
 
 function perfNow() {
   if (typeof performance !== "undefined" && typeof performance.now === "function") return performance.now();
@@ -47,7 +52,7 @@ export function createHistoryListRuntime(deps: HistoryListRuntimeDeps): HistoryL
 
   const collectContentChangedThreadIds = (incoming: HistoryThread[]): Set<string> => {
     const previousUpdatedAtById = new Map<string, number>();
-    for (const item of [...threadStore.threadHistory, ...threadStore.localThreads]) {
+    for (const item of threadStore.threadHistory) {
       const threadId = String(item?.id ?? "").trim();
       if (threadId) previousUpdatedAtById.set(threadId, Number(item.updatedAt ?? 0));
     }
@@ -83,7 +88,7 @@ export function createHistoryListRuntime(deps: HistoryListRuntimeDeps): HistoryL
       string,
       Pick<HistoryThread, "title" | "projectId" | "sectionId" | "sectionName">
     >();
-    for (const item of [...threadStore.threadHistory, ...threadStore.localThreads]) {
+    for (const item of threadStore.threadHistory) {
       const threadId = String(item.id ?? "").trim();
       if (!threadId) continue;
       const metadata = {
@@ -95,7 +100,8 @@ export function createHistoryListRuntime(deps: HistoryListRuntimeDeps): HistoryL
       }
       previousThreadById.set(threadId, metadata);
     }
-    threadStore.localThreads = threadStore.localThreads.filter((item) => {
+    const survivingLocalThreads = threadStore.threadHistory.filter((item) => {
+      if (!isLocalThreadItem(item)) return false;
       const threadId = String(item.id ?? "").trim();
       if (!threadId || incomingThreadIds.has(threadId)) return false;
       const createdAt = Number(item.createdAt ?? item.updatedAt ?? now);
@@ -103,7 +109,7 @@ export function createHistoryListRuntime(deps: HistoryListRuntimeDeps): HistoryL
     });
     const historyItems = items
       .map((item) => {
-        const historyItem = toThreadHistoryItemFromHistory(item);
+        const historyItem = { ...toThreadHistoryItemFromHistory(item), status: "persisted" as const };
         const threadId = String(historyItem.id ?? "").trim();
         const previousThread = previousThreadById.get(threadId);
         const placeholder = fallbackThreadTitle(threadId);
@@ -119,7 +125,15 @@ export function createHistoryListRuntime(deps: HistoryListRuntimeDeps): HistoryL
       })
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
-    threadStore.threadHistory = historyItems;
+    const mergedItems: ThreadHistoryItem[] = [...historyItems];
+    for (const localItem of survivingLocalThreads) {
+      const threadId = String(localItem.id ?? "").trim();
+      if (!threadId || mergedItems.some((item) => String(item.id ?? "").trim() === threadId)) continue;
+      mergedItems.push(localItem);
+    }
+    mergedItems.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    threadStore.threadHistory = mergedItems;
     for (const item of items) {
       const threadId = String(item.id ?? "").trim();
       if (!threadId) continue;
@@ -128,7 +142,7 @@ export function createHistoryListRuntime(deps: HistoryListRuntimeDeps): HistoryL
       threadStore.setThreadRunning(threadId, running);
       threadStore.setActiveTurn(threadId, activeTurnId);
     }
-    for (const item of [...historyItems, ...threadStore.localThreads]) {
+    for (const item of mergedItems) {
       setThreadWorkspace(item.id, item.cwd);
     }
   };
