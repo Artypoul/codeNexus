@@ -87,11 +87,13 @@ type HistoryCachePayload = {
   version: 3;
   items: PersistedHistoryThread[];
   sessionSummaries?: SessionSummaryCacheEntry[];
+  pendingThreadMetadata?: NormalizedHistoryThreadMetadataPatch[];
 };
 
 type HistoryCacheState = {
   items: HistoryThread[];
   sessionSummaries: SessionSummaryCacheEntry[];
+  pendingThreadMetadata: NormalizedHistoryThreadMetadataPatch[];
 };
 
 type SessionMessagesCacheEntry = {
@@ -324,6 +326,7 @@ function assignOptionalMetadataPatchValue(
     return;
   }
   if (key === "projectId" || key === "sectionId" || key === "sectionName") {
+    if (source[key] === undefined) return;
     target[key] = normalizeNullableMetadataText(source[key]);
     return;
   }
@@ -345,7 +348,7 @@ function sanitizeHistoryThreadMetadataPatch(input: unknown): NormalizedHistoryTh
   assignOptionalMetadataPatchValue(patch, source, "projectId");
   assignOptionalMetadataPatchValue(patch, source, "sectionId");
   assignOptionalMetadataPatchValue(patch, source, "sectionName");
-  return patch;
+  return Object.keys(patch).length > 1 ? patch : null;
 }
 
 function mergeMetadataPatches(
@@ -383,10 +386,7 @@ function applyHistoryThreadMetadataPatch<T extends HistoryThread | PersistedHist
   return next;
 }
 
-function hasSameHistoryThreadMetadata(
-  left: HistoryThread | PersistedHistoryThread,
-  right: HistoryThread | PersistedHistoryThread
-): boolean {
+function hasSameHistoryThreadMetadata(left: HistoryThreadMetadata, right: HistoryThreadMetadata): boolean {
   return (
     left.threadSourceKind === right.threadSourceKind &&
     left.forkedFromId === right.forkedFromId &&
@@ -1045,17 +1045,25 @@ function sanitizeCachedHistoryState(input: unknown): HistoryCacheState {
     return {
       items: sanitizeCachedHistory(input),
       sessionSummaries: [],
+      pendingThreadMetadata: [],
     };
   }
   if (!input || typeof input !== "object") {
     return {
       items: [],
       sessionSummaries: [],
+      pendingThreadMetadata: [],
     };
   }
   return {
     items: sanitizeCachedHistory((input as any).items),
     sessionSummaries: sanitizeSessionSummaryCache((input as any).sessionSummaries),
+    pendingThreadMetadata: Array.isArray((input as any).pendingThreadMetadata)
+      ? (input as any).pendingThreadMetadata.flatMap((item: unknown) => {
+          const patch = sanitizeHistoryThreadMetadataPatch(item);
+          return patch ? [patch] : [];
+        })
+      : [],
   };
 }
 
@@ -1064,12 +1072,15 @@ export class HistoryStore {
   private readonly sessionsRoot: string;
   private snapshot: HistoryThread[] = [];
   private readonly threadById = new Map<string, HistoryThread>();
+  private pendingThreadMetadataById = new Map<string, NormalizedHistoryThreadMetadataPatch>();
   private sessionSummaryCache = new Map<string, SessionSummaryCacheEntry>();
   private sessionMessagesCache = new Map<string, SessionMessagesCacheEntry>();
   private sessionEventsCache = new Map<string, SessionEventsCacheEntry>();
   private threadEventsCache = new Map<string, ThreadEventsCacheEntry>();
   private auxThreadEventsCache = new Map<string, AuxThreadEventsCacheEntry>();
   private initialized = false;
+  private cacheLoadPromise: Promise<void> | null = null;
+  private cacheWritePromise: Promise<void> = Promise.resolve();
   private refreshPromise: Promise<HistoryThread[]> | null = null;
   private refreshSeq = 0;
 
@@ -1079,9 +1090,14 @@ export class HistoryStore {
   }
 
   private updateSnapshot(items: HistoryThread[]): void {
-    this.snapshot = items;
+    this.snapshot = items.map((item) => {
+      const pending = this.pendingThreadMetadataById.get(item.id);
+      if (!pending) return item;
+      this.pendingThreadMetadataById.delete(item.id);
+      return applyHistoryThreadMetadataPatch(item, pending);
+    });
     this.threadById.clear();
-    for (const item of items) {
+    for (const item of this.snapshot) {
       this.threadById.set(item.id, item);
     }
   }
@@ -1130,6 +1146,7 @@ export class HistoryStore {
   }
 
   async refreshDisk(onUpdated?: (items: HistoryThread[]) => void): Promise<HistoryThread[]> {
+    await this.loadCacheIfNeeded();
     if (this.refreshPromise) return this.refreshPromise;
 
     this.refreshPromise = (async () => {
@@ -1154,7 +1171,7 @@ export class HistoryStore {
       );
 
       const writeStart = performance.now();
-      await this.writeCache(this.snapshot);
+      await this.writeCache();
       const writeCacheMs = Number((performance.now() - writeStart).toFixed(1));
 
       const next = this.getSnapshot();
@@ -1204,6 +1221,13 @@ export class HistoryStore {
     if (patchById.size === 0) return this.getSnapshot();
 
     let changed = false;
+    for (const patch of patchById.values()) {
+      if (this.threadById.has(patch.id)) continue;
+      const previous = this.pendingThreadMetadataById.get(patch.id);
+      const next = previous ? mergeMetadataPatches(previous, patch) : patch;
+      if (!previous || !hasSameHistoryThreadMetadata(previous, next)) changed = true;
+      this.pendingThreadMetadataById.set(patch.id, next);
+    }
     this.updateSnapshot(
       this.snapshot.map((item) => {
         const patch = patchById.get(item.id);
@@ -1232,7 +1256,7 @@ export class HistoryStore {
 
     if (!changed) return this.getSnapshot();
 
-    await this.writeCache(this.snapshot);
+    await this.writeCache();
     return this.getSnapshot();
   }
 
@@ -1348,10 +1372,11 @@ export class HistoryStore {
     if (!sessionPath) {
       // 磁盘上没有可删除的会话目录；但若缓存快照中仍存在，仍需移除。
       this.updateSnapshot(this.snapshot.filter((item) => item.id !== id));
+      this.pendingThreadMetadataById.delete(id);
       this.threadEventsCache.delete(threadEventsCacheKey(id, true));
       this.threadEventsCache.delete(threadEventsCacheKey(id, false));
       this.auxThreadEventsCache.delete(id);
-      await this.writeCache(this.snapshot);
+      await this.writeCache();
       return this.getSnapshot();
     }
 
@@ -1372,13 +1397,14 @@ export class HistoryStore {
     }
 
     this.updateSnapshot(this.snapshot.filter((item) => item.id !== id));
+    this.pendingThreadMetadataById.delete(id);
     this.sessionSummaryCache.delete(sessionPath);
     this.sessionSummaryCache.delete(sessionAbs);
     this.invalidateFileCaches(sessionAbs);
     this.threadEventsCache.delete(threadEventsCacheKey(id, true));
     this.threadEventsCache.delete(threadEventsCacheKey(id, false));
     this.auxThreadEventsCache.delete(id);
-    await this.writeCache(this.snapshot);
+    await this.writeCache();
     return this.getSnapshot();
   }
 
@@ -1535,22 +1561,32 @@ export class HistoryStore {
     return { items: merged, stats };
   }
 
-  private async loadCacheIfNeeded() {
+  private async loadCacheIfNeeded(): Promise<void> {
     if (this.initialized) return;
-    const t0 = performance.now();
-    this.initialized = true;
-    const cacheState = await this.readCache();
-    this.updateSnapshot(cacheState.items);
-    this.sessionSummaryCache = new Map(cacheState.sessionSummaries.map((item) => [item.sessionPath, item]));
-    const elapsedMs = Number((performance.now() - t0).toFixed(1));
-    if (elapsedMs >= 120) {
-      this.logDiag({
-        ts: Date.now(),
-        op: "history.loadCacheIfNeeded",
-        elapsedMs,
-        items: this.snapshot.length,
-        sessionSummaries: this.sessionSummaryCache.size,
-      });
+    if (this.cacheLoadPromise) return this.cacheLoadPromise;
+    const task = (async () => {
+      const t0 = performance.now();
+      const cacheState = await this.readCache();
+      this.pendingThreadMetadataById = new Map(cacheState.pendingThreadMetadata.map((patch) => [patch.id, patch]));
+      this.updateSnapshot(cacheState.items);
+      this.sessionSummaryCache = new Map(cacheState.sessionSummaries.map((item) => [item.sessionPath, item]));
+      this.initialized = true;
+      const elapsedMs = Number((performance.now() - t0).toFixed(1));
+      if (elapsedMs >= 120) {
+        this.logDiag({
+          ts: Date.now(),
+          op: "history.loadCacheIfNeeded",
+          elapsedMs,
+          items: this.snapshot.length,
+          sessionSummaries: this.sessionSummaryCache.size,
+        });
+      }
+    })();
+    this.cacheLoadPromise = task;
+    try {
+      await task;
+    } finally {
+      this.cacheLoadPromise = null;
     }
   }
 
@@ -1884,27 +1920,37 @@ export class HistoryStore {
       return {
         items: [],
         sessionSummaries: [],
+        pendingThreadMetadata: [],
       };
     }
   }
 
-  private async writeCache(items: HistoryThread[]) {
-    try {
-      await mkdir(dirname(this.cachePath), { recursive: true });
-      const payload: HistoryCachePayload = {
-        version: 3,
-        items: items.map(toPersistedThread),
-        sessionSummaries: [...this.sessionSummaryCache.values()],
-      };
-      await writeFile(this.cachePath, JSON.stringify(payload, null, 2), "utf8");
-    } catch (error) {
-      console.error("[historyStore] write cache failed:", error);
-    }
+  private writeCache(): Promise<void> {
+    const task = this.cacheWritePromise.then(async () => {
+      try {
+        await mkdir(dirname(this.cachePath), { recursive: true });
+        const payload: HistoryCachePayload = {
+          version: 3,
+          items: this.snapshot.map(toPersistedThread),
+          sessionSummaries: [...this.sessionSummaryCache.values()],
+          pendingThreadMetadata: [...this.pendingThreadMetadataById.values()],
+        };
+        await writeFile(this.cachePath, JSON.stringify(payload, null, 2), "utf8");
+      } catch (error) {
+        console.error("[historyStore] write cache failed:", error);
+      }
+    });
+    this.cacheWritePromise = task;
+    return task;
   }
 
   getMemoryCacheStats(): { items: number; bytes: number; updatedAt: number } {
     let items = this.snapshot.length;
     let bytes = estimateJsonBytes(this.snapshot);
+
+    const pendingThreadMetadata = [...this.pendingThreadMetadataById.values()];
+    items += pendingThreadMetadata.length;
+    bytes += estimateJsonBytes(pendingThreadMetadata);
 
     const sessionSummaries = [...this.sessionSummaryCache.values()];
     items += sessionSummaries.length;
@@ -1935,6 +1981,7 @@ export class HistoryStore {
 
   clearMemoryCaches(): void {
     this.updateSnapshot([]);
+    this.pendingThreadMetadataById.clear();
     this.sessionSummaryCache.clear();
     this.sessionMessagesCache.clear();
     this.sessionEventsCache.clear();
