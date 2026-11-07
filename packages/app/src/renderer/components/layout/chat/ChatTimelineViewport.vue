@@ -21,10 +21,16 @@
         :data-row-expandable="item.presentation.expandable ? 'true' : 'false'"
         :data-row-estimated-height="item.presentation.estimatedHeightPx"
         :data-row-index="item.index"
+        :data-enter="enteringRowIds.has(item.row.id) ? 'true' : 'false'"
+        :data-enter-height="enteringRowIds.has(item.row.id) && shouldAnimateHeight(item) ? 'true' : 'false'"
         :style="{ transform: `translate3d(0, ${item.top}px, 0)` }"
         :ref="(el) => bindVirtualRowElement(item.row.id, el)"
       >
-        <slot :row="item.row" />
+        <div class="chat-row-enter">
+          <div class="chat-row-enter__inner">
+            <slot :row="item.row" />
+          </div>
+        </div>
       </div>
     </template>
 
@@ -43,8 +49,14 @@
         :data-row-expandable="item.presentation.expandable ? 'true' : 'false'"
         :data-row-estimated-height="item.presentation.estimatedHeightPx"
         :data-row-index="item.index"
+        :data-enter="enteringRowIds.has(item.row.id) ? 'true' : 'false'"
+        :data-enter-height="enteringRowIds.has(item.row.id) && shouldAnimateHeight(item) ? 'true' : 'false'"
       >
-        <slot :row="item.row" />
+        <div class="chat-row-enter">
+          <div class="chat-row-enter__inner">
+            <slot :row="item.row" />
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -95,6 +107,7 @@ const props = withDefaults(
     scrollElement?: HTMLElement | null;
     virtualThreshold?: number;
     followBottom?: boolean;
+    animateEnter?: boolean;
     onLayoutChange?: () => void;
     onViewportAdapterChange?: (adapter: TimelineViewportAdapter | null) => void;
     onPinnedUserRowChange?: (rowId: string) => void;
@@ -103,6 +116,7 @@ const props = withDefaults(
     scrollElement: null,
     virtualThreshold: DEFAULT_VIRTUAL_THRESHOLD,
     followBottom: undefined,
+    animateEnter: false,
   }
 );
 
@@ -133,9 +147,26 @@ const clientHeightPx = shallowRef(FALLBACK_CLIENT_HEIGHT_PX);
 const viewportTopPx = shallowRef(0);
 const rowGapPx = shallowRef({ ...DEFAULT_ROW_GAPS });
 const rowHeightsByKey = shallowRef(new Map<string, number>());
+const enteringRowIds = shallowRef(new Set<string>());
 const rowElementsById = new Map<string, HTMLElement>();
 const rowResizeObserversById = new Map<string, ResizeObserver>();
+const enteringTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const enteringElements = new Map<string, HTMLElement>();
+const seenRowIds = new Set<string>();
 const viewportRef = ref<HTMLElement | null>(null);
+let enterTrackingPrimed = false;
+let seenTimelineKey = "";
+let enterResizeObserver: ResizeObserver | null = null;
+
+const NON_ENTER_ROW_KINDS = new Set<ChatRenderedRow["kind"]>([
+  "user",
+  "assistant",
+  "system",
+  "tokenUsageSummary",
+  "auxActivityGroup",
+]);
+const ENTERING_CLASS_MS = 900;
+const ENTER_HEIGHT_MAX_ESTIMATED_PX = 240;
 
 const renderedRows = computed<RenderedTimelineRow[]>(() => {
   let nextTop = 0;
@@ -207,6 +238,94 @@ const virtualRows = computed(() => {
   const range = virtualRange.value;
   return renderedRows.value.slice(range.start, range.end);
 });
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function canAnimateEnter(): boolean {
+  return Boolean(props.animateEnter) && props.followBottom === true && !prefersReducedMotion();
+}
+
+function clearEnteringRows() {
+  for (const timer of enteringTimers.values()) clearTimeout(timer);
+  enteringTimers.clear();
+  enterResizeObserver?.disconnect();
+  enteringElements.clear();
+  enteringRowIds.value = new Set();
+}
+
+function observeEnteringRow(rowId: string) {
+  if (!enterResizeObserver) return;
+  void nextTick(() => {
+    if (disposed || !enterResizeObserver) return;
+    if (!enteringRowIds.value.has(rowId)) return;
+    const viewport = viewportRef.value;
+    if (!viewport) return;
+    const rowElement = Array.from(viewport.children).find(
+      (element): element is HTMLElement => element instanceof HTMLElement && element.dataset.rowId === rowId
+    );
+    if (!rowElement) return;
+    enteringElements.set(rowId, rowElement);
+    enterResizeObserver.observe(rowElement);
+  });
+}
+
+function unobserveEnteringRow(rowId: string) {
+  const element = enteringElements.get(rowId);
+  if (element) enterResizeObserver?.unobserve(element);
+  enteringElements.delete(rowId);
+}
+
+function markRowEntering(rowId: string, animateHeight: boolean) {
+  const next = new Set(enteringRowIds.value);
+  if (next.has(rowId)) return;
+  next.add(rowId);
+  enteringRowIds.value = next;
+  if (animateHeight) observeEnteringRow(rowId);
+  const existingTimer = enteringTimers.get(rowId);
+  if (existingTimer != null) clearTimeout(existingTimer);
+  enteringTimers.set(
+    rowId,
+    setTimeout(() => {
+      enteringTimers.delete(rowId);
+      unobserveEnteringRow(rowId);
+      const remaining = new Set(enteringRowIds.value);
+      remaining.delete(rowId);
+      enteringRowIds.value = remaining;
+    }, ENTERING_CLASS_MS)
+  );
+}
+
+function primeEnterTracking() {
+  clearEnteringRows();
+  seenRowIds.clear();
+  for (const row of props.rows) seenRowIds.add(row.id);
+  enterTrackingPrimed = true;
+  seenTimelineKey = props.timelineKey;
+}
+
+function rowIsInVirtualRange(index: number): boolean {
+  if (!virtualEnabled.value) return true;
+  const range = virtualRange.value;
+  return index >= range.start && index < range.end;
+}
+
+function canAnimateRowEnter(row: ChatRenderedRow, index: number): boolean {
+  if (NON_ENTER_ROW_KINDS.has(row.kind)) return false;
+  return rowIsInVirtualRange(index);
+}
+
+function shouldAnimateHeightForRow(row: ChatRenderedRow): boolean {
+  if (virtualEnabled.value) return false;
+  if (row.kind === "fileChange" || row.kind === "commandSession") return false;
+  return getChatRowPresentation(row).estimatedHeightPx <= ENTER_HEIGHT_MAX_ESTIMATED_PX;
+}
+
+function shouldAnimateHeight(item: RenderedTimelineRow): boolean {
+  return shouldAnimateHeightForRow(item.row);
+}
 
 const rowStructureSignature = computed(() =>
   [
@@ -589,6 +708,7 @@ watch(
   () => props.timelineKey,
   () => {
     cancelHeightChangeRestore();
+    clearEnteringRows();
     userRowElements = null;
     rowHeightsByKey.value = new Map();
     disconnectVirtualRowObservers();
@@ -597,6 +717,29 @@ watch(
     scheduleLayoutChangeNotify();
   },
   { flush: "post" }
+);
+
+watch(
+  () => props.rows.map((row) => row.id).join("\n"),
+  () => {
+    if (!enterTrackingPrimed || seenTimelineKey !== props.timelineKey) {
+      primeEnterTracking();
+      return;
+    }
+    const currentRowIds = new Set(props.rows.map((row) => row.id));
+    for (const rowId of seenRowIds) {
+      if (!currentRowIds.has(rowId)) seenRowIds.delete(rowId);
+    }
+    const shouldAnimate = canAnimateEnter();
+    props.rows.forEach((row, index) => {
+      if (seenRowIds.has(row.id)) return;
+      seenRowIds.add(row.id);
+      if (shouldAnimate && canAnimateRowEnter(row, index)) {
+        markRowEntering(row.id, shouldAnimateHeightForRow(row));
+      }
+    });
+  },
+  { immediate: true, flush: "pre" }
 );
 
 watch(
@@ -632,6 +775,11 @@ watch(virtualEnabled, () => {
 });
 
 onMounted(() => {
+  if (typeof ResizeObserver !== "undefined") {
+    enterResizeObserver = new ResizeObserver(() => {
+      scheduleLayoutChangeNotify();
+    });
+  }
   attachScrollElement(props.scrollElement);
   syncTimelineGapMetrics();
   syncViewportAdapter();
@@ -642,6 +790,7 @@ onBeforeUnmount(() => {
   disposed = true;
   if (pendingScrollMetricsRafId != null) cancelAnimationFrame(pendingScrollMetricsRafId);
   pendingScrollMetricsRafId = null;
+  clearEnteringRows();
   userRowElements = null;
   props.onPinnedUserRowChange?.("");
   props.onViewportAdapterChange?.(null);
@@ -650,6 +799,9 @@ onBeforeUnmount(() => {
   scrollElementCleanup = null;
   scrollElementResizeObserver?.disconnect();
   scrollElementResizeObserver = null;
+  enterResizeObserver?.disconnect();
+  enterResizeObserver = null;
+  enteringElements.clear();
   disconnectVirtualRowObservers();
   layoutChangePending = false;
 });

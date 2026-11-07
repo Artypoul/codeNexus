@@ -54,9 +54,10 @@ const settle = async () => {
   await nextTick();
 };
 
-function mountViewport(count = 1000) {
+function mountViewport(count = 1000, animateEnter = false) {
   const props = reactive({
     active: true,
+    animateEnter,
     items: Array.from({ length: count }, (_, index) => ({
       id: `row-${index}`,
       turnKey: "turn",
@@ -223,5 +224,27 @@ describe("activity group virtual viewport", () => {
     expect(scroller.dataset.virtualized).toBe("true");
     expect(host.querySelectorAll("[data-aux-id]").length).toBeLessThan(40);
     expect(host.querySelector('[data-aux-id="row-59"]')).not.toBeNull();
+  });
+
+  it("marks newly appended activity rows for enter when running", async () => {
+    const { props, host } = mountViewport(3, true);
+    await settle();
+
+    props.items.push({
+      id: "row-3",
+      turnKey: "turn",
+      kind: "activity",
+      text: "new",
+      createdAt: 1,
+    });
+    await nextTick();
+
+    const appended = host.querySelector<HTMLElement>('[data-aux-id="row-3"]')!;
+    expect(appended.getAttribute("data-enter")).toBe("true");
+    expect(appended.getAttribute("data-enter-height")).toBe("true");
+
+    await vi.advanceTimersByTimeAsync(900);
+    await nextTick();
+    expect(appended.getAttribute("data-enter")).toBe("false");
   });
 });

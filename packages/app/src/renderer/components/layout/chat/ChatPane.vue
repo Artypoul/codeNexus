@@ -35,6 +35,7 @@
       :timelineKey="timelineKey"
       :scrollElement="scrollElement"
       :followBottom="followBottom"
+      :animateEnter="isTurnRunning"
       :onLayoutChange="onLayoutChange"
       :onViewportAdapterChange="setLocalViewportAdapter"
       :onPinnedUserRowChange="setPinnedUserRowId"

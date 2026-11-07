@@ -69,6 +69,7 @@
             :key="id"
             :items="items"
             :active="open"
+            :animate-enter="status === 'running'"
             @layout-change="emit('layout-change')"
           >
             <template #default="{ item }"><slot :item="item" /></template>

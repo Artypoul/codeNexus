@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createApp, h, nextTick, type App } from "vue";
+import { createApp, h, nextTick, reactive, type App } from "vue";
 import ChatTimelineViewport from "./ChatTimelineViewport.vue";
 import type { ChatRenderedRow } from "../types/chat.types";
 
@@ -157,5 +157,49 @@ describe("timeline scroll updates", () => {
     scroller.dispatchEvent(new Event("scroll"));
     await vi.advanceTimersByTimeAsync(50);
     expect(pinned).toHaveBeenLastCalledWith("row-2");
+  });
+
+  it("marks only newly appended intermediate rows for enter", async () => {
+    const scroller = document.createElement("div");
+    document.body.append(scroller);
+    const props = reactive({
+      rows: [
+        {
+          id: "row-0",
+          turnKey: "turn",
+          kind: "activity",
+          text: "first",
+          createdAt: 0,
+        },
+      ] as ChatRenderedRow[],
+      timelineKey: "thread",
+      scrollElement: scroller,
+      followBottom: true,
+      animateEnter: true,
+    });
+    app = createApp(() => h(ChatTimelineViewport, props, { default: () => h("div", { class: "chat-row" }, "row") }));
+    app.mount(scroller);
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(50);
+
+    const initial = scroller.querySelector<HTMLElement>('[data-row-id="row-0"]')!;
+    expect(initial.dataset.enter).toBe("false");
+
+    props.rows.push({
+      id: "row-1",
+      turnKey: "turn",
+      kind: "activity",
+      text: "second",
+      createdAt: 1,
+    });
+    await nextTick();
+
+    const appended = scroller.querySelector<HTMLElement>('[data-row-id="row-1"]')!;
+    expect(appended.dataset.enter).toBe("true");
+    expect(appended.dataset.enterHeight).toBe("true");
+
+    await vi.advanceTimersByTimeAsync(900);
+    await nextTick();
+    expect(appended.dataset.enter).toBe("false");
   });
 });

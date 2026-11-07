@@ -18,9 +18,15 @@
         class="chat-aux-activity__item"
         :data-aux-id="entry.item.id"
         :data-aux-kind="entry.item.kind"
+        :data-enter="enteringIds.has(entry.item.id) ? 'true' : 'false'"
+        :data-enter-height="enteringIds.has(entry.item.id) && canAnimateHeight(entry.item) ? 'true' : 'false'"
         :style="virtualEnabled ? { transform: `translateY(${entry.top}px)` } : undefined"
       >
-        <slot :item="entry.item" />
+        <div class="chat-aux-activity__enter">
+          <div class="chat-aux-activity__enter-inner">
+            <slot :item="entry.item" />
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -32,7 +38,9 @@ import type { ChatAuxiliaryRow } from "../layout/types/chat.types";
 import { getChatRowPresentation } from "../layout/chat/chatPresentation";
 import { useFollowBottomScroller } from "./useFollowBottomScroller";
 
-const props = defineProps<{ items: ChatAuxiliaryRow[]; active: boolean }>();
+const props = withDefaults(defineProps<{ items: ChatAuxiliaryRow[]; active: boolean; animateEnter?: boolean }>(), {
+  animateEnter: false,
+});
 defineSlots<{ default(props: { item: ChatAuxiliaryRow }): unknown }>();
 const emit = defineEmits<{ (event: "layout-change"): void }>();
 
@@ -48,6 +56,13 @@ let paddingTop = 0;
 let frameId: number | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let disposed = false;
+const enteringIds = shallowRef(new Set<string>());
+const enteringTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const seenItemIds = new Set<string>();
+let enterTrackingPrimed = false;
+
+const ENTERING_CLASS_MS = 900;
+const ENTER_HEIGHT_MAX_ESTIMATED_PX = 240;
 
 const {
   scrollerRef,
@@ -90,6 +105,45 @@ const visibleRows = computed(() => {
   const end = Math.min(rows.value.length, indexAt(top + height + overscan) + 3);
   return rows.value.slice(start, end);
 });
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function canAnimateEnter(): boolean {
+  return Boolean(props.animateEnter) && props.active && !prefersReducedMotion();
+}
+
+function canAnimateHeight(item: ChatAuxiliaryRow): boolean {
+  if (virtualEnabled.value) return false;
+  if (item.kind === "fileChange" || item.kind === "commandSession") return false;
+  return getChatRowPresentation(item).estimatedHeightPx <= ENTER_HEIGHT_MAX_ESTIMATED_PX;
+}
+
+function clearEnteringItems() {
+  for (const timer of enteringTimers.values()) clearTimeout(timer);
+  enteringTimers.clear();
+  enteringIds.value = new Set();
+}
+
+function markItemEntering(itemId: string) {
+  const next = new Set(enteringIds.value);
+  if (next.has(itemId)) return;
+  next.add(itemId);
+  enteringIds.value = next;
+  const existingTimer = enteringTimers.get(itemId);
+  if (existingTimer != null) clearTimeout(existingTimer);
+  enteringTimers.set(
+    itemId,
+    setTimeout(() => {
+      enteringTimers.delete(itemId);
+      const remaining = new Set(enteringIds.value);
+      remaining.delete(itemId);
+      enteringIds.value = remaining;
+    }, ENTERING_CLASS_MS)
+  );
+}
 
 function scheduleMeasure() {
   if (disposed || !props.active || frameId != null) return;
@@ -177,6 +231,30 @@ watch(
 );
 
 watch(
+  () => props.items.map((item) => item.id).join("\n"),
+  () => {
+    const ids = props.items.map((item) => item.id);
+    if (!enterTrackingPrimed) {
+      enterTrackingPrimed = true;
+      ids.forEach((id) => seenItemIds.add(id));
+      if (canAnimateEnter() && ids.length > 0) markItemEntering(ids[ids.length - 1]);
+      return;
+    }
+    const currentItemIds = new Set(ids);
+    for (const itemId of seenItemIds) {
+      if (!currentItemIds.has(itemId)) seenItemIds.delete(itemId);
+    }
+    const shouldAnimate = canAnimateEnter();
+    ids.forEach((id) => {
+      if (seenItemIds.has(id)) return;
+      seenItemIds.add(id);
+      if (shouldAnimate) markItemEntering(id);
+    });
+  },
+  { immediate: true, flush: "pre" }
+);
+
+watch(
   () => props.items,
   () => {
     const ids = new Set(props.items.map((item) => item.id));
@@ -202,6 +280,7 @@ watch(
 
 onBeforeUnmount(() => {
   disposed = true;
+  clearEnteringItems();
   if (frameId != null) cancelAnimationFrame(frameId);
   resizeObserver?.disconnect();
   rowElements.clear();
