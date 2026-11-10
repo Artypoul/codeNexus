@@ -27,7 +27,7 @@ function resolveWindowIconPath(): string | undefined {
 
 export async function createMainWindow(opts: MainWindowOptions): Promise<BrowserWindow> {
   // Windows 使用自定义标题栏（渲染层自绘 + IPC 控制窗口），不使用原生 caption buttons。
-  const useT3Client = !opts.isDev && existsSync(join(app.getAppPath(), "dist/t3-client/index.html"));
+  const useT3Client = opts.isDev || existsSync(join(app.getAppPath(), "dist/t3-client/index.html"));
   const useCustomTitlebar = process.platform === "win32" && !useT3Client;
 
   const initialLocalSettingsArg = `--codex-local-settings=${Buffer.from(JSON.stringify(opts.initialLocalSettingsSnapshot), "utf8").toString("base64url")}`;

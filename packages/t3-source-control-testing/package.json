@@ -1,0 +1,22 @@
+{
+  "name": "@t3tools/source-control-testing",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./fakeSourceControlDriver": {
+      "types": "./src/fakeSourceControlDriver.ts",
+      "import": "./src/fakeSourceControlDriver.ts"
+    },
+    "./TestSourceControlHost": {
+      "types": "./src/TestSourceControlHost.ts",
+      "import": "./src/TestSourceControlHost.ts"
+    }
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.1.2",
+    "@t3tools/contracts": "workspace:*",
+    "@t3tools/shared": "workspace:*",
+    "@t3tools/source-control-core": "workspace:*",
+    "effect": "4.1.2"
+  }
+}

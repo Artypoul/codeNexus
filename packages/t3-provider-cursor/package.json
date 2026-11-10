@@ -1,0 +1,51 @@
+{
+  "name": "@t3tools/provider-cursor",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client": {
+      "types": "./src/client.ts",
+      "import": "./src/client.ts"
+    },
+    "./settings": {
+      "types": "./src/settings.ts",
+      "import": "./src/settings.ts"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "import": "./src/server.ts"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "import": "./src/testing.ts"
+    },
+    "./server/CursorAgentSdk": {
+      "types": "./src/server/CursorAgentSdk.ts",
+      "import": "./src/server/CursorAgentSdk.ts"
+    },
+    "./server/accountUsage": {
+      "types": "./src/server/accountUsage.ts",
+      "import": "./src/server/accountUsage.ts"
+    },
+    "./server/CursorAccountReader": {
+      "types": "./src/server/CursorAccountReader.ts",
+      "import": "./src/server/CursorAccountReader.ts"
+    },
+    "./server/CursorUsageAccounts": {
+      "types": "./src/server/CursorUsageAccounts.ts",
+      "import": "./src/server/CursorUsageAccounts.ts"
+    },
+    "./server/CursorSdk": {
+      "types": "./src/server/CursorSdk.ts",
+      "import": "./src/server/CursorSdk.ts"
+    }
+  },
+  "dependencies": {
+    "@cursor/sdk": "1.2.0",
+    "@t3tools/contracts": "workspace:*",
+    "@t3tools/provider-core": "workspace:*",
+    "@t3tools/shared": "workspace:*",
+    "effect": "4.1.2",
+    "yaml": "^2.9.0"
+  }
+}

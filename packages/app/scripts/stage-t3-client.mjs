@@ -6,10 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const destination = join(appRoot, "dist", "t3-client");
+const localT3Root = resolve(appRoot, "..", "t3-web");
 const expectedTreeHash = "5469645ebb80d18cd023dc38a8deb5905b44c98bfeeec3ead90bb4b9d038cf39";
 const expectedLicenseHash = "935d8f2af0c703f9c39517ee57cc4930b19d02d533be930b63f0e82f93614b43";
-const defaultLicense = "D:/Development/CodeNexus/build-cache/t3-contract/LICENSE-T3-0.1.7";
-const defaultDonorDist = "D:/GitHub/t3code-donor/apps/web/dist";
+const defaultLicense = join(localT3Root, "public", "LICENSE-T3");
+const defaultDonorDist = join(localT3Root, "dist");
 const hash = (data) => createHash("sha256").update(data).digest("hex");
 
 async function listFiles(root, dir = root) {
@@ -37,7 +38,7 @@ export async function stageT3Client(source = process.env.T3_CODE_CLIENT_DIR) {
   const manifest =
     (await Promise.all(files.map(async (path) => `${hash(await readFile(path))}  ${name(path)}`))).join("\n") + "\n";
   const isVerifiedRelease = files.length === 1178 && hash(manifest) === expectedTreeHash;
-  const isLocalT3Donor = root.replaceAll("\\", "/").endsWith("/t3code-donor/apps/web/dist");
+  const isLocalT3Donor = root.replaceAll("\\", "/").endsWith("/packages/t3-web/dist");
   if (!isVerifiedRelease && !isLocalT3Donor) {
     throw new Error("T3 client does not match the verified release or the local t3code-donor build");
   }
@@ -54,26 +55,31 @@ export async function stageT3Client(source = process.env.T3_CODE_CLIENT_DIR) {
   if (!moduleTagMatch) throw new Error("Expected T3 entry module not found");
   const moduleTag = moduleTagMatch[0];
   const publicConfigFile = (await readdir(join(root, "assets"))).find((name) => /^publicConfig-.*\.js$/.test(name));
-  if (!publicConfigFile) throw new Error("Expected T3 public config module not found");
-  const cloudConfigPath = join("assets", publicConfigFile);
-  const cloudConfig = await readFile(join(root, cloudConfigPath), "utf8");
+  if (!publicConfigFile && !isLocalT3Donor) throw new Error("Expected T3 public config module not found");
+  const cloudConfigPath = publicConfigFile ? join("assets", publicConfigFile) : undefined;
+  const cloudConfig = cloudConfigPath ? await readFile(join(root, cloudConfigPath), "utf8") : undefined;
   const publicConfig = /function _\(\)\{return\{clerkPublishableKey:.*?\}\}\}function v\(\)/;
-  if (!publicConfig.test(cloudConfig)) throw new Error("Expected T3 public config module not found");
+  if (cloudConfig && !publicConfig.test(cloudConfig) && !isLocalT3Donor) {
+    throw new Error("Expected T3 public config module not found");
+  }
 
   await rm(destination, { recursive: true, force: true });
   await mkdir(destination, { recursive: true });
   await cp(root, destination, { recursive: true, dereference: false });
   await writeFile(join(destination, "LICENSE-T3"), license);
-  await writeFile(
-    join(destination, cloudConfigPath),
-    cloudConfig.replace(
-      publicConfig,
-      "function _(){return{clerkPublishableKey:null,clerkJwtTemplate:null,relayUrl:null,relayTracing:{tracesUrl:null,tracesDataset:null,tracesToken:null}}}function v()"
-    )
-  );
+  if (cloudConfigPath && cloudConfig) {
+    await writeFile(
+      join(destination, cloudConfigPath),
+      cloudConfig.replace(
+        publicConfig,
+        "function _(){return{clerkPublishableKey:null,clerkJwtTemplate:null,relayUrl:null,relayTracing:{tracesUrl:null,tracesDataset:null,tracesToken:null}}}function v()"
+      )
+    );
+  }
+  const adapterTag = `<script src="/codenexus-adapter.js"></script>`;
   await writeFile(
     join(destination, "index.html"),
-    index.replace(moduleTag, `<script src="/codenexus-adapter.js"></script>\n    ${moduleTag}`)
+    index.includes("/codenexus-adapter.js") ? index : index.replace(moduleTag, `${adapterTag}\n    ${moduleTag}`)
   );
   return true;
 }

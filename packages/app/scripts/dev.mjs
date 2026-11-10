@@ -261,7 +261,25 @@ async function start() {
   const viteUrl = `http://${viteHost}:${vitePort}`;
   console.info(`[dev] starting vite + esbuild watchers${smokeMode ? " (smoke)" : ""} on ${viteUrl}...`);
 
-  spawnPnpm(["exec", "vite", "--host", viteHost, "--port", vitePort, "--strictPort"], { name: "vite" });
+  spawnPnpm(["--filter", "@t3tools/web", "dev", "--", "--host", viteHost, "--port", vitePort, "--strictPort"], {
+    name: "t3-vite",
+  });
+
+  spawnPnpm(
+    [
+      "exec",
+      "esbuild",
+      "src/t3/entry.ts",
+      "--bundle",
+      "--platform=browser",
+      "--format=iife",
+      "--target=chrome140",
+      "--outfile=../t3-web/public/codenexus-adapter.js",
+      "--sourcemap",
+      "--watch=forever",
+    ],
+    { name: "t3-adapter-esbuild" }
+  );
 
   spawnPnpm(
     [
