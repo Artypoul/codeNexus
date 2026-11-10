@@ -16,14 +16,20 @@ The local contract is the Gigma CLI API used by `gigma-cli`.
 The default local origin is `http://127.0.0.1:58627`, matching the current
 Gigma CLI `kap-server` default. Override it with
 `GIGMA_KAP_SERVER_URL`. Set `GIGMA_KAP_SERVER_TOKEN_FILE` to the daemon's
-`server.token` file, or set `KIMI_CODE_HOME` and CodeNexus will use its
-`server.token`. CodeNexus accepts only loopback HTTP origins. When the
+`server.token` file. When neither override is set, CodeNexus uses the Gigma
+default `$HOME/.kimi-code/server.token`. Setting `KIMI_CODE_HOME` selects the
+same file under that directory. CodeNexus accepts only loopback HTTP origins.
+When the
 daemon is not already running, set `GIGMA_KAP_SERVER_COMMAND`, optional
 `GIGMA_KAP_SERVER_ARGS_JSON` and optional `GIGMA_KAP_SERVER_WORKDIR`; the
 supervisor starts and stops that local process with CodeNexus. The
 renderer receives status and bounded login metadata through the preload API. It
 never receives access tokens, refresh tokens, PKCE verifier values, or callback
 proofs.
+
+When `GIGMA_KAP_SERVER_TOKEN_FILE` is set without `KIMI_CODE_HOME`, the child
+Gigma process receives the token file's directory as its `KIMI_CODE_HOME`, so
+the daemon and CodeNexus use the same local auth store.
 
 Before starting a Codex app-server child, the supervisor requires the local
 Gigma CLI status to be available and `logged_in=true`. An unavailable or signed

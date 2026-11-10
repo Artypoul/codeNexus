@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { rm, writeFile } from "node:fs/promises";
-import { GigmaAuthClient } from "./GigmaAuthClient";
+import { GigmaAuthClient, resolveGigmaTokenFile } from "./GigmaAuthClient";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -10,6 +10,12 @@ const response = (data: unknown, code = 0) =>
   new Response(JSON.stringify({ code, data, msg: code === 0 ? "" : "denied" }), { status: code === 0 ? 200 : 403 });
 
 describe("GigmaAuthClient", () => {
+  it("uses the default Kimi home token when no override is configured", async () => {
+    expect(resolveGigmaTokenFile(undefined, "C:\\Users\\Art\\.kimi-code")).toBe(
+      "C:\\Users\\Art\\.kimi-code\\server.token"
+    );
+  });
+
   it("reads status without exposing credentials", async () => {
     const fetchMock = vi
       .fn()
@@ -18,7 +24,10 @@ describe("GigmaAuthClient", () => {
       );
     vi.stubGlobal("fetch", fetchMock);
 
-    const status = await new GigmaAuthClient("http://127.0.0.1:58627").status();
+    const status = await new GigmaAuthClient(
+      "http://127.0.0.1:58627",
+      join(tmpdir(), `codenexus-missing-gigma-token-${Date.now()}`)
+    ).status();
     expect(status).toEqual({
       provider: "gigma-account",
       configured: true,

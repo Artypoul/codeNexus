@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { GigmaAuthClient } from "./GigmaAuthClient";
 
 const STARTUP_TIMEOUT_MS = 15_000;
@@ -41,6 +41,17 @@ function readArgs(): string[] {
   return parsed;
 }
 
+export function resolveGigmaProcessEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  if (env.KIMI_CODE_HOME || !env.GIGMA_KAP_SERVER_TOKEN_FILE) {
+    return { ...env };
+  }
+
+  return {
+    ...env,
+    KIMI_CODE_HOME: dirname(env.GIGMA_KAP_SERVER_TOKEN_FILE),
+  };
+}
+
 export class GigmaAuthProcessSupervisor {
   private process?: ChildProcess;
 
@@ -64,6 +75,7 @@ export class GigmaAuthProcessSupervisor {
       const args = configuredArgs.length > 0 || !resolved.bundled ? configuredArgs : DEFAULT_GIGMA_ARGS;
       this.process = spawn(command, args, {
         cwd: process.env.GIGMA_KAP_SERVER_WORKDIR || undefined,
+        env: resolveGigmaProcessEnv(),
         windowsHide: true,
         stdio: "ignore",
       });

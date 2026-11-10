@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveGigmaRuntimeCommand } from "./GigmaAuthProcessSupervisor";
+import { resolveGigmaProcessEnv, resolveGigmaRuntimeCommand } from "./GigmaAuthProcessSupervisor";
 
 describe("resolveGigmaRuntimeCommand", () => {
   it("prefers an explicitly configured auth daemon", () => {
@@ -35,5 +35,13 @@ describe("resolveGigmaRuntimeCommand", () => {
       command: "D:\\Development\\CodeNexus\\native-runtime\\gigma.exe",
       bundled: true,
     });
+  });
+});
+
+describe("resolveGigmaProcessEnv", () => {
+  it("derives KIMI_CODE_HOME from an explicit token file", () => {
+    expect(resolveGigmaProcessEnv({ GIGMA_KAP_SERVER_TOKEN_FILE: "C:\\CodeNexus\\gigma\\server.token" })).toMatchObject(
+      { KIMI_CODE_HOME: "C:\\CodeNexus\\gigma" }
+    );
   });
 });

@@ -1,11 +1,19 @@
 import { URL } from "node:url";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { GigmaAuthLoginPoll, GigmaAuthLoginStart, GigmaAuthStatus } from "@codenexus/shared/ipc/contracts";
 
 const PROVIDER = "gigma-account" as const;
 const DEFAULT_ORIGIN = "http://127.0.0.1:58627";
 const REQUEST_TIMEOUT_MS = 10_000;
+
+export function resolveGigmaTokenFile(tokenFile?: string, kimiHome?: string): string {
+  const explicit = String(tokenFile ?? "").trim();
+  if (explicit) return explicit;
+  const home = String(kimiHome ?? process.env.KIMI_CODE_HOME ?? "").trim() || join(homedir(), ".kimi-code");
+  return join(home, "server.token");
+}
 
 type WireEnvelope<T> = { code?: unknown; data?: T; msg?: unknown };
 type WireStatus = {
@@ -70,8 +78,7 @@ export class GigmaAuthClient {
 
   constructor(origin = process.env.GIGMA_KAP_SERVER_URL, tokenFile = process.env.GIGMA_KAP_SERVER_TOKEN_FILE) {
     this.origin = requireLoopbackOrigin(origin);
-    this.tokenFile =
-      tokenFile || (process.env.KIMI_CODE_HOME ? join(process.env.KIMI_CODE_HOME, "server.token") : undefined);
+    this.tokenFile = resolveGigmaTokenFile(tokenFile);
   }
 
   async status(): Promise<GigmaAuthStatus> {
