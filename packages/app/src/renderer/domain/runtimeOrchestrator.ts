@@ -44,6 +44,7 @@ import { createTurnSteerRuntime } from "./runtime/turnSteerRuntime";
 import { createWorkspaceFileRuntime, createWorkspacePathResolver } from "./runtime/workspaceFileRuntime";
 import { createWorkspaceSessionRuntime } from "./runtime/workspaceSessionRuntime";
 import { createPromptResponseRuntime } from "./runtime/promptResponseRuntime";
+import { createApprovalLifecycleController } from "../processes/protocol-request-responder/approvalLifecycle";
 import { createMessageQueueRuntime } from "./runtime/messageQueueRuntime";
 import { createThreadPreparingRuntime } from "./runtime/threadPreparingRuntime";
 import { createThreadGoalRuntime } from "./runtime/threadGoalRuntime";
@@ -243,6 +244,11 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   const skillsSnapshotByWorkspace = new Map<string, SkillsSnapshot>();
   const mcpSnapshotByWorkspace = new Map<string, McpSnapshot>();
   const disposers: Array<() => void> = [];
+  const approvalLifecycle = createApprovalLifecycleController({
+    respond: (args) => codexDesktop.codexServer.respond(args as Parameters<typeof codexDesktop.codexServer.respond>[0]),
+    remove: (serverId, requestId) => approvalStore.remove(serverId, requestId),
+  });
+  disposers.push(() => approvalLifecycle.dispose());
 
   const normalizeWorkspacePath = (value: string) => String(value ?? "").trim();
 
@@ -1140,6 +1146,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
     appTimelineId: APP_TIMELINE_ID,
     runtimeStore,
     approvalStore,
+    approvalLifecycle,
     userInputStore,
     respond: (args) => codexDesktop.codexServer.respond(args as Parameters<typeof codexDesktop.codexServer.respond>[0]),
     pushEvent,
@@ -1190,6 +1197,7 @@ export function initRuntimeOrchestrator(pinia: Pinia): RuntimeOrchestrator {
   });
   const runtimeStartupRuntime = createRuntimeStartupRuntime({
     pinia,
+    approvalLifecycle,
     threadStore,
     subscribeHistoryUpdates,
     subscribeCodexServerEvents: codexServerEventRuntime.subscribeCodexServerEvents,

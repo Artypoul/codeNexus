@@ -3,6 +3,9 @@
     <header class="topbar">
       <div class="topbar-left row">
         <TopBarWorkspaceButton />
+        <span v-if="currentThreadTitle" class="topbar-thread-title" :title="currentThreadTitle">
+          <span aria-hidden="true">/</span> {{ currentThreadTitle }}
+        </span>
         <button
           class="topbar-mainview-btn"
           :class="{ 'is-active': appShellStore.mainView === 'chat' }"
@@ -106,6 +109,7 @@ import TopBarUpdateNotice from "./topbar/TopBarUpdateNotice.vue";
 import TopBarWindowControls from "./topbar/TopBarWindowControls.vue";
 import { useAppShellStore } from "../../stores/appShell.store";
 import { useRuntimeStore } from "../../stores/runtime.store";
+import { useThreadStore } from "../../stores/thread.store";
 import { useWorkspaceFilesStore } from "../../stores/workspaceFiles.store";
 import { isFeatureMainView } from "../../features/registry";
 import "./topbar/topbar.css";
@@ -114,11 +118,19 @@ import type { MainView } from "@codenexus/shared/localSettings";
 const appShellStore = useAppShellStore();
 const { t } = useI18n();
 const runtimeStore = useRuntimeStore();
+const threadStore = useThreadStore();
 const workspaceFilesStore = useWorkspaceFilesStore();
 const rightStackRef = ref<HTMLElement | null>(null);
 
 let rightStackAnimationFrame = 0;
 let rightStackAnimationTimer = 0;
+
+const currentThreadTitle = computed(() => {
+  const id = runtimeStore.currentThreadId;
+  if (!id || appShellStore.mainView !== "chat" || appShellStore.settingsOpen) return "";
+  const thread = threadStore.threadHistory.find((item) => item.id === id);
+  return threadStore.displayThreadTitle(id, thread?.title);
+});
 
 const hasWorkspace = computed(() => Boolean(String(runtimeStore.workspacePath ?? "").trim()));
 const filesPaneVisible = computed(

@@ -34,18 +34,55 @@
                 </div>
               </div>
 
+              <div class="env-path-config">
+                <label class="env-path-label" for="codex-executable-path">
+                  <span class="context-label dim">{{ t("envSetup.codexPath") }}</span>
+                  <span class="dim">{{ t("envSetup.codexPathHint") }}</span>
+                </label>
+                <div class="env-path-row">
+                  <input
+                    id="codex-executable-path"
+                    v-model="pathInput"
+                    class="context-input mono"
+                    type="text"
+                    autocomplete="off"
+                    :placeholder="t('envSetup.codexPathPlaceholder')"
+                    :disabled="busy"
+                  />
+                  <button class="btn-mini" type="button" :disabled="busy" @click="onSavePath">
+                    {{ t("envSetup.savePath") }}
+                  </button>
+                </div>
+              </div>
+
               <div class="env-diag-grid">
-                <div class="env-diag-item" :class="diagItemClass(diag.codex?.ok)">
+                <div class="env-diag-item" :class="diagItemClass(diag?.codex?.ok)">
                   <div class="env-diag-key mono">codex</div>
-                  <div class="env-diag-val mono">{{ diagText(diag.codex) }}</div>
+                  <div class="env-diag-val mono">{{ diagText(diag?.codex) }}</div>
                 </div>
-                <div class="env-diag-item" :class="diagItemClass(diag.node?.ok)">
+                <div class="env-diag-item" :class="diagItemClass(diag?.node?.ok)">
                   <div class="env-diag-key mono">node</div>
-                  <div class="env-diag-val mono">{{ diagText(diag.node) }}</div>
+                  <div class="env-diag-val mono">{{ diagText(diag?.node) }}</div>
                 </div>
-                <div class="env-diag-item" :class="diagItemClass(diag.npm?.ok)">
+                <div class="env-diag-item" :class="diagItemClass(diag?.npm?.ok)">
                   <div class="env-diag-key mono">npm</div>
-                  <div class="env-diag-val mono">{{ diagText(diag.npm) }}</div>
+                  <div class="env-diag-val mono">{{ diagText(diag?.npm) }}</div>
+                </div>
+                <div class="env-diag-item" :class="diagItemClass(loginStatusOk)">
+                  <div class="env-diag-key mono">{{ t("envSetup.loginStatus") }}</div>
+                  <div class="env-diag-val mono">{{ loginStatusText }}</div>
+                </div>
+                <div class="env-diag-item" :class="diagItemClass(Boolean(viewModel.resolvedPath))">
+                  <div class="env-diag-key mono">{{ t("envSetup.resolvedPath") }}</div>
+                  <div class="env-diag-val mono">{{ viewModel.resolvedPath || t("envSetup.unknown") }}</div>
+                </div>
+              </div>
+
+              <div v-if="showLoginGuide" class="env-guide">
+                <div class="env-guide-title mono">{{ t("envSetup.loginGuideTitle") }}</div>
+                <div class="env-guide-body">
+                  <div class="env-guide-text dim">{{ t("envSetup.loginGuideText") }}</div>
+                  <pre class="env-guide-cmd mono">codex login</pre>
                 </div>
               </div>
 
@@ -91,7 +128,9 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppShellStore } from "../../../stores/appShell.store";
 import { codexDesktop } from "../../../api/codexDesktopClient";
+import { getCachedUserLocalSettings, patchUserLocalSettings } from "../../../domain/localSettings";
 import type { CodexDiagnosticsResult } from "@codenexus/shared/ipc/contracts";
+import { buildEnvDiagnosticsViewModel } from "../../../domain/envDiagnostics";
 
 type DiagItem = { ok: boolean; details?: string };
 
@@ -102,11 +141,25 @@ const isSettings = computed(() => props.mode === "settings");
 const open = computed(() => (isSettings.value ? true : appShellStore.envSetupDrawerOpen));
 
 const busy = ref(false);
-const diag = ref<Partial<CodexDiagnosticsResult>>({});
+const diag = ref<CodexDiagnosticsResult | null>(null);
+const settings = ref(getCachedUserLocalSettings().settings);
+const pathInput = ref(settings.value.codex.executablePath ?? "");
 const lastResultText = ref("");
 const lastResultKind = ref<"info" | "warn" | "error">("info");
 
 const closeBtnRef = ref<HTMLButtonElement | null>(null);
+
+const viewModel = computed(() =>
+  diag.value
+    ? buildEnvDiagnosticsViewModel(diag.value, settings.value)
+    : {
+        pathInput: pathInput.value,
+        resolvedPath: null,
+        loginStatus: "unknown" as const,
+        status: "unknown" as const,
+        canStart: false,
+      }
+);
 
 function close() {
   if (isSettings.value) return;
@@ -131,22 +184,48 @@ function diagItemClass(ok?: boolean) {
   return "is-unknown";
 }
 
-const hasDiagnostics = computed(() => Boolean(diag.value.codex || diag.value.node || diag.value.npm));
-const isReady = computed(
-  () => Boolean(diag.value.codex?.ok) && Boolean(diag.value.node?.ok) && Boolean(diag.value.npm?.ok)
+const hasDiagnostics = computed(() => Boolean(diag.value));
+const isReady = computed(() => viewModel.value.status === "ready");
+const missingNodeOrNpm = computed(() => diag.value?.node?.ok === false || diag.value?.npm?.ok === false);
+const showManualGuide = computed(
+  () =>
+    !busy.value &&
+    hasDiagnostics.value &&
+    (diag.value?.codex?.ok === false || diag.value?.node?.ok === false || diag.value?.npm?.ok === false)
 );
-const missingNodeOrNpm = computed(() => diag.value.node?.ok === false || diag.value.npm?.ok === false);
-const showManualGuide = computed(() => !busy.value && hasDiagnostics.value && !isReady.value);
+const showLoginGuide = computed(
+  () =>
+    !busy.value &&
+    hasDiagnostics.value &&
+    diag.value?.codex?.ok === true &&
+    viewModel.value.loginStatus === "signed_out"
+);
+const loginStatusOk = computed(() =>
+  viewModel.value.loginStatus === "authenticated"
+    ? true
+    : viewModel.value.loginStatus === "signed_out"
+      ? false
+      : undefined
+);
+const loginStatusText = computed(() => {
+  const details = String(diag.value?.login?.details ?? "").trim();
+  if (details) return details;
+  if (viewModel.value.loginStatus === "authenticated") return t("envSetup.authenticated");
+  if (viewModel.value.loginStatus === "signed_out") return t("envSetup.signedOut");
+  return t("envSetup.unknown");
+});
 
 const statusChipText = computed(() => {
   if (busy.value) return t("envSetup.processing");
   if (!hasDiagnostics.value) return t("envSetup.pending");
+  if (viewModel.value.status === "unknown") return t("envSetup.unknown");
   return isReady.value ? t("envSetup.ready") : t("envSetup.notReady");
 });
 
 const statusChipClass = computed(() => {
   if (busy.value) return "warn";
   if (!hasDiagnostics.value) return "warn";
+  if (viewModel.value.status === "unknown") return "warn";
   return isReady.value ? "success" : "error";
 });
 
@@ -161,6 +240,8 @@ async function onRefreshDiagnostics() {
     console.info("[EnvSetup] diagnostics: start");
     const res = await codexDesktop.codexServer.getDiagnostics();
     diag.value = res;
+    settings.value = getCachedUserLocalSettings().settings;
+    pathInput.value = settings.value.codex.executablePath ?? "";
     console.info("[EnvSetup] diagnostics:", {
       codex: res.codex.ok,
       node: res.node.ok,
@@ -171,6 +252,27 @@ async function onRefreshDiagnostics() {
     lastResultKind.value = "error";
     lastResultText.value = t("envSetup.checkFailed", { message: msg });
     console.error("[EnvSetup] diagnostics: error:", msg);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onSavePath() {
+  busy.value = true;
+  lastResultText.value = "";
+  try {
+    const saved = await patchUserLocalSettings({
+      codex: { executablePath: pathInput.value.trim() || null },
+    });
+    settings.value = saved.settings;
+    pathInput.value = settings.value.codex.executablePath ?? "";
+    lastResultKind.value = "info";
+    lastResultText.value = t("envSetup.pathSaved");
+    await onRefreshDiagnostics();
+  } catch (e: any) {
+    const msg = e?.message ? String(e.message) : String(e);
+    lastResultKind.value = "error";
+    lastResultText.value = t("envSetup.checkFailed", { message: msg });
   } finally {
     busy.value = false;
   }
@@ -196,6 +298,29 @@ watch(
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
+}
+
+.env-path-config {
+  margin-bottom: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.env-path-label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.env-path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.env-path-row .context-input {
+  min-width: 0;
+  flex: 1;
 }
 
 @media (min-width: 560px) {

@@ -18,7 +18,12 @@ import { useRuntimeStore } from "../../stores/runtime.store";
 import { translate } from "../../i18n/translate";
 import { normalizeUserInputPrompt } from "../../domain/userInputInterop";
 import { safeJsonStringify } from "../../utils/safeJson";
-import { isCodexServerRequestMessage } from "@codenexus/shared/codex-protocol";
+import {
+  isCodexLocalEventMessage,
+  isCodexServerNotificationMessage,
+  isCodexServerRequestMessage,
+} from "@codenexus/shared/codex-protocol";
+import type { ApprovalLifecycleController, ApprovalMethod } from "./approvalLifecycle";
 import {
   IMAGE_GENERATION_DYNAMIC_TOOL_NAME,
   IMAGE_GENERATION_DYNAMIC_TOOL_NAMESPACE,
@@ -321,7 +326,7 @@ async function buildSuccessfulImageToolResponse(
   };
 }
 
-export function installRequestResponder(pinia: Pinia) {
+export function installRequestResponder(pinia: Pinia, approvalLifecycle?: ApprovalLifecycleController) {
   const timelineStore = useTimelineStore(pinia);
   const userInputStore = useUserInputStore(pinia);
   const approvalStore = useApprovalStore(pinia);
@@ -330,6 +335,18 @@ export function installRequestResponder(pinia: Pinia) {
 
   const unsubscribe = codexDesktop.codexServer.onEvent((payload) => {
     const msg = payload?.msg;
+    const serverId = String(payload.serverId ?? "").trim();
+    if (isCodexServerNotificationMessage(msg) && msg.method === "serverRequest/resolved") {
+      const requestId = msg.params?.requestId;
+      if (serverId && (typeof requestId === "string" || typeof requestId === "number")) {
+        approvalLifecycle?.clear(serverId, requestId, true);
+      }
+      return;
+    }
+    if (isCodexLocalEventMessage(msg) && msg.method === "codex/exit") {
+      approvalLifecycle?.clearServer(serverId);
+      return;
+    }
     if (!isCodexServerRequestMessage(msg)) return;
     if (!isServerRequest(msg)) {
       console.warn("[requestResponder] ignore invalid server request shape", msg);
@@ -342,7 +359,6 @@ export function installRequestResponder(pinia: Pinia) {
 
     if (handling.kind === "approval") {
       const method = String(msg.method ?? "").trim();
-      const serverId = String(payload.serverId ?? "").trim();
       const prompt = buildApprovalPromptFromRequest(msg, serverId, paramsText);
       if (!serverId || !prompt) {
         timelineStore.appendEvent({
@@ -356,6 +372,7 @@ export function installRequestResponder(pinia: Pinia) {
       }
 
       approvalStore.enqueue(prompt);
+      approvalLifecycle?.schedule({ serverId, requestId: msg.id, method: method as ApprovalMethod });
       timelineStore.appendEvent({
         threadId: prompt.threadId || threadId,
         method,

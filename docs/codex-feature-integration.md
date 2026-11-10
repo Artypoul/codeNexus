@@ -39,16 +39,16 @@
 
 ## 部分集成
 
-| 能力            | 已有部分                                         | 仍缺少                                                         |
-| --------------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| Token 与上下文  | 读取 `thread/tokenUsage/updated`，展示主要 token | 完整明细、缓存 token、每轮成本、额度关联                       |
-| 线程历史        | 历史列表、分页读取、回放、回退、只读项目分组     | 完整归档、Fork、重命名、读状态                                 |
+| 能力            | 已有部分                                                                              | 仍缺少                                                         |
+| --------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Token 与上下文  | 读取 `thread/tokenUsage/updated`，展示主要 token                                      | 完整明细、缓存 token、每轮成本、额度关联                       |
+| 线程历史        | 历史列表、分页读取、回放、回退、只读项目分组                                          | 完整归档、Fork、重命名、读状态                                 |
 | 项目管理        | 项目列表、只读项目分组、Section 展示、归属通知、按工作区自动匹配/创建项目并归档新线程 | 项目导入/移动/删除、Section 创建/改名/删除/移动                |
-| 多 Agent        | 展示 `agentNickname`、`agentRole`、fork 来源     | Agent 树、子 Agent 状态、任务编排、切换和独立配置              |
-| Memory          | 低层重置和模式切换运行时                         | `memory/status`、`thread/memory/read`、Memory 设置页、记忆浏览 |
-| Guardian        | 审批诊断、风险与决策来源                         | 完整权限细节、全部时间字段、连接器上下文                       |
-| Windows Sandbox | 配置中的 elevated/unelevated                     | `windowsSandbox/readiness`、`setupStart`、设置结果提示         |
-| 流式文件 Diff   | 已接入 `apply_patch_streaming_events`            | 更完整的生命周期时间和历史回放一致性                           |
+| 多 Agent        | 展示 `agentNickname`、`agentRole`、fork 来源                                          | Agent 树、子 Agent 状态、任务编排、切换和独立配置              |
+| Memory          | 低层重置和模式切换运行时                                                              | `memory/status`、`thread/memory/read`、Memory 设置页、记忆浏览 |
+| Guardian        | 审批诊断、风险与决策来源                                                              | 完整权限细节、全部时间字段、连接器上下文                       |
+| Windows Sandbox | 配置中的 elevated/unelevated                                                          | `windowsSandbox/readiness`、`setupStart`、设置结果提示         |
+| 流式文件 Diff   | 已接入 `apply_patch_streaming_events`                                                 | 更完整的生命周期时间和历史回放一致性                           |
 
 ## 未集成
 
@@ -56,7 +56,7 @@
 | ------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | 账号与额度         | 登录、登出、ChatGPT 账号状态、速率限制、token 用量、额度重置、Bedrock/GCP 配置 | `account/read`、`account/login/*`、`account/logout`、`account/rateLimits/read`、`account/usage/read` |
 | Plugins            | 插件搜索、安装、卸载、读取、分享、市场添加/移除/升级                           | `plugin/*`、`marketplace/*`                                                                          |
-| Apps / Connectors  | 应用列表、安装状态、读取应用、工具摘要、连接器授权                             | `app/list`、`app/read`、`app/installed`、`app/list/updated`                                          |
+| Apps / Connectors  | standalone runtime 禁用，不提供应用/连接器 RPC 或通知                          | `app/*` 在本地 app-server bridge 被拒绝                                                              |
 | Hooks              | Hook 列表、启停、信任、开始/完成卡片                                           | `hooks/list`、`hook/started`、`hook/completed`                                                       |
 | Memory 产品层      | 记忆状态、记忆内容读取、记忆设置页                                             | `memory/status`、`thread/memory/read`                                                                |
 | 浏览器与电脑操作   | 浏览器控制、CDP、扩展、电脑操作、截图与操作审批                                | `browser_use*`、`computer_use`、`in_app_browser`                                                     |
@@ -81,7 +81,7 @@
 - `thread/archived`、`thread/unarchived`、`thread/closed`、`thread/name/updated`
 - `hook/started`、`hook/completed`
 - `account/updated`、`account/login/completed`、`account/rateLimits/updated`
-- `app/list/updated`
+- `app/list/updated`（standalone runtime 明确忽略）
 - `externalAgentConfig/import/progress`、`externalAgentConfig/import/completed`
 - `thread/realtime/*`
 - `remoteControl/status/changed`

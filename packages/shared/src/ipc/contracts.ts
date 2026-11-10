@@ -31,6 +31,12 @@ export type CodexDiagnosticsResult = {
   codex: { ok: boolean; details?: string };
   node: { ok: boolean; details?: string };
   npm: { ok: boolean; details?: string };
+  resolvedPath: string | null;
+  login: {
+    status: "authenticated" | "signed_out" | "unknown";
+    details?: string;
+  };
+  gigmaAuth?: GigmaAuthStatus;
 };
 
 /*
@@ -706,7 +712,11 @@ export type CodexDesktopUsageApi = {
 export type CodexDesktopCodexServerApi = {
   ensureInstalled(): Promise<CodexEnsureInstalledResult>;
   getDiagnostics(): Promise<CodexDiagnosticsResult>;
-  start(args: { cwd?: string; experimentalApi?: boolean }): Promise<{
+  start(args: {
+    cwd?: string;
+    experimentalApi?: boolean;
+    codexPath?: string;
+  }): Promise<{
     serverId: string;
     capabilities?: { experimentalApi?: boolean };
   }>;
@@ -719,6 +729,40 @@ export type CodexDesktopCodexServerApi = {
     args: CodexServerRespondArgs<M>,
   ): Promise<{ ok: true }>;
   onEvent(cb: (payload: CodexEventPayload) => void): () => void;
+};
+
+export type GigmaAuthStatus = {
+  provider: "gigma-account";
+  configured: boolean;
+  loggedIn: boolean;
+  loginMethod?: "desktop_callback";
+  available: boolean;
+  error?: string;
+};
+
+export type GigmaAuthLoginStart = {
+  flowId: string;
+  status: "authenticated" | "pending";
+  authorizationUrl?: string;
+  verificationUri?: string;
+  verificationUriComplete?: string;
+  userCode?: string;
+  expiresIn?: number;
+  interval?: number;
+  expiresAt?: string;
+};
+
+export type GigmaAuthLoginPoll = GigmaAuthLoginStart & {
+  resolvedAt?: string;
+  errorMessage?: string;
+};
+
+export type CodexDesktopGigmaAuthApi = {
+  status(): Promise<GigmaAuthStatus>;
+  startLogin(): Promise<GigmaAuthLoginStart>;
+  pollLogin(): Promise<GigmaAuthLoginPoll | null>;
+  cancelLogin(flowId: string): Promise<{ cancelled: boolean; status: string }>;
+  logout(): Promise<{ loggedOut: boolean }>;
 };
 
 export type CodexDesktopWorkspaceApi = {
@@ -805,6 +849,7 @@ export type CodexDesktopApi = {
   cache: CodexDesktopCacheApi;
   usage: CodexDesktopUsageApi;
   codexServer: CodexDesktopCodexServerApi;
+  gigmaAuth: CodexDesktopGigmaAuthApi;
   workspace: CodexDesktopWorkspaceApi;
   history: CodexDesktopHistoryApi;
 };

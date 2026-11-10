@@ -6,6 +6,8 @@ import { logger } from "../utils/logger";
 import { IPC_APP_CHANNELS } from "@codenexus/shared/ipc/channels";
 import type { AppWindowState } from "@codenexus/shared/ipc/contracts";
 import { resolveUiFontSizeZoomFactor, type UserLocalSettings } from "@codenexus/shared/localSettings";
+import { installWindowsMenu } from "./windowsMenu";
+import { T3_URL } from "../t3/t3Protocol";
 
 export type MainWindowOptions = {
   isDev: boolean;
@@ -25,7 +27,8 @@ function resolveWindowIconPath(): string | undefined {
 
 export async function createMainWindow(opts: MainWindowOptions): Promise<BrowserWindow> {
   // Windows 使用自定义标题栏（渲染层自绘 + IPC 控制窗口），不使用原生 caption buttons。
-  const useCustomTitlebar = process.platform === "win32";
+  const useT3Client = !opts.isDev && existsSync(join(app.getAppPath(), "dist/t3-client/index.html"));
+  const useCustomTitlebar = process.platform === "win32" && !useT3Client;
 
   const initialLocalSettingsArg = `--codex-local-settings=${Buffer.from(JSON.stringify(opts.initialLocalSettingsSnapshot), "utf8").toString("base64url")}`;
   const windowIcon = resolveWindowIconPath();
@@ -46,6 +49,9 @@ export async function createMainWindow(opts: MainWindowOptions): Promise<Browser
     autoHideMenuBar: true,
     backgroundColor: "#181818",
     frame: !useCustomTitlebar,
+    ...(useT3Client && process.platform === "win32"
+      ? { titleBarStyle: "hidden" as const, titleBarOverlay: { color: "#181818", symbolColor: "#ffffff", height: 40 } }
+      : {}),
     icon: windowIcon,
     webPreferences: {
       // 预加载脚本负责暴露受控 API，渲染进程不直接访问 Node。
@@ -91,6 +97,8 @@ export async function createMainWindow(opts: MainWindowOptions): Promise<Browser
     logger.warn("window", "failed to hide menu bar", error);
   }
 
+  if (process.platform === "win32") installWindowsMenu(win);
+
   const toWindowState = (): AppWindowState => ({
     isMaximized: win.isMaximized(),
     isMinimized: win.isMinimized(),
@@ -121,6 +129,8 @@ export async function createMainWindow(opts: MainWindowOptions): Promise<Browser
   if (opts.isDev && opts.devServerUrl) {
     // 开发态加载 Vite dev server，方便热更新与调试。
     await win.loadURL(opts.devServerUrl);
+  } else if (useT3Client) {
+    await win.loadURL(T3_URL);
   } else {
     // 生产态加载本地构建产物。
     await win.loadFile(join(app.getAppPath(), "dist/renderer/index.html"));

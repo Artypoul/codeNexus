@@ -3,6 +3,7 @@ import { type CodexDesktopApi } from "./types";
 import { createAppApi } from "./client/app";
 import { createCacheApi } from "./client/cache";
 import { createCodexServerApi } from "./client/codexServer";
+import { createGigmaAuthApi } from "./client/gigmaAuth";
 import { createHistoryApi } from "./client/history";
 import { createLocalStateApi } from "./client/localState";
 import { createUsageApi } from "./client/usage";
@@ -27,6 +28,7 @@ export function createCodexDesktopApi(
     usage: createUsageApi(ipcRenderer),
     // Codex 服务：启动进程、请求/通知与事件订阅。
     codexServer: createCodexServerApi(ipcRenderer),
+    gigmaAuth: createGigmaAuthApi(ipcRenderer),
     // 工作区能力：选择目录与应用反向 diff。
     workspace: createWorkspaceApi(ipcRenderer),
     // 历史能力：列表、回放、任务和工件。

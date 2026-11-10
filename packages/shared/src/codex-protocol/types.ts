@@ -20,7 +20,6 @@ import type { ConfigWriteResponse } from "@codenexus/generated/codex-app-server/
 import type { ExperimentalFeatureEnablementSetResponse } from "@codenexus/generated/codex-app-server/v2/ExperimentalFeatureEnablementSetResponse";
 import type { EnvironmentAddResponse } from "@codenexus/generated/codex-app-server/v2/EnvironmentAddResponse";
 import type { ListMcpServerStatusResponse } from "@codenexus/generated/codex-app-server/v2/ListMcpServerStatusResponse";
-import type { AppsListResponse } from "@codenexus/generated/codex-app-server/v2/AppsListResponse";
 import type { ApplyPatchApprovalResponse } from "@codenexus/generated/codex-app-server/ApplyPatchApprovalResponse";
 import type { AttestationGenerateResponse } from "@codenexus/generated/codex-app-server/v2/AttestationGenerateResponse";
 import type { ExecCommandApprovalResponse } from "@codenexus/generated/codex-app-server/ExecCommandApprovalResponse";
@@ -204,7 +203,6 @@ type SupportedCodexRpcResultMap = {
   "plugin/share/checkout": PluginShareCheckoutResponse;
   "plugin/install": PluginInstallResponse;
   "plugin/uninstall": PluginUninstallResponse;
-  "app/list": AppsListResponse;
   "model/list": ModelListResponse;
   "modelProvider/capabilities/read": ModelProviderCapabilitiesReadResponse;
   "experimentalFeature/list": ExperimentalFeatureListResponse;

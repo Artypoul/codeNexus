@@ -4,6 +4,7 @@ import type { useApprovalStore } from "../../stores/approval.store";
 import type { useRuntimeStore } from "../../stores/runtime.store";
 import type { useUserInputStore } from "../../stores/userInput.store";
 import { safeJsonStringify } from "../../utils/safeJson";
+import type { ApprovalLifecycleController } from "../../processes/protocol-request-responder/approvalLifecycle";
 
 type RuntimeStore = ReturnType<typeof useRuntimeStore>;
 type ApprovalStore = ReturnType<typeof useApprovalStore>;
@@ -26,6 +27,7 @@ export type PromptResponseRuntimeDeps = {
   appTimelineId: string;
   runtimeStore: RuntimeStore;
   approvalStore: ApprovalStore;
+  approvalLifecycle: ApprovalLifecycleController;
   userInputStore: UserInputStore;
   respond: CodexRespond;
   pushEvent: PushEvent;
@@ -68,7 +70,17 @@ function isEmptyMcpElicitationSchema(value: unknown): boolean {
 }
 
 export function createPromptResponseRuntime(deps: PromptResponseRuntimeDeps): PromptResponseRuntime {
-  const { appTimelineId, runtimeStore, approvalStore, userInputStore, respond, pushEvent, translate, showToast } = deps;
+  const {
+    appTimelineId,
+    runtimeStore,
+    approvalStore,
+    approvalLifecycle,
+    userInputStore,
+    respond,
+    pushEvent,
+    translate,
+    showToast,
+  } = deps;
 
   const submitUserInputPromptForThread = async (threadIdValue: unknown) => {
     const tid = String(threadIdValue ?? "").trim();
@@ -286,6 +298,7 @@ export function createPromptResponseRuntime(deps: PromptResponseRuntimeDeps): Pr
         }
       }
 
+      approvalLifecycle.clear(prompt.serverId, prompt.requestId);
       approvalStore.remove(prompt.serverId, prompt.requestId);
       const decisionText = typeof decision === "string" ? decision : safeJsonStringify(decision, { space: 0 });
       showToast({

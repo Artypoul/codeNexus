@@ -39,6 +39,23 @@ describe("global config feature defaults", () => {
 
     expect(buildConfigBatchChangesFromDraft(draft, baseline)).toEqual([]);
   });
+
+  it("keeps the official standard approval and sandbox values", () => {
+    const baseline = createDefaultGlobalConfigDraft();
+    const extracted = extractGlobalConfigFromReadResult({
+      config: {
+        approval_policy: "on-request",
+        sandbox_mode: "workspace-write",
+      },
+    });
+
+    expect(extracted.approvalPolicy).toBe("on-request");
+    expect(extracted.sandboxMode).toBe("workspace-write");
+    expect(buildConfigBatchChangesFromDraft(extracted, baseline)).toEqual([
+      { keyPath: "approval_policy", value: "on-request" },
+      { keyPath: "sandbox_mode", value: "workspace-write" },
+    ]);
+  });
 });
 
 describe("skills metadata icons", () => {

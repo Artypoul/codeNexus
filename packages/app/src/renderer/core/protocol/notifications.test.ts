@@ -23,6 +23,18 @@ describe("normalizeNotification", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("ignores Codex Apps notifications in standalone mode", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    expect(
+      normalizeNotification({
+        method: "app/list/updated",
+        params: { apps: [] },
+      })
+    ).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("normalizes fileChange patchUpdated notifications", () => {
     const notification = normalizeNotification(
       {

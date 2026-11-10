@@ -21,6 +21,10 @@ const CSP_DIRECTIVES = [
 
 export function installContentSecurityPolicy(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.url.startsWith("codenexus-t3://app/")) {
+      callback({ responseHeaders: details.responseHeaders });
+      return;
+    }
     callback({
       responseHeaders: {
         ...details.responseHeaders,

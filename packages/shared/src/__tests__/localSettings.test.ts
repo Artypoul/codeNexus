@@ -63,6 +63,25 @@ describe("localSettings", () => {
       expect(normalizeUserLocalSettings({})).toEqual(
         DEFAULT_USER_LOCAL_SETTINGS,
       );
+      expect(normalizeUserLocalSettings({}).codex.executablePath).toBeNull();
+    });
+
+    it("normalizes the optional Codex executable path", () => {
+      expect(
+        normalizeUserLocalSettings({
+          codex: { executablePath: "  C:\\Tools\\codex.cmd  " },
+        }).codex.executablePath,
+      ).toBe("C:\\Tools\\codex.cmd");
+      expect(
+        normalizeUserLocalSettings({
+          codex: { executablePath: "   " },
+        }).codex.executablePath,
+      ).toBeNull();
+      expect(
+        normalizeUserLocalSettings({
+          codex: { executablePath: 42 },
+        }).codex.executablePath,
+      ).toBeNull();
     });
 
     it("preserves valid settings", () => {
@@ -166,6 +185,12 @@ describe("localSettings", () => {
       expect(result.ui.theme).toBe("pink");
       expect(result.notification.soundVolumePercent).toBe(80);
     });
-  });
 
+    it("merges the Codex executable path patch", () => {
+      const result = mergeUserLocalSettings(null, {
+        codex: { executablePath: "C:\\Tools\\codex.exe" },
+      });
+      expect(result.codex.executablePath).toBe("C:\\Tools\\codex.exe");
+    });
+  });
 });

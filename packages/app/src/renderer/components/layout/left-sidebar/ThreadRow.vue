@@ -17,6 +17,7 @@
         tabindex="0"
         :aria-label="threadAriaLabel(row)"
         @click="onRowClick"
+        @contextmenu.prevent.stop="openContextMenu"
         @keydown="onRowKeydown"
       >
         <span class="lsb-thread-title">
@@ -37,6 +38,7 @@
               ref="renameInputEl"
               @click.stop
               @dblclick.stop
+              @contextmenu.stop
               @keydown="onRenameKeydown"
               @blur="commitRename"
             />
@@ -84,23 +86,45 @@
           <span class="lsb-thread-time">{{ formatRelativeTime(row.item.updatedAt) }}</span>
 
           <button
+            ref="menuTrigger"
             class="lsb-icon-btn lsb-delete"
             type="button"
-            :aria-label="t('threadRow.deleteHistory')"
-            @click.stop="emit('delete-thread', row.item.id)"
+            :aria-label="t('threadRow.renameAria') + ' / ' + t('threadRow.deleteHistory')"
+            :aria-expanded="menuOpen"
+            aria-haspopup="menu"
+            @click.stop="toggleMenu"
+            @keydown="onMenuKeydown"
+            @focusout="onMenuFocusOut"
           >
-            <Trash2 />
+            <MoreHorizontal aria-hidden="true" />
           </button>
         </span>
       </div>
     </div>
+    <Teleport to="body">
+      <div
+        v-if="menuOpen"
+        ref="menuEl"
+        class="lsb-thread-menu-popup"
+        role="menu"
+        :style="menuStyle"
+        @click.stop
+        @keydown="onMenuKeydown"
+        @focusout="onMenuFocusOut"
+      >
+        <button type="button" role="menuitem" :disabled="isPendingThreadId(row.item.id)" @click="closeMenuAndRename">
+          {{ t("threadRow.renameAria") }}
+        </button>
+        <button type="button" role="menuitem" @click="closeMenuAndDelete">{{ t("threadRow.deleteHistory") }}</button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { BellRing, CheckCircle2, MessageCircleQuestionMark, Trash2 } from "lucide-vue-next";
+import { BellRing, CheckCircle2, MessageCircleQuestionMark, MoreHorizontal } from "lucide-vue-next";
 import { useThreadStore } from "../../../stores/thread.store";
 import LoadingDots from "../../ui/LoadingDots.vue";
 import ExecutionCoreIcon from "../../ui/ExecutionCoreIcon.vue";
@@ -203,6 +227,79 @@ const commitRename = () => {
   renameCancelValue = "";
   if (!threadId) return;
   emit("rename-thread", threadId, title);
+};
+
+const menuEl = ref<HTMLElement | null>(null);
+const menuTrigger = ref<HTMLButtonElement | null>(null);
+const menuOpen = ref(false);
+const menuStyle = ref<Record<string, string>>({});
+const closeMenu = () => {
+  menuOpen.value = false;
+  document.removeEventListener("pointerdown", closeMenuOutside);
+  window.removeEventListener("resize", closeMenu);
+  window.removeEventListener("scroll", closeMenu, true);
+};
+const closeMenuOutside = (event: PointerEvent) => {
+  const target = event.target as Node;
+  if (!menuEl.value?.contains(target) && !menuTrigger.value?.contains(target)) closeMenu();
+};
+const onMenuFocusOut = (event: FocusEvent) => {
+  const target = event.relatedTarget;
+  if (target instanceof Node && !menuEl.value?.contains(target) && !menuTrigger.value?.contains(target)) closeMenu();
+};
+const openContextMenu = () => {
+  if (!menuTrigger.value) return;
+  const anchor = menuTrigger.value.getBoundingClientRect();
+  menuStyle.value = { left: `${anchor.left}px`, top: `${anchor.bottom}px`, visibility: "hidden" };
+  menuOpen.value = true;
+  document.addEventListener("pointerdown", closeMenuOutside);
+  window.addEventListener("resize", closeMenu);
+  window.addEventListener("scroll", closeMenu, true);
+  void nextTick(() => {
+    if (!menuOpen.value || !menuEl.value) return;
+    const rect = menuEl.value.getBoundingClientRect();
+    const padding = 8;
+    const left = Math.max(padding, Math.min(anchor.right - rect.width, window.innerWidth - rect.width - padding));
+    const top = Math.max(padding, Math.min(anchor.bottom, window.innerHeight - rect.height - padding));
+    menuStyle.value = { left: `${left}px`, top: `${top}px` };
+    void nextTick(() => {
+      if (menuOpen.value) menuEl.value?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+    });
+  });
+};
+const toggleMenu = () => {
+  if (menuOpen.value) closeMenu();
+  else openContextMenu();
+};
+onBeforeUnmount(closeMenu);
+const closeMenuAndRename = () => {
+  closeMenu();
+  beginRename();
+};
+const closeMenuAndDelete = () => {
+  closeMenu();
+  emit("delete-thread", props.row.item.id);
+};
+const onMenuKeydown = (event: KeyboardEvent) => {
+  if (event.key === "Escape" && menuOpen.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeMenu();
+    menuTrigger.value?.focus();
+  } else if (menuOpen.value && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    event.preventDefault();
+    event.stopPropagation();
+    const buttons = [...(menuEl.value?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
+    if (buttons.length) {
+      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+    }
+  } else if (event.key === "Tab" && menuOpen.value) {
+    closeMenu();
+    menuTrigger.value?.focus();
+  } else if (event.currentTarget === menuTrigger.value && (event.key === "Enter" || event.key === " ")) {
+    event.stopPropagation();
+  }
 };
 
 const onRowKeydown = (event: KeyboardEvent) => {

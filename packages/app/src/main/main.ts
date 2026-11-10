@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu } from "electron";
 import { readFile, rm, stat } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { installContentSecurityPolicy } from "./security/contentSecurityPolicy";
@@ -11,6 +12,9 @@ import { generateImagesWithSettings } from "./ipc/handlers/image-generation.hand
 import { RuntimeThreadStateTracker } from "./runtimeThreadStateTracker";
 import { HistoryService } from "./services/HistoryService";
 import { CodexServerManager } from "./services/CodexServerManager";
+import { GigmaAppServerService } from "./services/GigmaAppServerService";
+import { GigmaAuthClient } from "./services/GigmaAuthClient";
+import { GigmaAuthProcessSupervisor } from "./services/GigmaAuthProcessSupervisor";
 import { CodexSkillRootsService } from "./services/CodexSkillRootsService";
 import { CodexConfigSwitcherService } from "./services/CodexConfigSwitcherService";
 import { ImageGenerationHistoryService } from "@codenexus/feature-imagegen/main/ImageGenerationHistoryService";
@@ -24,6 +28,9 @@ import { UpdateService } from "./services/UpdateService";
 import { UsageStatsService } from "./services/UsageStatsService";
 import { WorkspacePatchService } from "./services/WorkspacePatchService";
 import { createMainWindow } from "./windows/mainWindow";
+import { installT3Protocol, registerT3Scheme } from "./t3/t3Protocol";
+
+registerT3Scheme();
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
@@ -35,7 +42,9 @@ if (process.platform === "win32") {
 let mainWindow: BrowserWindow | null = null;
 let closeCleanupFinished = false;
 
-const codexServerManager = new CodexServerManager();
+const gigmaAuthClient = new GigmaAuthClient();
+const gigmaAuthProcess = new GigmaAuthProcessSupervisor(gigmaAuthClient);
+const gigmaAppServer = new GigmaAppServerService(new CodexServerManager(), gigmaAuthClient, gigmaAuthProcess);
 const workspacePatchService = new WorkspacePatchService();
 const runtimeThreadStateTracker = new RuntimeThreadStateTracker();
 const cacheRegistryService = new CacheRegistryService();
@@ -61,7 +70,7 @@ function stopCodexServersForClose(_reason: string) {
   if (closeCleanupFinished) return;
   closeCleanupFinished = true;
   try {
-    codexServerManager.stopAll();
+    gigmaAppServer.stopAll();
   } catch (error) {
     logger.warn("app-close", "stop codex servers failed", error);
   }
@@ -82,11 +91,13 @@ app.on("before-quit", () => {
 app
   .whenReady()
   .then(async () => {
+    installT3Protocol(join(app.getAppPath(), "dist/t3-client"));
     if (process.platform !== "darwin") {
       Menu.setApplicationMenu(null);
     }
 
-    if (!isDev) {
+    const hasT3Client = existsSync(join(app.getAppPath(), "dist/t3-client/index.html"));
+    if (!isDev && !hasT3Client) {
       installContentSecurityPolicy();
     }
 
@@ -156,7 +167,9 @@ app
     });
     registerAllHandlers({
       getMainWindow: () => mainWindow,
-      serverManager: codexServerManager,
+      serverManager: gigmaAppServer,
+      gigmaAuth: gigmaAuthClient,
+      gigmaAuthProcess,
       sendCodexEvent: (payload) => {
         runtimeThreadStateTracker.observeEvent(payload);
         sendToRenderer(IPC_EVENT_CHANNELS.codexEvent, payload);

@@ -1,6 +1,5 @@
 import { BrowserWindow } from "electron";
 import type { CodexIncomingMessage } from "@codenexus/shared/codex-protocol";
-import { CodexServerManager } from "../../services/CodexServerManager";
 import { type HistoryThread } from "../../historyStore";
 import { HistoryService } from "../../services/HistoryService";
 import type { LocalSettingsService } from "../../services/LocalSettingsService";
@@ -16,18 +15,24 @@ import { WorkspacePatchService } from "../../services/WorkspacePatchService";
 import { registerAppHandlers } from "./app.handlers";
 import { registerCacheHandlers } from "./cache.handlers";
 import { registerCodexHandlers } from "./codex.handlers";
+import { registerGigmaAuthHandlers } from "./gigma-auth.handlers";
 import { registerHistoryHandlers } from "./history.handlers";
 import { registerImageGenerationHandlers } from "./image-generation.handlers";
 import { registerUsageHandlers } from "./usage.handlers";
 import { registerWorkspaceHandlers } from "./workspace.handlers";
 import { registerWindowHandlers } from "./window.handlers";
 import { CacheRegistryService } from "../../services/CacheRegistryService";
+import type { GigmaAppServerService } from "../../services/GigmaAppServerService";
+import type { GigmaAuthClient } from "../../services/GigmaAuthClient";
+import type { GigmaAuthProcessSupervisor } from "../../services/GigmaAuthProcessSupervisor";
 import type { UsageStatsService } from "../../services/UsageStatsService";
 import type { HistoryThreadRunningStateResult } from "@codenexus/shared/ipc/contracts";
 
 export type IpcHandlersDeps = {
   getMainWindow: () => BrowserWindow | null;
-  serverManager: CodexServerManager;
+  serverManager: GigmaAppServerService;
+  gigmaAuth: GigmaAuthClient;
+  gigmaAuthProcess: GigmaAuthProcessSupervisor;
   sendCodexEvent: (payload: { serverId: string; msg: CodexIncomingMessage }) => void;
   historyService: HistoryService;
   threadTaskService: ThreadTaskService;
@@ -62,7 +67,12 @@ export function registerAllHandlers(deps: IpcHandlersDeps) {
     imageGenerationTaskService: deps.imageGenerationTaskService,
   });
   registerWindowHandlers({ getMainWindow: deps.getMainWindow });
-  registerCodexHandlers({ serverManager: deps.serverManager, sendEvent: deps.sendCodexEvent });
+  registerCodexHandlers({
+    serverManager: deps.serverManager,
+    sendEvent: deps.sendCodexEvent,
+    localSettingsService: deps.localSettingsService,
+  });
+  registerGigmaAuthHandlers(deps.gigmaAuth, deps.gigmaAuthProcess);
   registerCacheHandlers({ cacheRegistryService: deps.cacheRegistryService });
   registerUsageHandlers({ usageStatsService: deps.usageStatsService });
   registerHistoryHandlers({

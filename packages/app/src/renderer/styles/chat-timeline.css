@@ -14,7 +14,7 @@
 
   --chat-radius-sm: 4px;
   --chat-radius-md: 6px;
-  --chat-radius-lg: 4px;
+  --chat-radius-lg: 12px;
 
   --chat-row-text: var(--text);
   --chat-row-muted: var(--text-muted);
@@ -35,9 +35,9 @@
     0 10px 24px rgb(from var(--ui-shadow-source) r g b / 0.09),
     inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
 
-  --chat-user-bg: color-mix(in srgb, var(--accent) 9%, var(--panel-surface, var(--surface-1)) 91%);
-  --chat-user-border: color-mix(in srgb, var(--accent) 34%, var(--border) 66%);
-  --chat-user-hover-bg: color-mix(in srgb, var(--accent) 12%, var(--panel-surface, var(--surface-1)) 88%);
+  --chat-user-bg: var(--surface-2);
+  --chat-user-border: transparent;
+  --chat-user-hover-bg: var(--surface-2);
   --chat-assistant-bg: transparent;
   --chat-tool-bg: var(--chat-row-bg);
   --chat-tool-border: var(--chat-row-border);
@@ -201,13 +201,17 @@
 
 .timeline-pane--chat .chat-user-bubble-stack {
   position: relative;
-  width: 100%;
+  width: fit-content;
+  max-width: 85%;
   min-width: 0;
+  margin-left: auto;
   overflow: visible;
 }
 
 .timeline-pane--chat .chat-user-bubble-stack.is-editing {
   z-index: 40;
+  width: 100%;
+  max-width: 100%;
 }
 
 .timeline-pane--chat .chat-user-bubble-stack.is-editing > .chat-bubble-user {
@@ -393,6 +397,12 @@
   background: var(--chat-user-bg) !important;
   box-shadow: var(--chat-row-shadow);
   color: var(--chat-row-text);
+}
+
+/* File changes are rendered by FileChangeCardContent in chat. */
+.timeline-pane--chat .chat-tool-wrap .file-change-card {
+  background: var(--surface-1);
+  box-shadow: none;
 }
 
 .timeline-pane--chat .chat-bubble-assistant {

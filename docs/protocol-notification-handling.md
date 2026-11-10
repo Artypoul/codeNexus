@@ -111,46 +111,46 @@
 | `thread/tokenUsage/updated`       | 更新 token usage store；debug 开启时写 debug timeline                                             |
 | `turn/plan/updated`               | 更新 turn plan store；debug 开启时写 debug timeline                                               |
 | `account/rateLimits/updated`      | 已识别；默认不进主聊天 UI，debug 开启时写 debug timeline                                          |
-| `project/changed`                 | 已识别；刷新活动 workspace 的项目、Section 和线程归属；新线程创建前按工作区匹配或创建项目          |
+| `project/changed`                 | 已识别；刷新活动 workspace 的项目、Section 和线程归属；新线程创建前按工作区匹配或创建项目         |
 | `thread/project/updated`          | 已识别；即时更新线程项目归属并持久化到历史缓存                                                    |
 
 ## 默认追加但没有专门业务语义的通知
 
 这些通知属于当前白名单，且不会被 `normalizeNotification` 丢弃。它们会落入 `installEventPipeline.ts` 底部的默认 `timelineStore.appendEvent`，保留原始参数文本，但聊天 UI 通常不会展示专门卡片或更新专门 store。
 
-| 通知                                   | 缺少的语义处理方向                  |
-| -------------------------------------- | ----------------------------------- |
-| `thread/archived`                      | 未同步线程归档状态                  |
-| `thread/unarchived`                    | 未同步线程取消归档状态              |
-| `thread/closed`                        | 未同步线程关闭状态                  |
-| `thread/name/updated`                  | 未同步线程标题                      |
-| `hook/started`                         | 未形成 hook 活动卡片                |
-| `hook/completed`                       | 未形成 hook 结果卡片                |
-| `serverRequest/resolved`               | 未作为审批/请求闭环状态显示         |
-| `mcpServer/oauthLogin/completed`       | 未同步 MCP OAuth 登录结果到 UI 状态 |
-| `account/updated`                      | 未同步账号状态                      |
-| `app/list/updated`                     | 未同步 app 列表状态                 |
-| `externalAgentConfig/import/completed` | 未同步外部 agent 配置导入结果       |
-| `fs/changed`                           | 未同步文件系统 watch 变更           |
-| `command/exec/outputDelta`             | 未聚合为独立命令输出卡片            |
-| `model/rerouted`                       | 未显示模型 reroute 信息             |
-| `deprecationNotice`                    | 未作为用户提示展示                  |
-| `configWarning`                        | 未作为用户提示展示                  |
-| `thread/realtime/started`              | 未同步 realtime 会话状态            |
-| `thread/realtime/itemAdded`            | 未同步 realtime item                |
-| `thread/realtime/transcript/delta`     | 未同步 realtime transcript          |
-| `thread/realtime/transcript/done`      | 未同步 realtime transcript 完成状态 |
-| `thread/realtime/outputAudio/delta`    | 未同步 audio 输出                   |
-| `thread/realtime/sdp`                  | 未同步 SDP 信息                     |
-| `thread/realtime/error`                | 未同步 realtime 错误                |
-| `thread/realtime/closed`               | 未同步 realtime 关闭状态            |
-| `windows/worldWritableWarning`         | 未作为用户提示展示                  |
-| `windowsSandbox/setupCompleted`        | 未同步 Windows sandbox setup 结果   |
-| `account/login/completed`              | 未同步登录完成状态                  |
+| 通知                                   | 缺少的语义处理方向                           |
+| -------------------------------------- | -------------------------------------------- |
+| `thread/archived`                      | 未同步线程归档状态                           |
+| `thread/unarchived`                    | 未同步线程取消归档状态                       |
+| `thread/closed`                        | 未同步线程关闭状态                           |
+| `thread/name/updated`                  | 未同步线程标题                               |
+| `hook/started`                         | 未形成 hook 活动卡片                         |
+| `hook/completed`                       | 未形成 hook 结果卡片                         |
+| `serverRequest/resolved`               | 未作为审批/请求闭环状态显示                  |
+| `mcpServer/oauthLogin/completed`       | 未同步 MCP OAuth 登录结果到 UI 状态          |
+| `account/updated`                      | 未同步账号状态                               |
+| `app/list/updated`                     | standalone runtime 明确忽略，不进入 renderer |
+| `externalAgentConfig/import/completed` | 未同步外部 agent 配置导入结果                |
+| `fs/changed`                           | 未同步文件系统 watch 变更                    |
+| `command/exec/outputDelta`             | 未聚合为独立命令输出卡片                     |
+| `model/rerouted`                       | 未显示模型 reroute 信息                      |
+| `deprecationNotice`                    | 未作为用户提示展示                           |
+| `configWarning`                        | 未作为用户提示展示                           |
+| `thread/realtime/started`              | 未同步 realtime 会话状态                     |
+| `thread/realtime/itemAdded`            | 未同步 realtime item                         |
+| `thread/realtime/transcript/delta`     | 未同步 realtime transcript                   |
+| `thread/realtime/transcript/done`      | 未同步 realtime transcript 完成状态          |
+| `thread/realtime/outputAudio/delta`    | 未同步 audio 输出                            |
+| `thread/realtime/sdp`                  | 未同步 SDP 信息                              |
+| `thread/realtime/error`                | 未同步 realtime 错误                         |
+| `thread/realtime/closed`               | 未同步 realtime 关闭状态                     |
+| `windows/worldWritableWarning`         | 未作为用户提示展示                           |
+| `windowsSandbox/setupCompleted`        | 未同步 Windows sandbox setup 结果            |
+| `account/login/completed`              | 未同步登录完成状态                           |
 
 ## 非白名单通知
 
-当前白名单覆盖官方全部 `ServerNotification`，没有兼容性排除项。未单独实现语义的通知统一走默认 timeline / debug 分支。
+当前白名单覆盖官方 `ServerNotification`，但 standalone runtime 明确排除 `app/*` 通知。其余没有独立语义的通知统一进入默认 timeline / debug 分支。
 
 ## 已处理通知中未完整消费的字段
 
@@ -204,6 +204,6 @@
 2. 线程状态类：处理 `thread/archived`、`thread/unarchived`、`thread/closed`、`thread/name/updated`、`thread/deleted`、`thread/reverted`，并完善 `thread/status/changed` 的状态模型。
 3. 用户可见 notice 类：处理 `deprecationNotice`、`configWarning`、`windows/worldWritableWarning`、`model/rerouted`。
 4. 官方时间字段：让 `startedAtMs`、`completedAtMs`、`turn.startedAt`、`turn.completedAt` 成为卡片和活动时间的权威来源。
-5. 账号/MCP/app 状态类：处理 `account/updated`、`account/login/completed`、`mcpServer/oauthLogin/completed`、`app/list/updated`。
+5. 账号/MCP 状态类：处理 `account/updated`、`account/login/completed`、`mcpServer/oauthLogin/completed`。Apps / Connectors 已由 standalone runtime boundary 禁用。
 6. realtime / fs watch：如果 UI 需要这些能力，再建立专门 store 和展示层。
 7. 字段完整性：为 token 明细、command `cwd/processId/source`、MCP `mcpAppResourceUri`、Guardian 权限细节增加结构化 UI。

@@ -4,11 +4,7 @@
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface-2) 34%, transparent),
-    color-mix(in srgb, var(--bg) 96%, transparent)
-  );
+  background: var(--bg);
 }
 
 .settings-nav-section {
@@ -23,7 +19,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
 }
 
 .settings-sidebar {
@@ -53,8 +49,8 @@
 .settings-nav-item {
   width: 100%;
   min-width: 0;
-  min-height: 48px;
-  padding: 8px;
+  min-height: 40px;
+  padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
@@ -78,10 +74,9 @@
 }
 
 .settings-nav-item.is-active {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-1));
+  border-color: transparent;
+  background: var(--surface-2);
   color: var(--text);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 88%, var(--text) 12%);
 }
 
 .settings-nav-icon {
@@ -152,7 +147,7 @@
   min-height: calc(100vh - var(--topbar-h, 0px) - 168px);
   margin: 0;
   border-radius: 8px;
-  box-shadow: 0 8px 22px color-mix(in srgb, rgb(from var(--ui-shadow-source) r g b / 0.5) 12%, transparent);
+  box-shadow: none;
 }
 
 .settings-tab-content .global-config-drawer-body.is-settings {
@@ -163,7 +158,7 @@
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface-1) 86%, transparent);
-  box-shadow: 0 8px 22px color-mix(in srgb, rgb(from var(--ui-shadow-source) r g b / 0.5) 12%, transparent);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -174,11 +169,7 @@
   gap: 10px;
   padding: 12px 12px 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface-1) 92%, transparent),
-    color-mix(in srgb, var(--surface-1) 76%, transparent)
-  );
+  background: transparent;
 }
 
 .settings-card-title {

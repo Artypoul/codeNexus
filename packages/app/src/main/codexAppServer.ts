@@ -14,6 +14,7 @@ import type {
   CodexRpcResult,
   JsonRpcId as ProtocolJsonRpcId,
 } from "@codenexus/shared/codex-protocol";
+import { isStandaloneCodexAppsMethod, standaloneCodexAppsError } from "@codenexus/shared/codex-protocol";
 
 export type ServerMode = "native";
 
@@ -65,6 +66,8 @@ export class CodexAppServer {
   private readonly experimentalApiOptIn: boolean;
   private readonly mode: ServerMode;
   private readonly cwd?: string;
+  private readonly codexPath?: string;
+  private readonly serverPath?: string;
   private proc?: ReturnType<typeof spawn>;
   private rl?: readline.Interface;
   private stopping = false;
@@ -72,6 +75,7 @@ export class CodexAppServer {
   private readonly pending = new Map<JsonRpcId, Pending>();
   private onMessage?: (msg: CodexIncomingMessage) => void;
   private nativeCodex?:
+    | { kind: "server"; path: string }
     | { kind: "direct"; path: string }
     | { kind: "node"; nodeExe: string; script: string }
     | { kind: "cmd"; path: string };
@@ -80,12 +84,16 @@ export class CodexAppServer {
     id: string;
     mode: ServerMode;
     cwd?: string;
+    codexPath?: string;
+    serverPath?: string;
     experimentalApiOptIn?: boolean;
     onMessage?: (msg: CodexIncomingMessage) => void;
   }) {
     this.id = opts.id;
     this.mode = opts.mode;
     this.cwd = opts.cwd;
+    this.codexPath = opts.codexPath;
+    this.serverPath = opts.serverPath;
     this.experimentalApiOptIn = Boolean(opts.experimentalApiOptIn);
     this.onMessage = opts.onMessage;
   }
@@ -217,6 +225,9 @@ export class CodexAppServer {
     timeoutMs = 120_000
   ): Promise<CodexRpcResult<M>> {
     if (!isValidMethod(method)) throw new Error("invalid json-rpc method");
+    if (isStandaloneCodexAppsMethod(method)) {
+      throw new Error(standaloneCodexAppsError(method).message);
+    }
     if (!isValidParams(params)) throw new Error(`invalid json-rpc params for method: ${method}`);
     const id: JsonRpcId = this.nextId++;
     const req: JsonRpcRequest = { id, method: method.trim(), params };
@@ -236,6 +247,9 @@ export class CodexAppServer {
 
   notify<M extends string>(method: M, params?: CodexNotifyParams<M>): void {
     if (!isValidMethod(method)) throw new Error("invalid json-rpc method");
+    if (isStandaloneCodexAppsMethod(method)) {
+      throw new Error(standaloneCodexAppsError(method).message);
+    }
     if (!isValidParams(params)) throw new Error(`invalid json-rpc params for method: ${method}`);
     const n: JsonRpcNotification = { method: method.trim(), params };
     this.write(n);
@@ -263,6 +277,12 @@ export class CodexAppServer {
     if (Object.prototype.hasOwnProperty.call(msg, "method")) {
       if (!isValidMethod(msg.method)) {
         this.emitProtocolError("invalid notification/request method", msg);
+        return;
+      }
+      if (isStandaloneCodexAppsMethod(msg.method)) {
+        if (Object.prototype.hasOwnProperty.call(msg, "id") && isJsonRpcId(msg.id)) {
+          this.respond(msg.id, undefined, standaloneCodexAppsError(msg.method));
+        }
         return;
       }
       if (!isValidParams(msg.params)) {
@@ -327,6 +347,9 @@ export class CodexAppServer {
   }
 
   private getSpawnCommand(): { command: string; args: string[]; spawnCwd?: string } {
+    if (this.nativeCodex?.kind === "server") {
+      return { command: this.nativeCodex.path, args: ["--listen", "stdio://"], spawnCwd: this.cwd };
+    }
     if (this.nativeCodex?.kind === "cmd") {
       const cmdline = this.cmdlineInvoke(this.nativeCodex.path, ["app-server", "--listen", "stdio://"]);
       return { command: "cmd.exe", args: ["/d", "/s", "/c", cmdline], spawnCwd: this.cwd };
@@ -367,8 +390,17 @@ export class CodexAppServer {
   }
 
   private preflightNative(): void {
+    if (this.serverPath) {
+      if (!existsSync(this.serverPath)) {
+        throw new Error(`Bundled Codex app-server was not found: ${this.serverPath}`);
+      }
+      this.nativeCodex = { kind: "server", path: this.serverPath };
+      return;
+    }
+
     const found = spawnSync("where.exe", ["codex"], { encoding: "utf8" });
     const paths = discoverExistingCodexPaths({
+      explicitPath: this.codexPath,
       whereStdout: found.stdout,
       appData: process.env.APPDATA,
       exists: existsSync,
@@ -421,9 +453,10 @@ export class CodexAppServer {
   private async initializeHandshake(): Promise<void> {
     const initializeParams = {
       clientInfo: {
-        name: "codex-electron-win",
+        name: "codenexus-local-runtime",
         title: null,
-        version: app.getVersion(),
+        version:
+          typeof app?.getVersion === "function" ? app.getVersion() : (process.env.npm_package_version ?? "0.0.0"),
       },
       capabilities: this.experimentalApiOptIn ? { experimentalApi: true, requestAttestation: false } : null,
     };

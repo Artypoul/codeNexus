@@ -26,9 +26,10 @@
 }
 
 .workspace-files-sidebar {
-  padding: 0;
+  padding: 12px 12px 12px 0;
   overflow: hidden;
-  background: var(--sidebar-bg);
+  border-left: 0;
+  background: var(--bg);
 }
 
 .sidebar-right > .panel {
@@ -113,6 +114,13 @@
 .workspace-files-sidebar .workspace-files-shell {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
+
+.workspace-files-sidebar .workspace-files-shell::after {
+  display: none;
 }
 
 .workspace-files-shell::after {
@@ -717,7 +725,7 @@ html[data-tone="light"] .workspace-files-editor-footer__error {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--wf-border) 76%, transparent);
   background: var(--we-code-bg);
 }
@@ -730,7 +738,7 @@ html[data-tone="light"] .workspace-files-editor-footer__error {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0 8px;
-  min-height: 38px;
+  min-height: 34px;
   border-bottom: 1px solid color-mix(in srgb, var(--wf-border) 70%, transparent);
   background: var(--we-tabs-bg);
 }
@@ -930,7 +938,7 @@ html[data-tone="light"] .workspace-files-editor-footer__error {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 10px 14px 9px;
+  padding: 7px 12px;
   overflow: hidden;
   color: var(--text-muted);
   font-size: 12px;

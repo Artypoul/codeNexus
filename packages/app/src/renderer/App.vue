@@ -9,7 +9,12 @@
           :key="`${mainView}-workspace`"
           class="tasks-pane-host"
         />
-        <LeftSidebar v-else-if="showLeftSidebar" key="threads" class="tasks-pane-host" />
+        <LeftSidebar
+          v-else-if="showLeftSidebar"
+          key="threads"
+          class="tasks-pane-host"
+          @open-search="paletteOpen = true"
+        />
       </Transition>
 
       <Transition :name="mainViewTransitionName" mode="out-in">
@@ -50,6 +55,7 @@
         <WorkspaceFilesSidebar v-else-if="showFilesSidebar" key="files" class="files-pane-host" />
       </Transition>
     </main>
+    <CommandPalette v-if="paletteOpen" @close="paletteOpen = false" />
     <BottomBar />
     <UsageStatsDrawer />
     <div class="app-overlays">
@@ -61,6 +67,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import CommandPalette from "./components/layout/CommandPalette.vue";
 import TopBar from "./components/layout/TopBar.vue";
 import CenterPane from "./components/layout/CenterPane.vue";
 import BottomBar from "./components/layout/BottomBar.vue";
@@ -109,6 +116,15 @@ notificationSoundStore.initLocalSettings();
 goalShutdownStore.initLocalSettings();
 void notificationSoundStore.refreshAvailable();
 
+const paletteOpen = ref(false);
+const onPaletteShortcut = (event: KeyboardEvent) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k" && !event.isComposing) {
+    if (document.querySelector(".codex-modal-overlay")) return;
+    event.preventDefault();
+    paletteOpen.value = true;
+  }
+};
+
 const settingsOpen = computed(() => appShellStore.settingsOpen);
 const showGoalShutdownOverlay = computed(() => goalShutdownStore.visible);
 const mainView = computed(() => appShellStore.mainView);
@@ -151,6 +167,7 @@ const applyWindowStateToDocument = (state: AppWindowState) => {
 };
 
 onMounted(() => {
+  window.addEventListener("keydown", onPaletteShortcut);
   void (async () => {
     try {
       const state = await codexDesktop.window.getState();
@@ -342,6 +359,7 @@ const onEditorSashKeydown = (event: KeyboardEvent) => {
 };
 
 onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onPaletteShortcut);
   try {
     stopWindowStateListener?.();
   } catch {}

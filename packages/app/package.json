@@ -3,7 +3,7 @@
   "productName": "CodeNexus",
   "version": "1.0.4",
   "private": true,
-  "description": "Unofficial Codex desktop GUI for Windows",
+  "description": "Standalone Electron GUI for local Codex CLI and app-server on Windows",
   "author": "CodeNexus contributors",
   "license": "MIT",
   "main": "dist/main.cjs",
@@ -14,10 +14,12 @@
     "format": "pnpm exec prettier --ignore-path .prettierignore --write .",
     "format:check": "pnpm exec prettier --ignore-path .prettierignore --check .",
     "bench:timeline": "node scripts/bench-chat-render-model.mjs",
+    "codex:build": "node scripts/build-codex-app-server.mjs",
     "typecheck": "pnpm exec tsc --noEmit",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run build",
     "codex:types": "npx -y @openai/codex@0.166.0 app-server generate-ts --experimental --out .\\\\tmp\\\\codex_0.166.0_generated",
-    "dist": "pnpm run build && pnpm exec electron-builder --config electron-builder.yml"
+    "dist": "pnpm run build && pnpm exec electron-builder --config electron-builder.yml",
+    "dist:local": "node scripts/dist-local.mjs"
   },
   "dependencies": {
     "@codenexus/generated": "workspace:*",

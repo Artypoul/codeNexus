@@ -567,3 +567,86 @@
     height: 12px;
   }
 }
+
+/* Compact project and conversation navigation. */
+.lsb-pane-head {
+  border-bottom: 0;
+}
+.lsb-pane-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+.lsb-thread-groups,
+.lsb-group-body {
+  gap: 2px;
+}
+.lsb-thread-item {
+  min-height: 34px;
+  padding: 4px 7px 4px 10px;
+}
+.lsb-thread-row.active .lsb-thread-item {
+  border-color: transparent;
+  background: var(--lsb-surface-active);
+  box-shadow: none;
+}
+.lsb-thread-title-text,
+.lsb-thread-row.active .lsb-thread-title-text {
+  font-weight: 500;
+}
+.lsb-thread-menu-popup {
+  position: fixed;
+  z-index: 10000;
+  min-width: 150px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 25%);
+}
+.lsb-thread-menu-popup button {
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.lsb-thread-menu-popup button:hover,
+.lsb-thread-menu-popup button:focus-visible {
+  background: var(--control-surface-hover);
+}
+@media (max-width: 1500px) {
+  .lsb-thread-item {
+    min-height: 34px;
+  }
+}
+.lsb-search-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  color: var(--lsb-muted);
+}
+.lsb-search-btn .lsb-nav-text {
+  font-weight: 500;
+}
+.lsb-shortcut {
+  margin-left: auto;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.lsb-thread-toolbar .lsb-icon-btn {
+  width: 28px;
+  height: 30px;
+  min-width: 28px;
+  min-height: 30px;
+  border-color: transparent;
+  background: transparent;
+}

@@ -12,7 +12,9 @@
     "test": "vitest run",
     "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "codex:types": "pnpm --filter @codenexus/app codex:types",
-    "dist": "pnpm --filter @codenexus/app dist"
+    "codex:build": "pnpm --filter @codenexus/app codex:build",
+    "dist": "pnpm --filter @codenexus/app dist",
+    "dist:local": "pnpm --filter @codenexus/app dist:local"
   },
   "pnpm": {
     "overrides": {

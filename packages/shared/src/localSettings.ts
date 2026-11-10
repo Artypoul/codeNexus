@@ -33,6 +33,9 @@ export type LocalGoalShutdownSetting = {
 export type LocalGoalAutomationSettings = {
   shutdownByThreadId: Record<string, LocalGoalShutdownSetting>;
 };
+export type LocalCodexSettings = {
+  executablePath: string | null;
+};
 
 export type MainView = "chat" | "image";
 export type UiLanguage = "zh-CN" | "en-US";
@@ -65,6 +68,7 @@ export type UserLocalSettings = {
   imageGeneration: LocalImageGenerationSettings;
   dynamicTools: LocalDynamicToolsSettings;
   goalAutomation: LocalGoalAutomationSettings;
+  codex: LocalCodexSettings;
   developer: {
     debugLogEnabled: boolean;
   };
@@ -117,6 +121,9 @@ export type UserLocalSettingsPatch = {
       string,
       Partial<LocalGoalShutdownSetting> | null
     > | null;
+  }>;
+  codex?: Partial<{
+    executablePath: string | null;
   }>;
   developer?: Partial<{
     debugLogEnabled: boolean;
@@ -251,6 +258,9 @@ export const DEFAULT_USER_LOCAL_SETTINGS: UserLocalSettings = {
   goalAutomation: {
     shutdownByThreadId: {},
   },
+  codex: {
+    executablePath: null,
+  },
   developer: {
     debugLogEnabled: false,
   },
@@ -273,6 +283,10 @@ function toNullableString(
   if (value == null) return fallback;
   const text = String(value).trim();
   return text || null;
+}
+
+function normalizeCodexExecutablePath(value: unknown): string | null {
+  return typeof value === "string" ? toNullableString(value, null) : null;
 }
 
 function toPositiveInteger(value: unknown, fallback: number): number {
@@ -509,6 +523,7 @@ export function normalizeUserLocalSettings(value: unknown): UserLocalSettings {
   const imageGeneration = toRecord(root?.imageGeneration);
   const dynamicTools = toRecord(root?.dynamicTools);
   const goalAutomation = toRecord(root?.goalAutomation);
+  const codex = toRecord(root?.codex);
   const developer = toRecord(root?.developer);
   const inferredMainViewFallback: MainView =
     DEFAULT_USER_LOCAL_SETTINGS.ui.mainView;
@@ -568,6 +583,9 @@ export function normalizeUserLocalSettings(value: unknown): UserLocalSettings {
     imageGeneration: normalizeImageGenerationSettings(imageGeneration),
     dynamicTools: normalizeDynamicToolsSettings(dynamicTools),
     goalAutomation: normalizeGoalAutomationSettings(goalAutomation),
+    codex: {
+      executablePath: normalizeCodexExecutablePath(codex?.executablePath),
+    },
     developer: {
       debugLogEnabled: toBoolean(
         developer?.debugLogEnabled,
@@ -592,6 +610,7 @@ export function mergeUserLocalSettings(
   const patchImageGeneration = toRecord(patch?.imageGeneration);
   const patchDynamicTools = toRecord(patch?.dynamicTools);
   const patchGoalAutomation = toRecord(patch?.goalAutomation);
+  const patchCodex = toRecord(patch?.codex);
   const patchDeveloper = toRecord(patch?.developer);
 
   return normalizeUserLocalSettings({
@@ -724,6 +743,12 @@ export function mergeUserLocalSettings(
               patchGoalAutomation.shutdownByThreadId,
             )
           : current.goalAutomation.shutdownByThreadId,
+    },
+    codex: {
+      executablePath:
+        patchCodex && "executablePath" in patchCodex
+          ? patchCodex.executablePath
+          : current.codex.executablePath,
     },
     developer: {
       debugLogEnabled:

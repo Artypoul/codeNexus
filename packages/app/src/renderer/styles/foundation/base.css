@@ -10,7 +10,7 @@
   --accent: var(--theme-seed-accent);
   --accent-soft: var(--bg-accent-soft);
   --border: var(--theme-border);
-  --topbar-h: 32px;
+  --topbar-h: 52px;
   --topbar-px: 10px;
   --bottombar-h: 34px;
   --topbar-dropdown-max-h: min(26vh, 240px);

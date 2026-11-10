@@ -1032,8 +1032,8 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
 
 /* === Composer input system === */
 .composer {
-  --composer-radius: 4px;
-  --composer-control-radius: 3px;
+  --composer-radius: 14px;
+  --composer-control-radius: 6px;
   --composer-gap: 10px;
   --composer-padding: 12px;
   --composer-control-h: 30px;
@@ -1063,7 +1063,7 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   background: var(--composer-shell-bg);
   color: var(--text);
   cursor: text;
-  box-shadow: var(--composer-shell-shadow);
+  box-shadow: none;
   backdrop-filter: var(--composer-shell-backdrop);
   -webkit-backdrop-filter: var(--composer-shell-backdrop);
   isolation: isolate;
@@ -1402,8 +1402,8 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   align-items: center;
   gap: 12px;
   min-width: 0;
-  padding-top: 8px;
-  border-top: 1px solid var(--composer-divider, color-mix(in srgb, var(--border) 72%, transparent));
+  padding-top: 4px;
+  border-top: 0;
 }
 
 .composer-toolbar-main,
@@ -2152,22 +2152,36 @@ textarea:not(#input):not(.instruction-file-editor):not(.instruction-file-editor-
   box-shadow: 0 8px 18px rgb(from var(--accent) r g b / 0.2);
 }
 
+/* The standard dark theme uses quiet, flat controls inside the composer. */
+:root[data-theme="dark"] .composer-model-reasoning-trigger,
+:root[data-theme="dark"] .composer-sandbox-trigger {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme="dark"] .composer-model-reasoning-trigger:hover:not(:disabled),
+:root[data-theme="dark"] .composer-sandbox-trigger:hover:not(:disabled),
+:root[data-theme="dark"] .composer-model-reasoning-trigger.is-open,
+:root[data-theme="dark"] .composer-sandbox-trigger.is-open {
+  border-color: var(--border);
+  background: var(--surface-3);
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .composer-model-reasoning-trigger:focus-visible,
+:root[data-theme="dark"] .composer-sandbox-trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 @media (max-width: 1500px) {
   .composer {
     --composer-gap: 8px;
     --composer-padding: 10px;
     --composer-control-h: 28px;
-  }
-
-  .composer-toolbar {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    padding-top: 6px;
-  }
-
-  .composer-toolbar-actions {
-    justify-self: stretch;
-    width: 100%;
   }
 
   .composer-attachment,

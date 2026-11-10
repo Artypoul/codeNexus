@@ -41,7 +41,7 @@
   min-height: 0;
   position: relative;
   --timeline-card-padding: 8px;
-  --chat-content-max-w: 1000px;
+  --chat-content-max-w: 46rem;
   row-gap: 0;
 }
 

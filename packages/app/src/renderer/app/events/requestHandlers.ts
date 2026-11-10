@@ -106,9 +106,11 @@ export function buildRequestMethodNotImplementedError(method: string): JsonRpcEr
 }
 
 export function buildAuthRefreshNotImplementedError(method: string): JsonRpcErrorPayload {
-  return buildJsonRpcError(-32601, "account token refresh is not implemented; please login via account flow", {
-    method,
-  });
+  return buildJsonRpcError(
+    -32601,
+    "local Codex CLI owns authentication; the standalone app does not exchange ChatGPT tokens",
+    { method }
+  );
 }
 
 export function buildInvalidUserInputPayloadError(method: ServerRequestMethod): JsonRpcErrorPayload {

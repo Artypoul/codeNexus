@@ -12,14 +12,29 @@
       </div>
 
       <div class="lsb-pane-toolbar lsb-thread-toolbar">
+        <button class="lsb-nav-row lsb-search-btn" type="button" @click="emit('open-search')">
+          <Search class="lsb-nav-icon" aria-hidden="true" />
+          <span class="lsb-nav-text">{{ t("commandActivity.search") }}</span>
+          <span class="lsb-shortcut">Ctrl K</span>
+        </button>
         <button
           id="btn-add-thread"
-          class="lsb-nav-row lsb-thread-create-btn"
+          class="lsb-icon-btn"
           type="button"
+          :aria-label="t('threadHistory.newThread')"
+          :title="t('threadHistory.newThread')"
           @click="runtime.createThread"
         >
-          <SquarePen class="lsb-nav-icon" aria-hidden="true" />
-          <span class="lsb-nav-text">{{ t("threadHistory.newThread") }}</span>
+          <SquarePen aria-hidden="true" />
+        </button>
+        <button
+          class="lsb-icon-btn"
+          type="button"
+          :aria-label="t('topbarExtra.selectWorkspace')"
+          :title="t('topbarExtra.selectWorkspace')"
+          @click="runtime.selectWorkspace"
+        >
+          <FolderOpen aria-hidden="true" />
         </button>
         <button
           id="btn-refresh-history"
@@ -95,7 +110,7 @@
                   @open-thread="onThreadItemClick"
                   @clear-thread-attention="onClearThreadAttention"
                   @rename-thread="onRenameThread"
-                  @delete-thread="runtime.deleteHistoryThread"
+                  @delete-thread="onDeleteThread"
                 />
                 <div v-for="section in group.sections" :key="section.key" class="lsb-thread-section-group">
                   <div class="lsb-thread-section-title">{{ section.title }}</div>
@@ -116,7 +131,7 @@
                     @open-thread="onThreadItemClick"
                     @clear-thread-attention="onClearThreadAttention"
                     @rename-thread="onRenameThread"
-                    @delete-thread="runtime.deleteHistoryThread"
+                    @delete-thread="onDeleteThread"
                   />
                 </div>
               </div>
@@ -160,7 +175,7 @@
                     @open-thread="onThreadItemClick"
                     @clear-thread-attention="onClearThreadAttention"
                     @rename-thread="onRenameThread"
-                    @delete-thread="runtime.deleteHistoryThread"
+                    @delete-thread="onDeleteThread"
                   />
                 </div>
               </Collapsible>
@@ -175,7 +190,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, Folder, RefreshCw, SquarePen } from "lucide-vue-next";
+import { ChevronDown, Folder, FolderOpen, RefreshCw, Search, SquarePen } from "lucide-vue-next";
 import type { ThreadHistoryItem } from "../../../domain/types";
 import { getRuntimeOrchestrator } from "../../../domain/runtimeOrchestrator";
 import { codexDesktop } from "../../../api/codexDesktopClient";
@@ -190,6 +205,8 @@ import { isPendingThreadId } from "../../../shared/threadCreateDebug";
 import Collapsible from "../../ui/Collapsible.vue";
 import ThreadRow from "./ThreadRow.vue";
 import { showToast } from "../../../ui/toast";
+
+const emit = defineEmits<{ "open-search": [] }>();
 
 type ThreadListItem = Pick<
   ThreadHistoryItem,
@@ -392,6 +409,28 @@ const shouldShowThreadAttention = (threadId: string) => {
   return Boolean(tid && tid !== runtimeStore.currentThreadId && threadStore.attentionThreadIds.has(tid));
 };
 const onClearThreadAttention = (threadId: string) => threadStore.clearThreadAttention(threadId);
+const onDeleteThread = async (threadId: string) => {
+  const item = threadHistoryById.value.get(threadId);
+  if (!item) return;
+  try {
+    const { confirmModal } = await import("../../../ui/modal");
+    const confirmed = await confirmModal({
+      title: t("common.confirm"),
+      message: `${t("threadRow.deleteHistory")}?`,
+      detail: threadStore.displayThreadTitle(item.id, item.title),
+      confirmText: t("common.delete"),
+      cancelText: t("common.cancel"),
+      danger: true,
+    });
+    if (confirmed) await runtime.deleteHistoryThread(threadId);
+  } catch (error) {
+    showToast({
+      kind: "error",
+      title: t("runtime.confirmModalOpenFailedTitle"),
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
 const onRenameThread = async (threadIdValue: string, titleValue: string) => {
   const threadId = normalizeThreadId(threadIdValue);
   if (!threadId) return;

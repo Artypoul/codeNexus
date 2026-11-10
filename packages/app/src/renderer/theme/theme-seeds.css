@@ -58,7 +58,7 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --theme-seed-bg: rgb(24 24 24);
+  --theme-seed-bg: rgb(10 10 10);
   --theme-seed-surface-1: rgb(17 17 17);
   --theme-seed-surface-2: rgb(31 31 31);
   --theme-seed-surface-3: rgb(42 42 42);

@@ -23,6 +23,7 @@ files:
     to: dist
     filter:
       - "**/*"
+      - "!renderer/**"
 
 extraResources:
   - from: music
@@ -31,6 +32,14 @@ extraResources:
       - "**/*"
   - from: build/icon.ico
     to: icon.ico
+  - from: D:/Development/CodeNexus/native-runtime
+    to: codex-runtime
+    filter:
+      - codex-app-server.exe
+  - from: D:/Development/CodeNexus/native-runtime
+    to: gigma-runtime
+    filter:
+      - gigma.exe
 
 win:
   icon: build/icon.ico

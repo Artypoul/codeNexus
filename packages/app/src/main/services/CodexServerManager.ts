@@ -20,6 +20,8 @@ export class CodexServerManager {
   async start(args: {
     cwd?: string;
     experimentalApi?: boolean;
+    codexPath?: string;
+    serverPath?: string;
     onMessage: (payload: { serverId: string; msg: CodexIncomingMessage }) => void;
   }): Promise<{ serverId: string; capabilities: { experimentalApi: boolean } }> {
     const serverId = randomUUID();
@@ -31,6 +33,8 @@ export class CodexServerManager {
       id: serverId,
       mode: "native" as ServerMode,
       cwd: args.cwd,
+      codexPath: args.codexPath,
+      serverPath: args.serverPath,
       experimentalApiOptIn: Boolean(args.experimentalApi),
       onMessage,
     });
