@@ -1,11 +1,11 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   base: "/",
-  plugins: [react(), tailwindcss()],
+  plugins: [tailwindcss()],
   resolve: { dedupe: ["react", "react-dom"] },
+  esbuild: { jsx: "automatic", jsxImportSource: "react" },
   define: {
     "import.meta.env.VITE_WS_URL": JSON.stringify(""),
     "import.meta.env.VITE_HTTP_URL": JSON.stringify(""),

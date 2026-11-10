@@ -1,8 +1,8 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2022",
     "composite": true,
-    "module": "Preserve",
+    "module": "ESNext",
     "moduleResolution": "Bundler",
     "erasableSyntaxOnly": false,
     "verbatimModuleSyntax": false,
